@@ -1,0 +1,95 @@
+---
+title: Privacy
+description: Mematikan telemetri, iklan, saran, dan pengumpulan data lewat registry.
+actions:
+  # Catatan untuk seluruh file:
+  #   - Hanya nilai registry. Tidak ada layanan atau tugas terjadwal yang disentuh.
+  #   - Nilai HKCU diterapkan AME ke semua pengguna, termasuk profil default untuk
+  #     pengguna baru.
+  #   - Data REG_DWORD harus desimal; AME tidak menerima notasi 0x.
+  #   - Nilai bawaan Windows dan cara mengembalikannya ada di docs/TWEAKS.md.
+
+  # --- Telemetri -------------------------------------------------------------------
+  # Level diagnostik minimum. Di edisi Pro, 0 diperlakukan Windows sebagai 1 (Required);
+  # telemetri baru benar-benar berhenti setelah layanan DiagTrack dimatikan di v0.1.1.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection', value: 'AllowTelemetry', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection', value: 'AllowTelemetry', data: '0', type: REG_DWORD }
+  # Windows tidak lagi meminta umpan balik.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection', value: 'DoNotShowFeedbackNotifications', data: '1', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Siuf\Rules', value: 'NumberOfSIUFInPeriod', data: '0', type: REG_DWORD }
+  # Pengalaman yang disesuaikan berdasarkan data diagnostik.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Privacy', value: 'TailoredExperiencesWithDiagnosticDataEnabled', data: '0', type: REG_DWORD }
+
+  # --- Advertising ID --------------------------------------------------------------
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo', value: 'Enabled', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo', value: 'DisabledByGroupPolicy', data: '1', type: REG_DWORD }
+
+  # --- Aplikasi promosi yang terpasang sendiri -------------------------------------
+  # Mencegah Windows memasang diam-diam aplikasi sponsor, termasuk memasang ulang
+  # aplikasi yang dihapus modul 10.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SilentInstalledAppsEnabled', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'PreInstalledAppsEnabled', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'OemPreInstalledAppsEnabled', data: '0', type: REG_DWORD }
+
+  # --- Saran, tips, dan iklan di Start, Settings, lock screen ----------------------
+  # Saran aplikasi di Start.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SystemPaneSuggestionsEnabled', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SubscribedContent-338388Enabled', data: '0', type: REG_DWORD }
+  # Tips dan trik Windows.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SoftLandingEnabled', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SubscribedContent-338389Enabled', data: '0', type: REG_DWORD }
+  # Layar "Welcome experience" setelah update.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SubscribedContent-310093Enabled', data: '0', type: REG_DWORD }
+  # Konten yang disarankan di aplikasi Settings.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SubscribedContent-338393Enabled', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SubscribedContent-353694Enabled', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SubscribedContent-353696Enabled', data: '0', type: REG_DWORD }
+  # Tips dan fakta di lock screen.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'RotatingLockScreenOverlayEnabled', data: '0', type: REG_DWORD }
+  # Rekomendasi tips dan aplikasi di Start (Windows 11).
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'Start_IrisRecommendations', data: '0', type: REG_DWORD }
+  # Notifikasi akun Microsoft di Start.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'Start_AccountNotifications', data: '0', type: REG_DWORD }
+  # Iklan penyedia sinkronisasi (OneDrive) di File Explorer.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'ShowSyncProviderNotifications', data: '0', type: REG_DWORD }
+  # Layar "Let's finish setting up your device".
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement', value: 'ScoobeSystemSettingEnabled', data: '0', type: REG_DWORD }
+
+  # --- Activity History ------------------------------------------------------------
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System', value: 'EnableActivityFeed', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System', value: 'PublishUserActivities', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System', value: 'UploadUserActivities', data: '0', type: REG_DWORD }
+
+  # --- Pencarian web di Start ------------------------------------------------------
+  # Start hanya mencari aplikasi, file, dan pengaturan lokal; tidak mengirim ketikan
+  # ke Bing.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Policies\Microsoft\Windows\Explorer', value: 'DisableSearchBoxSuggestions', data: '1', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search', value: 'BingSearchEnabled', data: '0', type: REG_DWORD }
+  # "Search highlights" (gambar dan berita di kotak pencarian).
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\SearchSettings', value: 'IsDynamicSearchBoxEnabled', data: '0', type: REG_DWORD }
+
+  # --- Data ketikan dan tulisan tangan ---------------------------------------------
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\InputPersonalization', value: 'RestrictImplicitInkCollection', data: '1', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\InputPersonalization', value: 'RestrictImplicitTextCollection', data: '1', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore', value: 'HarvestContacts', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Input\TIPC', value: 'Enabled', data: '0', type: REG_DWORD }
+
+  # --- Pelaporan error dan berbagi update ------------------------------------------
+  # Windows Error Reporting tidak mengirim laporan crash ke Microsoft.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting', value: 'Disabled', data: '1', type: REG_DWORD }
+  # Delivery Optimization: unduh update hanya dari Microsoft, tidak mengunggah ke PC lain.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization', value: 'DODownloadMode', data: '0', type: REG_DWORD }
+
+  # --- Recall dan analisis data AI (ada mulai 24H2) --------------------------------
+  # Selalu dimatikan: Recall merekam isi layar secara berkala.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI', value: 'DisableAIDataAnalysis', data: '1', type: REG_DWORD, builds: ['>=26100'] }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI', value: 'AllowRecallEnablement', data: '0', type: REG_DWORD, builds: ['>=26100'] }
+
+  # --- Opsi: Copilot dan Widgets ---------------------------------------------------
+  # Widgets dimatikan lewat policy. Tombol taskbar-nya (TaskbarDa) tidak ditulis
+  # langsung karena nilai itu dilindungi Windows dan penulisan dari luar ditolak.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Dsh', value: 'AllowNewsAndInterests', data: '0', type: REG_DWORD, option: 'remove-ai-widgets' }
+  # Copilot versi panel samping hanya ada di 22H2 dan 23H2; di 24H2 ke atas Copilot
+  # adalah aplikasi biasa yang dihapus modul 10.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot', value: 'TurnOffWindowsCopilot', data: '1', type: REG_DWORD, option: 'remove-ai-widgets', builds: ['<26100'] }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'ShowCopilotButton', data: '0', type: REG_DWORD, option: 'remove-ai-widgets', builds: ['<26100'] }

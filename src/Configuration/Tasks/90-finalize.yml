@@ -2,14 +2,37 @@
 title: Finalize
 description: Mencatat hasil instalasi TGOS.
 actions:
-  # Menulis %ProgramData%\TGOS\install-info.txt (versi TGOS, edisi, build, waktu).
-  # Di Fase 0 ini satu-satunya perubahan yang dibuat playbook pada sistem.
+  # Menulis %ProgramData%\TGOS\install-info.txt: versi TGOS, edisi, build, waktu, hasil
+  # restore point, dan modul yang dijalankan. Nama modul di -Modules harus sama dengan
+  # modul yang dipanggil main.yml.
   - !run:
     exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
-    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1"'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -Modules "preflight,debloat-appx,privacy"'
     runas: trustedInstaller
     exeDir: true
     wait: true
     weight: 1
     showOutput: true
     showError: true
+
+  # Satu baris per opsi yang dipilih di Wizard, supaya pilihan saat instalasi tercatat.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "remove-ai-widgets"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 1
+    showOutput: true
+    showError: true
+    option: 'remove-ai-widgets'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "remove-xbox"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 1
+    showOutput: true
+    showError: true
+    option: 'remove-xbox'

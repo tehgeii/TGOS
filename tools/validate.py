@@ -15,6 +15,7 @@ Butuh: Python 3.8+ dan PyYAML (pip install pyyaml).
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import re
 import sys
 import uuid
@@ -54,6 +55,13 @@ REQUIREMENTS = {
     "UCPDDisabled",
 }
 FEATURE_PAGES = {"RadioPage", "CheckboxPage", "RadioImagePage"}
+OPTION_TAGS = {"RadioPage": "RadioOption", "CheckboxPage": "CheckboxOption",
+               "RadioImagePage": "RadioImageOption"}
+PAGE_ATTRIBUTES = {"Description", "IsRequired", "DependsOn", "WindowsVersion",
+                   "DefaultOption", "CheckDefaultBrowser"}
+OPTION_ATTRIBUTES = {"IsChecked", "IsEnabled", "DependsOn", "WindowsVersion", "None"}
+BOOL_ATTRIBUTES = {"IsRequired", "IsChecked", "IsEnabled", "CheckDefaultBrowser", "None"}
+MAX_PAGE_OPTIONS = 4  # batas AME Wizard; turun jadi 3 atau 2 bila ada TopLine/BottomLine
 INVALID_NAME_CHARS = set('\\/:*?"<>|')
 
 ROOT_KEYS = {
@@ -125,6 +133,43 @@ APPX_TYPES = {"family", "package", "app"}
 REG_ROOTS = ("HKLM\\", "HKCU\\", "HKU\\", "HKCR\\", "HKEY_LOCAL_MACHINE\\",
              "HKEY_CURRENT_USER\\", "HKEY_USERS\\", "HKEY_CLASSES_ROOT\\")
 
+# Paket AppX yang tidak boleh terhapus. Validasi gagal bila pola nama pada aksi
+# !appx hapus cocok dengan salah satu nama keluarga paket ini. Daftar ini juga dipakai
+# tools/compare-snapshots.py untuk mendeteksi paket penting yang hilang setelah instalasi.
+PROTECTED_APPX = [
+    # Store, pemasang aplikasi, dan pustaka yang dipakai hampir semua aplikasi
+    "Microsoft.WindowsStore", "Microsoft.StorePurchaseApp", "Microsoft.DesktopAppInstaller",
+    "Microsoft.VCLibs.140.00", "Microsoft.VCLibs.140.00.UWPDesktop",
+    "Microsoft.NET.Native.Framework.2.2", "Microsoft.NET.Native.Runtime.2.2",
+    "Microsoft.UI.Xaml.2.8", "Microsoft.UI.Xaml.CBS", "Microsoft.WindowsAppRuntime.1.5",
+    "Microsoft.Services.Store.Engagement",
+    # Komponen shell dan sistem
+    "MicrosoftWindows.Client.CBS", "MicrosoftWindows.Client.Core",
+    "Microsoft.Windows.ShellExperienceHost", "Microsoft.Windows.StartMenuExperienceHost",
+    "Microsoft.Windows.Search", "Microsoft.Windows.CloudExperienceHost",
+    "Microsoft.Windows.ContentDeliveryManager", "Microsoft.AAD.BrokerPlugin",
+    "Microsoft.AccountsControl", "Microsoft.LockApp", "Microsoft.Win32WebViewHost",
+    "Microsoft.SecHealthUI", "windows.immersivecontrolpanel",
+    "Microsoft.ApplicationCompatibilityEnhancements",
+    # Aplikasi yang sengaja dipertahankan
+    "Microsoft.WindowsNotepad", "Microsoft.Paint", "Microsoft.Windows.Photos",
+    "Microsoft.WindowsCalculator", "Microsoft.ScreenSketch", "Microsoft.WindowsTerminal",
+    "Microsoft.WindowsCamera", "Microsoft.ZuneMusic",
+    # Codec
+    "Microsoft.HEIFImageExtension", "Microsoft.HEVCVideoExtension",
+    "Microsoft.VP9VideoExtensions", "Microsoft.WebpImageExtension",
+    "Microsoft.AV1VideoExtension", "Microsoft.RawImageExtension",
+    "Microsoft.WebMediaExtensions", "Microsoft.MPEG2VideoExtension",
+    "Microsoft.AVCEncoderVideoExtension",
+    # Dibutuhkan game dari Microsoft Store / PC Game Pass
+    "Microsoft.XboxIdentityProvider", "Microsoft.GamingServices",
+    # Browser: baru disentuh di Fase 4 lewat opsi tersendiri
+    "Microsoft.MicrosoftEdge.Stable", "Microsoft.MicrosoftEdgeDevToolsClient",
+]
+# Akhiran contoh untuk menguji pola terhadap nama keluarga paket (nama_idpenerbit).
+_FAMILY_SUFFIX = "_8wekyb3d8bbwe"
+MIN_APPX_PREFIX = 8  # panjang minimum awalan nama sebelum wildcard
+
 # Aturan TGOS: aksi yang default-nya menghapus harus menulis `operation` eksplisit.
 EXPLICIT_OPERATION = {"service", "scheduledTask", "registryKey"}
 
@@ -144,6 +189,8 @@ class Report:
     def __init__(self) -> None:
         self.errors: list[str] = []
         self.warnings: list[str] = []
+        # (path, value, filter) -> lokasi pertama; untuk mendeteksi nilai registry kembar
+        self.registry_seen: dict[tuple, str] = {}
 
     def error(self, where: str, message: str) -> None:
         self.errors.append(f"{where}: {message}")
@@ -265,9 +312,35 @@ def validate_conf(report: Report) -> tuple[set[str], str | None]:
         if page.tag not in FEATURE_PAGES:
             report.error(where, f"jenis halaman <{page.tag}> tidak dikenal AME Wizard")
             continue
+        for attribute, value in page.attrib.items():
+            if attribute not in PAGE_ATTRIBUTES:
+                report.error(where, f"<{page.tag}>: atribut '{attribute}' tidak dikenal")
+            elif attribute in BOOL_ATTRIBUTES and value not in ("true", "false"):
+                report.error(where, f"<{page.tag}>: {attribute} harus 'true' atau 'false', bukan '{value}'")
+        if page.tag == "CheckboxPage" and page.get("DefaultOption") is not None:
+            report.error(where, "<CheckboxPage> tidak punya DefaultOption; pakai IsChecked pada opsinya")
+        for child in page:
+            if child.tag not in ("Options", "TopLine", "BottomLine"):
+                report.error(where, f"<{page.tag}>: elemen <{child.tag}> tidak dikenal")
+
         page_options: list[str] = []
         options_node = page.find("Options")
-        for option in (list(options_node) if options_node is not None else []):
+        option_nodes = list(options_node) if options_node is not None else []
+        lines = sum(1 for tag in ("TopLine", "BottomLine") if page.find(tag) is not None)
+        limit = MAX_PAGE_OPTIONS - lines
+        if page.tag != "RadioImagePage" and len(option_nodes) > limit:
+            report.error(where, f"<{page.tag}> punya {len(option_nodes)} opsi; batas Wizard {limit} "
+                                f"dengan {lines} baris TopLine/BottomLine")
+        elif len(option_nodes) > MAX_PAGE_OPTIONS:
+            report.error(where, f"<{page.tag}> punya {len(option_nodes)} opsi; batas Wizard {MAX_PAGE_OPTIONS}")
+        for option in option_nodes:
+            if option.tag != OPTION_TAGS[page.tag]:
+                report.error(where, f"<{page.tag}> hanya boleh berisi <{OPTION_TAGS[page.tag]}>, bukan <{option.tag}>")
+            for attribute, value in option.attrib.items():
+                if attribute not in OPTION_ATTRIBUTES:
+                    report.error(where, f"<{option.tag}>: atribut '{attribute}' tidak dikenal")
+                elif attribute in BOOL_ATTRIBUTES and value not in ("true", "false"):
+                    report.error(where, f"<{option.tag}>: {attribute} harus 'true' atau 'false', bukan '{value}'")
             option_name = text_of(option, "Name")
             if not option_name:
                 report.error(where, f"<{option.tag}> tanpa <Name>")
@@ -435,8 +508,23 @@ def validate_action(report: Report, where: str, action: Action, options: set[str
         if "type" in body and body["type"] not in REG_TYPES:
             report.error(where, f"!registryValue: type '{body['type']}' tidak valid")
         if body.get("type") in ("REG_DWORD", "REG_QWORD") and "data" in body:
-            if not re.match(r"^(0x[0-9a-fA-F]+|\d+)$", str(body["data"])):
-                report.error(where, f"!registryValue: data '{body['data']}' bukan angka untuk {body['type']}")
+            # AME memakai Convert.ToUInt32/ToUInt64, yang hanya menerima desimal.
+            data = str(body["data"])
+            limit = 0xFFFFFFFF if body["type"] == "REG_DWORD" else 0xFFFFFFFFFFFFFFFF
+            if not re.match(r"^\d+$", data):
+                report.error(where, f"!registryValue: data '{data}' harus angka desimal untuk "
+                                    f"{body['type']} (AME tidak menerima notasi 0x)")
+            elif int(data) > limit:
+                report.error(where, f"!registryValue: data {data} melebihi batas {body['type']}")
+        if isinstance(body.get("path"), str) and isinstance(body.get("value"), str):
+            key = (body["path"].lower(), body["value"].lower(), str(body.get("option")),
+                   str(body.get("options")), str(body.get("builds")))
+            first = report.registry_seen.get(key)
+            if first:
+                report.error(where, f"!registryValue: '{body['value']}' di '{body['path']}' sudah "
+                                    f"ditulis di {first} dengan filter yang sama")
+            else:
+                report.registry_seen[key] = where
 
     if tag == "service" and isinstance(operation, str) and operation.lower() == "change":
         if body.get("startup") not in (0, 1, 2, 3, 4):
@@ -444,6 +532,24 @@ def validate_action(report: Report, where: str, action: Action, options: set[str
 
     if tag == "appx" and "type" in body:
         check_enum(report, where, "type", body["type"], APPX_TYPES)
+
+    if tag == "appx" and isinstance(body.get("name"), str):
+        name = body["name"]
+        removing = not (isinstance(operation, str) and operation.lower() == "clearcache")
+        if removing:
+            if name.startswith("*"):
+                report.error(where, f"!appx: nama '{name}' tidak boleh diawali wildcard untuk "
+                                    "penghapusan; tulis awalan nama paket lalu '*'")
+            elif len(name.rstrip("*")) < MIN_APPX_PREFIX:
+                report.error(where, f"!appx: nama '{name}' terlalu pendek; awalan minimal "
+                                    f"{MIN_APPX_PREFIX} karakter supaya tidak mengenai paket lain")
+            elif "*" in name.rstrip("*"):
+                report.error(where, f"!appx: nama '{name}' hanya boleh memakai wildcard di akhir")
+            for protected in PROTECTED_APPX:
+                family = (protected + _FAMILY_SUFFIX).lower()
+                if fnmatch.fnmatchcase(family, name.lower()):
+                    report.error(where, f"!appx: nama '{name}' akan menghapus paket yang "
+                                        f"dilindungi '{protected}'")
 
     if tag == "run" and body.get("exeDir") is True and isinstance(body.get("args"), str):
         for match in SCRIPT_REF.finditer(body["args"]):
@@ -532,7 +638,9 @@ def validate_executables(report: Report) -> None:
     if not folder.is_dir():
         report.error(rel(folder), "folder tidak ditemukan")
         return
-    for path in sorted(folder.rglob("*")):
+    # Skrip di tools/ juga dijalankan Windows PowerShell 5.1 di mesin pengguna.
+    candidates = sorted(folder.rglob("*")) + sorted((ROOT / "tools").glob("*.ps1"))
+    for path in candidates:
         if not path.is_file() or path.suffix.lower() not in ASCII_ONLY_SUFFIXES:
             continue
         raw = path.read_bytes()

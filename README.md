@@ -3,9 +3,9 @@
 Playbook AME Wizard yang mengubah Windows 11 Pro menjadi OS gaming yang sangat ringan,
 dengan prioritas performa.
 
-> **Status: `0.0.2`, kerangka uji.** Versi ini hanya memeriksa kompatibilitas sistem dan
-> belum menerapkan tweak apa pun. Belum diuji di AME Wizard. Jangan dipakai di komputer
-> utama.
+> **Status: `0.1.0`, tahap uji.** Versi ini menghapus aplikasi bawaan dan menerapkan
+> pengaturan privasi. Belum diuji di AME Wizard. Pakai hanya di mesin virtual, jangan di
+> komputer utama.
 
 ## Target
 
@@ -15,6 +15,7 @@ dengan prioritas performa.
 ## Dokumen
 
 - [PLAN.md](PLAN.md) — rencana lengkap: format playbook, daftar tweak, roadmap.
+- [docs/TWEAKS.md](docs/TWEAKS.md) — semua tweak yang diterapkan dan cara mengembalikannya.
 - [docs/TESTING.md](docs/TESTING.md) — langkah uji di VMware dan catatan hasil.
 - [CHANGELOG.md](CHANGELOG.md) — riwayat versi.
 
@@ -24,7 +25,7 @@ dengan prioritas performa.
 |---|---|
 | `src/` | Sumber playbook: `playbook.conf`, `Configuration/`, `Executables/` |
 | `assets/branding/` | Logo TGO, ikon TGOS, wallpaper |
-| `tools/` | Validasi, skrip build, pembuat ikon |
+| `tools/` | Validasi, skrip build, potret sistem, pembuat ikon dan dokumen |
 | `docs/` | Dokumen pengujian |
 | `release/` | Hasil build (tidak di-commit) |
 
@@ -58,8 +59,22 @@ dan tidak bisa diganti; penjelasannya ada di [PLAN.md bagian 3](PLAN.md#3-soal-p
 python tools/selftest.py
 ```
 
-Memastikan validator masih menangkap kesalahan dan pemeriksaan kompatibilitas memberi
-kode keluar yang benar.
+Memastikan validator masih menangkap kesalahan, pemeriksaan kompatibilitas memberi kode
+keluar yang benar, dan `docs/TWEAKS.md` sesuai dengan playbook.
+
+## Mengukur hasil
+
+Di Windows, PowerShell sebagai Administrator, sebelum dan sesudah menerapkan TGOS:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\Get-SystemSnapshot.ps1 -Label before
+```
+
+Lalu bandingkan dua file hasilnya:
+
+```bash
+python tools/compare-snapshots.py TGOS-snapshot-before.json TGOS-snapshot-after.json
+```
 
 ## Peringatan
 

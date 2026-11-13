@@ -3,7 +3,29 @@
 Semua perubahan penting pada TGOS dicatat di sini. Nomor versi mengikuti roadmap di
 [PLAN.md](PLAN.md#12-roadmap).
 
-## 0.0.2 — branding dan teks bahasa Inggris (belum diuji di AME Wizard)
+## 0.1.0 — tweak pertama: aplikasi bawaan dan privasi (belum diuji di AME Wizard)
+
+Versi pertama yang mengubah Windows. Layanan, tugas terjadwal, Defender, dan Windows
+Update belum disentuh.
+
+- Menghapus 26 aplikasi bawaan (berita, cuaca, Office hub, Teams, Clipchamp, dan lainnya).
+  Store, winget, codec, Notepad, Paint, Photos, Calculator, Snipping Tool, Terminal,
+  Camera, dan Media Player dipertahankan.
+- Opsi di Wizard: hapus Copilot dan Widgets (default aktif); hapus Xbox app dan Game Bar
+  (default mati).
+- 40 pengaturan privasi lewat registry: telemetri, Advertising ID, saran dan iklan di
+  Start/Settings/lock screen, Activity History, pencarian web di Start, Recall.
+- Restore point "Before TGOS <versi>" dibuat sebelum perubahan (tidak fatal bila gagal).
+- `install-info.txt` kini mencatat hasil restore point, modul, dan opsi yang dipilih.
+- `tools/Get-SystemSnapshot.ps1` dan `tools/compare-snapshots.py`: potret sistem sebelum
+  dan sesudah, lalu perbandingannya.
+- `tools/validate.py`: daftar paket yang dilindungi (validasi gagal bila ada aksi yang
+  akan menghapusnya), aturan nama paket, data DWORD desimal, nilai registry kembar,
+  aturan halaman opsi.
+- `docs/TWEAKS.md` dibuat otomatis dari YAML oleh `tools/make-tweaks-doc.py`.
+- Hasil uji Fase 0 dicatat di `docs/TESTING.md`: lolos di AME Beta.
+
+## 0.0.2 — branding dan teks bahasa Inggris (lolos uji di AME Beta)
 
 Masih kerangka Fase 0, tanpa tweak.
 

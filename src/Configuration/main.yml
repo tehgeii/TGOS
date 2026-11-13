@@ -3,11 +3,18 @@ title: TGOS
 description: Titik masuk playbook TGOS. Urutan aksi di file ini adalah urutan eksekusi.
 actions:
   # Harus selalu yang pertama: menghentikan playbook sebelum ada perubahan apa pun
-  # bila sistem bukan Windows 11 Pro x64 build 22621 atau lebih baru.
+  # bila sistem bukan Windows 11 Pro x64 build 22621 atau lebih baru, lalu membuat
+  # restore point.
   - !writeStatus: { status: 'Checking compatibility' }
   - !task: { path: 'Tasks\00-preflight.yml' }
 
-  # Modul tweak (10 sampai 80) ditambahkan mulai Fase 1. Lihat PLAN.md bagian 6.
+  - !writeStatus: { status: 'Removing preinstalled apps' }
+  - !task: { path: 'Tasks\10-debloat-appx.yml' }
+
+  - !writeStatus: { status: 'Applying privacy settings' }
+  - !task: { path: 'Tasks\20-privacy.yml' }
+
+  # Modul 30 sampai 80 ditambahkan di versi berikutnya. Lihat PLAN.md bagian 6.
 
   - !writeStatus: { status: 'Finishing up' }
   - !task: { path: 'Tasks\90-finalize.yml' }

@@ -24,6 +24,8 @@ FINALIZE = "src/Configuration/Tasks/90-finalize.yml"
 MAIN = "src/Configuration/main.yml"
 CONF = "src/playbook.conf"
 INFO_SCRIPT = "src/Executables/Scripts/Write-InstallInfo.ps1"
+APPX = "src/Configuration/Tasks/10-debloat-appx.yml"
+PRIVACY = "src/Configuration/Tasks/20-privacy.yml"
 ICON = "src/playbook.png"
 
 # PNG 1x1 yang valid: dipakai untuk menguji pemeriksaan ukuran ikon.
@@ -63,7 +65,7 @@ MUTATIONS = [
      "harus diawali HKLM"),
     ("data DWORD bukan angka", FINALIZE, "actions:",
      "actions:\n  - !registryValue: { path: 'HKLM\\SOFTWARE\\X', value: a, data: zz, type: REG_DWORD }",
-     "bukan angka"),
+     "harus angka desimal"),
     ("operasi scheduledTask tidak valid", FINALIZE, "actions:",
      "actions:\n  - !scheduledTask: { path: '\\Microsoft\\X', operation: remove }",
      "operation: 'remove' tidak valid"),
@@ -78,8 +80,46 @@ MUTATIONS = [
      "tidak dikenal AME Wizard"),
     ("judul tidak memuat versi", CONF, "</Version>", ".9</Version>",
      "tidak memuat versi"),
-    ("elemen conf salah ketik", CONF, "<Overhaul>false</Overhaul>", "<Overhall>false</Overhall>",
+    ("elemen conf salah ketik", CONF, "<Overhaul>true</Overhaul>", "<Overhall>true</Overhall>",
      "<Overhall> tidak dikenal"),
+    # --- Pengaman AppX ---
+    ("appx menghapus Store", APPX, "actions:",
+     "actions:\n  - !appx: { name: 'Microsoft.WindowsStore*', type: family }",
+     "paket yang dilindungi 'Microsoft.WindowsStore'"),
+    ("appx pola terlalu lebar", APPX, "actions:",
+     "actions:\n  - !appx: { name: 'Microsoft.Xbox*', type: family }",
+     "paket yang dilindungi 'Microsoft.XboxIdentityProvider'"),
+    ("appx menghapus codec", APPX, "actions:",
+     "actions:\n  - !appx: { name: 'Microsoft.HEVCVideoExtension*', type: family }",
+     "paket yang dilindungi 'Microsoft.HEVCVideoExtension'"),
+    ("appx diawali wildcard", APPX, "name: 'Microsoft.BingNews*'", "name: '*BingNews*'",
+     "tidak boleh diawali wildcard"),
+    ("appx nama terlalu pendek", APPX, "name: 'Microsoft.BingNews*'", "name: 'Micro*'",
+     "terlalu pendek"),
+    ("appx opsi tidak ada", APPX, "option: 'remove-xbox' }", "option: 'remove-xbx' }",
+     "opsi 'remove-xbx' tidak ada"),
+    # --- Registry ---
+    ("DWORD notasi hex", PRIVACY, "value: 'AllowTelemetry', data: '0'",
+     "value: 'AllowTelemetry', data: '0x0'", "harus angka desimal"),
+    ("DWORD melebihi batas", PRIVACY, "value: 'AllowTelemetry', data: '0'",
+     "value: 'AllowTelemetry', data: '4294967296'", "melebihi batas"),
+    ("nilai registry kembar", PRIVACY, "actions:",
+     "actions:\n  - !registryValue: { path: 'HKCU\\SOFTWARE\\Microsoft\\Siuf\\Rules', "
+     "value: 'NumberOfSIUFInPeriod', data: '0', type: REG_DWORD }",
+     "sudah ditulis di"),
+    ("registry tanpa type", PRIVACY, "value: 'Enabled', data: '0', type: REG_DWORD }",
+     "value: 'Enabled', data: '0' }", "'type' wajib"),
+    ("filter build salah bentuk", PRIVACY, "builds: ['>=26100'] }", "builds: ['24H2'] }",
+     "harus teks seperti"),
+    # --- Halaman opsi ---
+    ("IsChecked bukan boolean", CONF, 'IsChecked="false"', 'IsChecked="no"',
+     "IsChecked harus 'true' atau 'false'"),
+    ("atribut halaman salah ketik", CONF, "<CheckboxPage Description=", "<CheckboxPage Descripton=",
+     "atribut 'Descripton' tidak dikenal"),
+    ("jenis opsi salah", CONF, '<CheckboxOption IsChecked="false">', "<RadioOption>",
+     "XML tidak valid"),
+    ("nama opsi kembar", CONF, "<Name>remove-xbox</Name>", "<Name>remove-ai-widgets</Name>",
+     "dipakai lebih dari sekali"),
     ("non-ASCII di skrip", INFO_SCRIPT, "'TGOS version ", "'TGOS version \u2013 ",
      "karakter non-ASCII"),
 ]
@@ -209,8 +249,19 @@ def test_compatibility() -> int:
     return failures
 
 
+def test_tweaks_doc() -> int:
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "make-tweaks-doc.py"), "--check"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if result.returncode != 0:
+        print(f"GAGAL  docs/TWEAKS.md: {result.stdout.strip()}")
+        return 1
+    print("lolos  docs/TWEAKS.md sesuai dengan playbook")
+    return 0
+
+
 def main() -> int:
-    failures = test_validator() + test_compatibility()
+    failures = test_validator() + test_compatibility() + test_tweaks_doc()
     if failures:
         print(f"\nUji diri GAGAL: {failures} kegagalan")
         return 1

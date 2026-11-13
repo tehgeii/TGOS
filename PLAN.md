@@ -8,7 +8,7 @@ pilihan sadar pengguna, bukan sesuatu yang terjadi diam-diam.
 | | |
 |---|---|
 | Status dokumen | Draf v3 — keputusan pemilik proyek, branding, dan acuan website TGO sudah masuk |
-| Versi playbook saat ini | `0.0.2` — kerangka Fase 0 dengan branding, siap diuji di VMware |
+| Versi playbook saat ini | `0.1.0` — aplikasi bawaan + privasi; Fase 0 sudah lolos uji, `0.1.0` menunggu uji VM |
 | Target OS | Windows 11 **Pro**, 22H2 sampai 26H2 |
 | Cara pasang | File `.apbx` dibuka di AME Wizard |
 
@@ -108,11 +108,11 @@ Nilai `Requirement` yang dikenali: `Internet`, `NoInternet`, `DefenderDisabled`,
 |---|---|---|
 | `!task:` | `path` | Memanggil file YAML lain. |
 | `!writeStatus:` | `status` | Teks progres di Wizard. |
-| `!registryValue:` | `path`, `value`, `data`, `type`, `operation` (`add`/`set`/`delete`), `scope` | `type`: `REG_SZ`, `REG_DWORD`, `REG_QWORD`, `REG_BINARY`, `REG_MULTI_SZ`, `REG_EXPAND_SZ`. `set` = hanya bila nilai sudah ada. |
+| `!registryValue:` | `path`, `value`, `data`, `type`, `operation` (`add`/`set`/`delete`), `scope` | `type`: `REG_SZ`, `REG_DWORD`, `REG_QWORD`, `REG_BINARY`, `REG_MULTI_SZ`, `REG_EXPAND_SZ`. `set` = hanya bila nilai sudah ada. Data `REG_DWORD`/`REG_QWORD` harus **desimal** (AME tidak menerima `0x...`). Nilai `HKCU` berlaku untuk semua pengguna kecuali `scope` diisi (`allUsers`, `activeUsers`, `defaultUser`, `currentUser`). |
 | `!registryKey:` | `path`, `operation` (`delete`/`add`), `scope` | Default: `delete`. |
 | `!service:` | `name`, `operation` (`change`/`stop`/`start`/`delete`/…), `startup`, `device` | Default: `delete` — **selalu tulis `operation` eksplisit.** |
 | `!scheduledTask:` | `path`, `operation` (`disable`/`enable`/`delete`/`deleteFolder`) | Default: `delete` — tulis eksplisit. |
-| `!appx:` | `name`, `type` (`family`/`package`/`app`), `operation` (`remove`/`clearCache`), `unregister` | Mendukung wildcard pada `name`. |
+| `!appx:` | `name`, `type` (`family`/`package`/`app`), `operation` (`remove`/`clearCache`), `unregister` | Wildcard `*` boleh di awal, akhir, atau keduanya. Paket yang tidak ada dilewati tanpa error. TGOS hanya mengizinkan wildcard di akhir untuk penghapusan. |
 | `!run:` | `exe`, `args`, `runas`, `exeDir`, `wait`, `timeout`, `handleExitCodes`, `showOutput`, `showError` | `handleExitCodes: {"!0": halt}` menghentikan playbook bila gagal. |
 | `!cmd:` / `!powerShell:` | `command`, `runas`, `exeDir`, `wait`, `timeout`, `handleExitCodes` | |
 | `!file:` | `path` | Menghapus file/folder. |
@@ -254,17 +254,20 @@ TGOS/
 │  │     ├─ 80-interface.yml
 │  │     └─ 90-finalize.yml        ← TGOS Toolbox, info instalasi, pembersihan
 │  └─ Executables/
-│     ├─ Scripts/                  ← skrip PowerShell yang dipanggil playbook
+│     ├─ Scripts/                  ← skrip PowerShell yang dipanggil playbook (Common.ps1 = fungsi bersama)
 │     └─ TGOS Toolbox/             ← disalin ke sistem: skrip pengubah & pembalik
 ├─ tools/
 │  ├─ build.ps1                    ← build di Windows (butuh 7-Zip)
 │  ├─ build.sh                     ← build di Linux/CI
 │  ├─ validate.py                  ← cek XML + YAML terhadap skema aksi AME
 │  ├─ make-icon.py                 ← membuat ikon TGOS dari logo TGO
+│  ├─ make-tweaks-doc.py           ← membuat docs/TWEAKS.md dari YAML
+│  ├─ Get-SystemSnapshot.ps1       ← potret sistem (dijalankan di Windows, hanya membaca)
+│  ├─ compare-snapshots.py         ← membandingkan potret sebelum dan sesudah
 │  └─ selftest.py                  ← memastikan validator & cek kompatibilitas benar
 ├─ docs/
 │  ├─ TESTING.md                   ← checklist & hasil uji per versi
-│  └─ TWEAKS.md                    ← daftar semua tweak + alasan + cara balik (mulai Fase 1)
+│  └─ TWEAKS.md                    ← daftar semua tweak + cara balik (dibuat otomatis)
 └─ release/                        ← hasil build (tidak di-commit)
 ```
 
@@ -296,7 +299,7 @@ penyebab masalah.
 
 | Requirement | Dipakai? | Alasan |
 |---|---|---|
-| `DefenderToggled` | Tidak | Keputusan pemilik: Defender tetap aktif selama instalasi. **Perlu dibuktikan di VM** bahwa Wizard bisa menyelesaikan playbook dengan Defender aktif; bila Defender memblokir prosesnya, requirement ini terpaksa dipakai (proteksi real-time mati sementara, lalu dinyalakan lagi di akhir). |
+| `DefenderToggled` | Tidak | Keputusan pemilik: Defender tetap aktif selama instalasi. Terbukti di uji Fase 0: AME Beta menjalankan playbook tanpa meminta Defender dimatikan. Tetap diamati di `0.1.0` karena sekarang playbook benar-benar mengubah sistem; bila Defender memblokir, requirement ini terpaksa dipakai. |
 | `NoAntivirus` | Ya (mulai `0.1.0`) | Antivirus pihak ketiga mengganggu modifikasi sistem. |
 | `NoPendingUpdates` | Ya (mulai `0.1.0`) | Update yang menggantung bisa menimpa perubahan atau merusak servicing. |
 | `PluggedIn` | Ya (sudah di Fase 0) | Mencegah laptop mati di tengah proses. |
@@ -311,6 +314,20 @@ diatur lewat atribut `IsChecked` (bawaan Wizard: tercentang); default radio lewa
 
 Tidak ada halaman Defender: Defender tetap aktif selama dan sesudah instalasi, dan hanya
 bisa dimatikan pengguna lewat TGOS Toolbox.
+
+Batas dari Wizard: satu halaman maksimal 4 opsi; 3 bila halaman punya `TopLine` atau
+`BottomLine`; 2 bila punya keduanya.
+
+**Halaman Aplikasi** (`CheckboxPage`) — sudah ada sejak `0.1.0`
+
+| Pilihan | Nama opsi | Default |
+|---|---|---|
+| Remove Copilot and Widgets | `remove-ai-widgets` | ✔ |
+| Remove Xbox app and Game Bar | `remove-xbox` | ✘ |
+
+Recall dan analisis data AI selalu dimatikan lewat policy, tanpa opsi.
+
+Halaman berikut baru direncanakan:
 
 **Halaman 1 — Mitigasi CPU** (`RadioPage`, wajib)
 
@@ -341,8 +358,6 @@ bisa dimatikan pengguna lewat TGOS Toolbox.
 |---|---|---|
 | Hapus Microsoft Edge | `remove-edge` | ✘ |
 | Hapus OneDrive | `remove-onedrive` | ✔ |
-| Hapus aplikasi Xbox (Game Bar, Xbox app) | `remove-xbox` | ✘ |
-| Hapus Widgets, Copilot, Recall | `remove-ai-widgets` | ✔ |
 
 Default radio rencana: `mitigations-default` dan `updates-manual`. Keduanya masih bisa
 diubah pemilik proyek sebelum `0.3.0`.
@@ -356,22 +371,36 @@ Kolom **Balik** menandai apakah ada skrip pembalik di TGOS Toolbox.
 
 ### 8.1 Debloat aplikasi (`10-debloat-appx.yml`)
 
-Dihapus tanpa syarat (bloat murni): Clipchamp, Bing News, Bing Weather, Bing Search,
-Solitaire, Get Help, Get Started/Tips, Feedback Hub, Office Hub, People, Maps, Your Phone /
-Phone Link, Power Automate, To Do, Teams (consumer), Dev Home, Outlook (new), Quick Assist,
-Mixed Reality Portal, Skype, Zune Music/Video, Sound Recorder, Alarms, Family, Sticky Notes.
+**Sudah dibuat di `0.1.0`.** Daftar persisnya ada di [docs/TWEAKS.md](docs/TWEAKS.md),
+yang dibuat otomatis dari YAML.
 
-Dipertahankan: Microsoft Store, App Installer (winget), Desktop App Installer, VCLibs,
-.NET Native, UI.Xaml, Notepad, Paint, Photos, Calculator, Snipping Tool, Terminal,
-Windows Security (UI), dan semua ekstensi codec (HEIF, HEVC, VP9, WebP, AV1).
+Dihapus tanpa syarat (26 paket): News, Weather, Bing Search, Solitaire, Movies & TV,
+Get Help, Tips, Feedback Hub, Quick Assist, Microsoft 365 hub, Outlook (new), Mail and
+Calendar, People, To Do, Power Automate, Dev Home, Teams (lama dan baru), Clipchamp,
+Maps, Phone Link, Sound Recorder, Clock, Sticky Notes, Family, Cortana.
 
-Bersyarat: Xbox & Game Bar (`remove-xbox`), Copilot/Recall/Widgets (`remove-ai-widgets`).
+Dipertahankan: Microsoft Store, App Installer (winget), VCLibs, .NET Native, UI.Xaml,
+Notepad, Paint, Photos, Calculator, Snipping Tool, Terminal, Camera, **Media Player**,
+Windows Security (UI), semua ekstensi codec, serta `XboxIdentityProvider` dan
+`GamingServices`. Daftar ini ditulis sebagai `PROTECTED_APPX` di `tools/validate.py`:
+validasi gagal bila ada aksi yang akan menghapus salah satunya.
+
+Bersyarat: Xbox app & Game Bar (`remove-xbox`), Copilot & Widgets (`remove-ai-widgets`).
+
+Penghapusan memakai aksi `!appx` bawaan AME. Apakah aplikasi yang dihapus cara ini bisa
+dipasang lagi dari Store masih harus dibuktikan di uji VM; bila tidak, caranya diganti.
 
 | Risiko | Balik |
 |---|---|
-| R — semua bisa dipasang lagi dari Store | Lewat Store |
+| R | Lewat Store (menunggu bukti uji VM) |
 
 ### 8.2 Privasi & telemetri (`20-privacy.yml`)
+
+**Sudah dibuat di `0.1.0`** (40 nilai registry; daftar persis di
+[docs/TWEAKS.md](docs/TWEAKS.md)). Tabel di bawah adalah rancangan awalnya. Dua
+penyimpangan dari rancangan: `DisableWindowsConsumerFeatures` tidak dipakai karena policy
+itu hanya dipatuhi edisi Enterprise/Education (di Pro tidak berpengaruh), dan policy
+Widgets hanya diterapkan bila opsi `remove-ai-widgets` dipilih.
 
 | Tweak | Lokasi | Risiko |
 |---|---|---|
@@ -588,7 +617,9 @@ atas hasil sebelumnya kecuali memang sedang menguji upgrade.
 
 ### 11.2 Langkah uji
 
-1. Catat metrik dasar di `S2` (tabel [bagian 1](#1-tujuan)).
+1. Catat metrik dasar di `S2` dengan `tools/Get-SystemSnapshot.ps1 -Label before`
+   (mengisi tabel [bagian 1](#1-tujuan)); ulangi sesudah instalasi dan bandingkan dengan
+   `tools/compare-snapshots.py`.
 2. Salin AME Wizard dan `TGOS-vX.Y.Z.apbx` ke VM.
 3. Jalankan Wizard, seret `.apbx`, ikuti langkah syarat. Defender dibiarkan aktif; catat
    bila Wizard atau Defender memblokir sesuatu.
@@ -640,8 +671,9 @@ menunggu hardware asli.
 
 | Fase | Versi | Isi | Selesai bila |
 |---|---|---|---|
-| 0. Kerangka | `0.0.1` | `playbook.conf`, cek kompatibilitas, pencatat info instalasi, skrip build & validasi. **Sudah dibuat; menunggu uji VM** ([docs/TESTING.md](docs/TESTING.md)). | `.apbx` dimuat Wizard, cek edisi menolak non-Pro, satu-satunya perubahan sistem adalah `install-info.txt` |
-| 1. Inti | `0.1.0` | Debloat, privasi, layanan, tugas terjadwal | Run A lolos checklist di 26H2 |
+| 0. Kerangka | `0.0.1`–`0.0.2` | `playbook.conf`, cek kompatibilitas, pencatat info instalasi, branding, skrip build & validasi. | **Lolos** di AME Beta, 14 Nov 2026 ([docs/TESTING.md](docs/TESTING.md)). Uji tolak di edisi bukan Pro masih terutang. |
+| 1a. Aplikasi & privasi | `0.1.0` | Hapus aplikasi bawaan, privasi lewat registry, restore point, potret sistem. **Sudah dibuat; menunggu uji VM.** | Uji A dan B lolos checklist di 26H2 |
+| 1b. Layanan & tugas | `0.1.1` | Layanan dan tugas terjadwal, disusun dari potret sistem nyata hasil uji `0.1.0` | Run A lolos checklist di 26H2 |
 | 2. Performa | `0.2.0` | Modul performa + opsi daya | Run B lolos checklist |
 | 3. Opsi keamanan & Toolbox | `0.3.0` | VBS, mitigasi, update; TGOS Toolbox termasuk pengubah Defender | Run C lolos, semua pasangan skrip Toolbox terbukti jalan |
 | 4. Komponen & tampilan | `0.4.0` | Edge, OneDrive, antarmuka, branding | Checklist lolos di 24H2, 25H2, 26H2 |

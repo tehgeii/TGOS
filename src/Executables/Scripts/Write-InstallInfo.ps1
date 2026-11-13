@@ -3,40 +3,43 @@
     Mencatat informasi instalasi TGOS ke %ProgramData%\TGOS\install-info.txt.
 
 .DESCRIPTION
-    Dijalankan di akhir playbook. Versi TGOS dibaca dari playbook.conf supaya nomor
-    versi hanya ditulis di satu tempat.
+    Dua cara pakai:
 
-    Parameter hanya dipakai untuk pengujian. Tanpa parameter, lokasi default dipakai.
+    1. Tanpa -AppendOption: menulis ulang install-info.txt (versi TGOS, waktu, edisi,
+       build, hasil restore point, modul yang dijalankan).
+    2. Dengan -AppendOption <nama>: menambah satu baris "Option selected" ke file yang
+       sudah ada. Playbook memanggilnya sekali per opsi yang dipilih di Wizard.
+
+    Parameter -ConfPath dan -DataDirectory hanya dipakai untuk pengujian.
 
     File ini harus tetap ASCII murni dan kompatibel dengan Windows PowerShell 5.1.
 #>
 [CmdletBinding()]
 param(
+    [string]$Modules,
+    [string]$AppendOption,
     [string]$ConfPath,
-    [string]$OutputDirectory
+    [string]$DataDirectory
 )
 
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'Common.ps1')
+
 try {
-    if (-not $ConfPath) {
-        # Skrip ini ada di <playbook>\Executables\Scripts, playbook.conf di <playbook>.
-        $playbookRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-        $ConfPath = Join-Path $playbookRoot 'playbook.conf'
-    }
-    if (-not $OutputDirectory) {
-        $OutputDirectory = Join-Path $env:ProgramData 'TGOS'
+    $dataDir = Get-TgosDataDirectory -Path $DataDirectory
+    $outFile = Join-Path $dataDir 'install-info.txt'
+
+    if ($AppendOption) {
+        if ($AppendOption -notmatch '^[a-z0-9]+(-[a-z0-9]+)*$') {
+            throw ("invalid option name '{0}'" -f $AppendOption)
+        }
+        Add-Content -LiteralPath $outFile -Value ('Option selected : {0}' -f $AppendOption) -Encoding ASCII
+        Write-Output ("TGOS: recorded option {0}" -f $AppendOption)
+        exit 0
     }
 
-    $version = 'unknown'
-    if (Test-Path -LiteralPath $ConfPath) {
-        $conf = New-Object System.Xml.XmlDocument
-        $conf.Load($ConfPath)
-        $versionNode = $conf.SelectSingleNode('/Playbook/Version')
-        if ($null -ne $versionNode -and $versionNode.InnerText) {
-            $version = $versionNode.InnerText.Trim()
-        }
-    }
+    $version = Get-TgosVersion -ConfPath $ConfPath
 
     $edition = ''
     $build = ''
@@ -49,8 +52,10 @@ try {
         $displayVersion = [string]$cv.DisplayVersion
     }
 
-    if (-not (Test-Path -LiteralPath $OutputDirectory)) {
-        New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+    $restorePoint = 'not attempted'
+    $restorePointFile = Join-Path $dataDir 'restore-point.txt'
+    if (Test-Path -LiteralPath $restorePointFile) {
+        $restorePoint = (Get-Content -LiteralPath $restorePointFile -TotalCount 1)
     }
 
     $lines = @(
@@ -59,10 +64,11 @@ try {
         ('Installed at    : {0}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')),
         ('Windows edition : {0}' -f $edition),
         ('Windows version : {0}' -f $displayVersion),
-        ('Windows build   : {0}' -f $build)
+        ('Windows build   : {0}' -f $build),
+        ('Restore point   : {0}' -f $restorePoint),
+        ('Modules run     : {0}' -f $Modules)
     )
 
-    $outFile = Join-Path $OutputDirectory 'install-info.txt'
     Set-Content -LiteralPath $outFile -Value $lines -Encoding ASCII
 
     Write-Output ("TGOS: install info written to {0}" -f $outFile)

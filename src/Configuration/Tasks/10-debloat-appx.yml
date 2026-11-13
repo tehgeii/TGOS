@@ -1,0 +1,72 @@
+---
+title: Debloat AppX
+description: Menghapus aplikasi bawaan Windows yang tidak dibutuhkan untuk gaming.
+actions:
+  # Aturan file ini (dijaga tools/validate.py):
+  #   - Nama = awalan nama paket + '*'. Tidak boleh diawali wildcard, supaya tidak ada
+  #     paket lain yang ikut terhapus.
+  #   - Paket di daftar "dilindungi" pada tools/validate.py tidak boleh cocok dengan
+  #     nama mana pun di sini (Store, winget, codec, Notepad, Media Player, dan lainnya).
+  #   - Paket yang tidak ada di sistem dilewati AME tanpa error, jadi satu daftar
+  #     dipakai untuk semua build dari 22H2 sampai 26H2.
+
+  # --- Berita, cuaca, iklan --------------------------------------------------------
+  - !appx: { name: 'Microsoft.BingNews*', type: family }  # Microsoft News
+  - !appx: { name: 'Microsoft.BingWeather*', type: family }  # Weather
+  - !appx: { name: 'Microsoft.BingSearch*', type: family }  # Bing Search (pencarian web di Start)
+
+  # --- Game dan hiburan bawaan -----------------------------------------------------
+  - !appx: { name: 'Microsoft.MicrosoftSolitaireCollection*', type: family }  # Solitaire & Casual Games
+  # Media Player (Microsoft.ZuneMusic) sengaja dipertahankan sebagai pemutar audio/video
+  # bawaan.
+  - !appx: { name: 'Microsoft.ZuneVideo*', type: family }  # Movies & TV
+
+  # --- Bantuan, tips, umpan balik --------------------------------------------------
+  - !appx: { name: 'Microsoft.GetHelp*', type: family }  # Get Help
+  - !appx: { name: 'Microsoft.Getstarted*', type: family }  # Tips
+  - !appx: { name: 'Microsoft.WindowsFeedbackHub*', type: family }  # Feedback Hub
+  - !appx: { name: 'MicrosoftCorporationII.QuickAssist*', type: family }  # Quick Assist
+
+  # --- Office, kerja, komunikasi ---------------------------------------------------
+  - !appx: { name: 'Microsoft.MicrosoftOfficeHub*', type: family }  # Microsoft 365 (Office hub)
+  - !appx: { name: 'Microsoft.OutlookForWindows*', type: family }  # Outlook (new)
+  - !appx: { name: 'microsoft.windowscommunicationsapps*', type: family }  # Mail and Calendar
+  - !appx: { name: 'Microsoft.People*', type: family }  # People
+  - !appx: { name: 'Microsoft.Todos*', type: family }  # Microsoft To Do
+  - !appx: { name: 'Microsoft.PowerAutomateDesktop*', type: family }  # Power Automate
+  - !appx: { name: 'Microsoft.Windows.DevHome*', type: family }  # Dev Home
+  - !appx: { name: 'MicrosoftTeams_*', type: family }  # Teams versi pribadi (22H2/23H2)
+  - !appx: { name: 'MSTeams_*', type: family }  # Microsoft Teams
+  - !appx: { name: 'Clipchamp.Clipchamp*', type: family }  # Clipchamp
+
+  # --- Utilitas yang jarang dipakai ------------------------------------------------
+  - !appx: { name: 'Microsoft.WindowsMaps*', type: family }  # Maps
+  - !appx: { name: 'Microsoft.YourPhone*', type: family }  # Phone Link
+  - !appx: { name: 'Microsoft.WindowsSoundRecorder*', type: family }  # Sound Recorder
+  - !appx: { name: 'Microsoft.WindowsAlarms*', type: family }  # Clock
+  - !appx: { name: 'Microsoft.MicrosoftStickyNotes*', type: family }  # Sticky Notes
+  - !appx: { name: 'MicrosoftCorporationII.MicrosoftFamily*', type: family }  # Family
+  - !appx: { name: 'Microsoft.549981C3F5F10*', type: family }  # Cortana
+
+  # --- Opsi: Copilot dan Widgets ---------------------------------------------------
+  - !appx: { name: 'Microsoft.Copilot*', type: family, option: 'remove-ai-widgets' }  # Copilot
+  - !appx: { name: 'Microsoft.Windows.Ai.Copilot.Provider*', type: family, option: 'remove-ai-widgets' }  # Copilot provider
+  - !appx: { name: 'MicrosoftWindows.Client.WebExperience*', type: family, option: 'remove-ai-widgets' }  # Widgets (Windows Web Experience Pack)
+  - !appx: { name: 'Microsoft.WidgetsPlatformRuntime*', type: family, option: 'remove-ai-widgets' }  # Widgets Platform Runtime
+
+  # --- Opsi: Xbox app dan Game Bar -------------------------------------------------
+  # Microsoft.XboxIdentityProvider dan Microsoft.GamingServices TIDAK dihapus:
+  # keduanya dibutuhkan untuk login dan menjalankan game dari Microsoft Store / PC Game
+  # Pass.
+  - !appx: { name: 'Microsoft.GamingApp*', type: family, option: 'remove-xbox' }  # Xbox app
+  - !appx: { name: 'Microsoft.XboxGamingOverlay*', type: family, option: 'remove-xbox' }  # Game Bar
+  - !appx: { name: 'Microsoft.XboxGameOverlay*', type: family, option: 'remove-xbox' }  # Game Bar overlay
+  - !appx: { name: 'Microsoft.XboxSpeechToTextOverlay*', type: family, option: 'remove-xbox' }  # Xbox speech-to-text overlay
+  - !appx: { name: 'Microsoft.Xbox.TCUI*', type: family, option: 'remove-xbox' }  # Xbox Live dialog UI
+
+  # --- Segarkan cache Start dan Search ---------------------------------------------
+  # Anjuran dokumentasi AME setelah menghapus paket AppX, supaya ubin aplikasi yang
+  # sudah dihapus tidak tertinggal di Start dan hasil pencarian.
+  - !appx: { operation: clearCache, name: '*Client.CBS*' }
+  - !appx: { operation: clearCache, name: '*StartMenuExperienceHost*' }
+  - !appx: { operation: clearCache, name: '*Windows.Search*' }

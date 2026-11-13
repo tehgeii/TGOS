@@ -1,6 +1,6 @@
 ---
 title: Preflight
-description: Memastikan sistem adalah target TGOS sebelum ada perubahan apa pun.
+description: Memastikan sistem adalah target TGOS, lalu membuat restore point.
 actions:
   # AME Wizard hanya memeriksa nomor build (SupportedBuilds), tidak memeriksa edisi.
   # Skrip ini keluar dengan kode bukan 0 bila edisi bukan Pro, build terlalu lama,
@@ -15,3 +15,16 @@ actions:
     showOutput: true
     showError: true
     handleExitCodes: { "!0": halt }
+
+  # Restore point "Before TGOS <versi>" sebagai jaring pengaman untuk perubahan
+  # registry. Tidak fatal: skrip selalu keluar 0 dan mencatat hasilnya di
+  # %ProgramData%\TGOS\restore-point.txt, yang lalu disalin ke install-info.txt.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\New-RestorePoint.ps1"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 10
+    showOutput: true
+    showError: true
