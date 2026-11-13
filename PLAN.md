@@ -7,8 +7,8 @@ pilihan sadar pengguna, bukan sesuatu yang terjadi diam-diam.
 
 | | |
 |---|---|
-| Status dokumen | Draf v2 — keputusan pemilik proyek (password, Defender, branch) sudah masuk |
-| Versi playbook saat ini | `0.0.1` — kerangka Fase 0, siap diuji di VMware |
+| Status dokumen | Draf v3 — keputusan pemilik proyek, branding, dan acuan website TGO sudah masuk |
+| Versi playbook saat ini | `0.0.2` — kerangka Fase 0 dengan branding, siap diuji di VMware |
 | Target OS | Windows 11 **Pro**, 22H2 sampai 26H2 |
 | Cara pasang | File `.apbx` dibuka di AME Wizard |
 
@@ -166,8 +166,8 @@ Dua aturan yang dipakai:
 
 - Password distribusi **tidak ditulis di repo** (kalau repo publik, password ikut publik).
   Skrip build membacanya dari variabel lingkungan `TGOS_DIST_PASSWORD`.
-- Kalau repo ini publik, source playbook-nya sudah terbuka, jadi password arsip tidak
-  melindungi apa-apa. Repo sebaiknya **private** bila isi playbook ingin dijaga.
+- Repo ini **publik** (keputusan pemilik), jadi source playbook-nya terbuka untuk siapa
+  pun. Pembungkus `.7z` hanya menjaga unduhan hasil build, bukan isi playbook.
 
 ---
 
@@ -235,9 +235,11 @@ TGOS/
 ├─ CHANGELOG.md
 ├─ .gitignore                      ← mengabaikan release/, *.apbx, *.7z
 ├─ .gitattributes                  ← CRLF untuk .ps1/.cmd/.reg, LF untuk .yml
+├─ assets/
+│  └─ branding/                    ← logo TGO asli, ikon TGOS, wallpaper
 ├─ src/
 │  ├─ playbook.conf
-│  ├─ playbook.png
+│  ├─ playbook.png                 ← ikon 256x256, dibuat tools/make-icon.py
 │  ├─ Configuration/
 │  │  ├─ main.yml                  ← urutan eksekusi
 │  │  └─ Tasks/
@@ -258,6 +260,7 @@ TGOS/
 │  ├─ build.ps1                    ← build di Windows (butuh 7-Zip)
 │  ├─ build.sh                     ← build di Linux/CI
 │  ├─ validate.py                  ← cek XML + YAML terhadap skema aksi AME
+│  ├─ make-icon.py                 ← membuat ikon TGOS dari logo TGO
 │  └─ selftest.py                  ← memastikan validator & cek kompatibilitas benar
 ├─ docs/
 │  ├─ TESTING.md                   ← checklist & hasil uji per versi
@@ -278,16 +281,16 @@ penyebab masalah.
 |---|---|
 | `Name` | `TGOS` |
 | `Username` | `tehgeii` |
-| `Title` | `TGOS v0.1.0` |
+| `Title` | `TGOS v<versi>` |
 | `ShortDescription` | `Tech Gameplay Operating System for Windows 11 Pro` |
-| `Version` | `0.1.0` |
+| `Version` | Mengikuti roadmap; saat ini `0.0.2` |
 | `UniqueId` | UUID v4 baru, dibuat sekali |
 | `SupportedBuilds` | `22621`, `22631`, `26100`, `26200`, `26300` |
 | `Overhaul` | `true` mulai `0.1.0` (Fase 0 memakai `false` karena belum mengubah sistem) |
 | `UseKernelDriver` | `false` |
 | `EstimatedMinutes` | `15` (dikoreksi setelah uji) |
 | `Website` | `https://tgopremium.my.id` |
-| `Git` | Belum diisi. Wizard memakai field ini untuk memeriksa rilis terbaru lewat API GitHub, yang gagal bila repo private atau belum punya rilis. |
+| `Git` | Belum diisi. Wizard memakai field ini untuk mengambil update dari rilis repo dan tombol *Source Code*. Diisi di `0.1.0`, bersamaan dengan GitHub Release pertama. |
 
 ### 7.2 Requirements
 
@@ -454,6 +457,12 @@ Tidak masuk default sampai terbukti di hardware asli. Banyak dari ini populer di
 
 Hasil benchmark tiap kandidat dicatat di `docs/TWEAKS.md` beserta keputusannya.
 
+Beberapa kandidat di atas (Nagle/`TcpAckFrequency`, dynamic tick, TSC sync) sudah ada di
+aplikasi TGO v2 sebagai tweak Premium, dan website TGO menerbitkan hasil ujinya. Jadi
+untuk TGOS keputusannya memakai metode ukur yang sama dengan TGO v2 (LatencyMon,
+TimerBench, beban idle di Task Manager) di hardware asli: yang terbukti membantu masuk,
+yang tidak terbukti tetap di luar default.
+
 ### 8.6 Opsi keamanan (`60-security-options.yml`)
 
 Baris bertanda *Wizard* hanya jalan bila opsinya dipilih saat instalasi. Baris bertanda
@@ -485,8 +494,24 @@ bukan diasumsikan sekarang.
 ### 8.8 Antarmuka (`80-interface.yml`)
 
 Mode gelap, menu klik kanan klasik, taskbar tanpa Search/Task View/Widgets/Chat, File
-Explorer membuka "This PC", ekstensi file ditampilkan. Wallpaper dan aksen warna TGOS
-menyusul setelah aset desainnya tersedia.
+Explorer membuka "This PC", ekstensi file ditampilkan.
+
+Branding (aset di `assets/branding/`):
+
+| Aset | File | Pemakaian |
+|---|---|---|
+| Logo TGO asli | `tgo-logo.png` (1024x1024) | Sumber; tidak diubah |
+| Ikon TGOS | `tgos-icon.png` → `src/playbook.png` (256x256) | Logo TGO + garis merah + label `OS`; ikon playbook di Wizard |
+| Wallpaper | `tgo-wallpaper.webp` (2000x1125) | Diterapkan di Fase 4, dikonversi ke PNG/JPG |
+
+Warna mengikuti website TGO: latar `#05070d`, permukaan `#0f1522` / `#151c2c`, teks
+`#e8edf7`, aksen biru `#3b82f6`, merah logo `#eb121c`. Aksen Windows TGOS memakai biru
+itu supaya senada dengan web dan aplikasi.
+
+Dua catatan: file wallpaper yang ada hanya 9 KB dan gradasinya bergaris, jadi perlu
+file asli beresolusi tinggi sebelum Fase 4. Dan dari source code Wizard, ikon playbook
+yang sudah diterapkan hanya ditampilkan bila playbook terverifikasi AME; apakah ikon
+TGOS tampil saat memuat `.apbx` harus dilihat di uji VM.
 
 ### 8.9 Finalisasi (`90-finalize.yml`)
 
@@ -657,18 +682,23 @@ sebelum ada satu pun tweak yang ditambahkan.
 
 ## 15. Pertanyaan terbuka
 
-Sudah diputuskan: password memakai Opsi A (pembungkus 7z); Defender tetap aktif dan
-diubah lewat TGOS Toolbox; branch utama `main`.
+Sudah diputuskan:
+
+| Hal | Keputusan |
+|---|---|
+| Password | Opsi A: `.apbx` dibungkus `.7z` berpassword |
+| Defender | Tetap aktif saat instalasi; diubah pengguna lewat TGOS Toolbox |
+| Branch utama | `main` |
+| Edisi | Hanya `Professional`; Pro N, Workstation, Education ditolak |
+| Visibilitas repo | Publik |
+| Branding | Ikon TGOS = logo TGO + label `OS`; wallpaper `PROJECT TGO` |
+| Bahasa | Teks pengguna bahasa Inggris; deskripsi Wizard ditambah ringkasan Indonesia. Dokumen repo tetap Indonesia |
+| Aplikasi TGO v2 | Ditunda; tidak dipasang atau ditautkan TGOS untuk sekarang |
 
 Masih terbuka:
 
-1. **Edisi** — hanya `Professional`, atau varian Pro N / Workstation / Education ikut?
-2. **Visibilitas repo** — private atau publik? (Menentukan apakah password arsip ada artinya.)
-3. **Aplikasi TGO v2** — apakah TGOS memasang atau menautkan aplikasi TGO v2 di akhir
-   instalasi? Kalau ya, dari mana installer-nya diambil?
-4. **Branding** — ikon playbook (`playbook.png`), wallpaper, dan warna aksen: ada asetnya?
-5. **Browser** — bila Edge dihapus, apakah Wizard menawarkan pemasangan browser lain?
-6. **Bahasa** — teks di Wizard dan skrip TGOS pakai bahasa Indonesia, Inggris, atau keduanya?
+1. **Browser** — bila Edge dihapus, apakah Wizard menawarkan pemasangan browser lain?
+2. **Wallpaper** — file asli beresolusi tinggi (lihat [8.8](#88-antarmuka-80-interfaceyml)).
 
 ---
 
@@ -680,8 +710,30 @@ Masih terbuka:
 - Playbook AtlasOS v0.6.0: `github.com/Atlas-OS/Atlas` (contoh `playbook.conf` nyata untuk
   build 26200 dan 26300).
 - Blog Windows Insider & liputan rilis 26H2 (nomor build 26300).
+- Website TGO: `tgopremium.my.id` (dibaca saja, tidak diubah).
 
-Catatan: website `tgopremium.my.id` dan halaman `docs.amelabs.net` tidak bisa dibuka dari
-lingkungan kerja saat dokumen ini ditulis (diblokir kebijakan jaringan), jadi branding dan
-fitur TGO v2 belum dijadikan acuan. Isi dokumentasi AME diambil dari hasil pencarian dan
-dicocokkan dengan source code-nya.
+### Yang dipakai dari website TGO
+
+- **Nama.** TGO = *Tech Gameplay Optimizer* (aplikasi); TGOS = *Tech Gameplay Operating
+  System* (playbook). Keduanya bagian dari ekosistem Tech Gameplay Indonesia.
+- **Prinsip yang sama.** TGO v2 menjanjikan: tidak ada yang berubah tanpa dipilih, tiap
+  tweak punya penjelasan dan label risiko, tweak berisiko (Defender, UAC, Windows Update)
+  minta konfirmasi, dan perubahan bisa dikembalikan. TGOS mengikuti prinsip itu
+  ([bagian 5](#5-prinsip-desain)).
+- **Metode benchmark.** Website menerbitkan uji LatencyMon, TimerBench, dan beban idle
+  Task Manager (5 menit setelah boot) di Windows 11 Pro 26H2 build 26300. TGOS memakai
+  metode dan build yang sama supaya hasilnya bisa dibandingkan.
+- **Pembanding idle.** Angka TGO v2 di halaman itu: RAM 4,3 GB → 2,5 GB dan 164 → 79
+  proses, dengan Defender, UAC, dan Windows Update dimatikan. Target TGOS di
+  [bagian 1](#1-tujuan) diukur dengan Defender **aktif**, jadi tidak setara langsung.
+- **Warna dan font.** Lihat [8.8](#88-antarmuka-80-interfaceyml).
+
+### Yang dikonfirmasi dari dokumentasi AME
+
+- `SupportedBuilds` bertipe *integer array*; tidak ada sintaks rentang.
+- Field wajib: `Name`, `Username`, `UniqueId`, `ShortDescription`, `Title`,
+  `Description`, `Details`, `Version`.
+- Pengemasan: format 7z, password `malte`. Menurut dokumentasinya, enkripsi itu supaya
+  browser dan antivirus tidak memindai executable di dalam arsip.
+- `ProductCode` dan `Website` dipakai untuk playbook yang diverifikasi AME.
+- Ukuran `playbook.png` tidak didokumentasikan; 256x256 mengikuti ikon AtlasOS.

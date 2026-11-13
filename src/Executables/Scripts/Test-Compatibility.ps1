@@ -43,7 +43,7 @@ try {
         try {
             $key = $baseKey.OpenSubKey('SOFTWARE\Microsoft\Windows NT\CurrentVersion')
             if ($null -eq $key) {
-                throw 'Kunci registry CurrentVersion tidak ditemukan.'
+                throw 'Registry key CurrentVersion was not found.'
             }
             try {
                 if (-not $EditionId) { $EditionId = [string]$key.GetValue('EditionID') }
@@ -68,27 +68,27 @@ try {
         }
     }
 
-    Write-Output ("TGOS preflight: edisi={0} build={1} arsitektur={2}" -f $EditionId, $Build, $Architecture)
+    Write-Output ("TGOS preflight: edition={0} build={1} architecture={2}" -f $EditionId, $Build, $Architecture)
 
     if ($AllowedEditions -notcontains $EditionId) {
-        Write-Output ("DITOLAK: TGOS hanya mendukung Windows 11 Pro. Edisi terdeteksi: '{0}'." -f $EditionId)
+        Write-Output ("REJECTED: TGOS only supports Windows 11 Pro. Detected edition: '{0}'." -f $EditionId)
         exit 10
     }
 
     if ($Build -lt $MinimumBuild) {
-        Write-Output ("DITOLAK: TGOS membutuhkan Windows 11 22H2 (build {0}) atau lebih baru. Build terdeteksi: {1}." -f $MinimumBuild, $Build)
+        Write-Output ("REJECTED: TGOS requires Windows 11 22H2 (build {0}) or newer. Detected build: {1}." -f $MinimumBuild, $Build)
         exit 11
     }
 
     if ($Architecture -ne 'AMD64') {
-        Write-Output ("DITOLAK: TGOS hanya mendukung x64. Arsitektur terdeteksi: '{0}'." -f $Architecture)
+        Write-Output ("REJECTED: TGOS only supports x64. Detected architecture: '{0}'." -f $Architecture)
         exit 12
     }
 
-    Write-Output 'LOLOS: sistem kompatibel dengan TGOS.'
+    Write-Output 'PASSED: this system is compatible with TGOS.'
     exit 0
 }
 catch {
-    Write-Output ("GALAT: pemeriksaan kompatibilitas gagal: {0}" -f $_.Exception.Message)
+    Write-Output ("ERROR: compatibility check failed: {0}" -f $_.Exception.Message)
     exit 1
 }

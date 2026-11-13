@@ -24,6 +24,12 @@ FINALIZE = "src/Configuration/Tasks/90-finalize.yml"
 MAIN = "src/Configuration/main.yml"
 CONF = "src/playbook.conf"
 INFO_SCRIPT = "src/Executables/Scripts/Write-InstallInfo.ps1"
+ICON = "src/playbook.png"
+
+# PNG 1x1 yang valid: dipakai untuk menguji pemeriksaan ukuran ikon.
+TINY_PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+    "0000000d49444154789c6360000002000001e221bc330000000049454e44ae426082")
 
 # (nama, file, teks lama, teks baru, potongan pesan yang harus muncul)
 MUTATIONS = [
@@ -31,7 +37,7 @@ MUTATIONS = [
      "properti 'exedir' tidak dikenal"),
     ("runas tidak valid", PREFLIGHT, "runas: trustedInstaller", "runas: admin",
      "runas: 'admin' tidak valid"),
-    ("tag aksi salah ketik", MAIN, "!writeStatus: { status: 'Menyelesaikan' }",
+    ("tag aksi salah ketik", MAIN, "!writeStatus: { status: 'Finishing up' }",
      "!writeStatuss: { status: 'x' }", "aksi tidak dikenal"),
     ("file tugas hilang", MAIN, "90-finalize.yml", "91-finalize.yml",
      "tidak ditemukan"),
@@ -61,8 +67,8 @@ MUTATIONS = [
     ("operasi scheduledTask tidak valid", FINALIZE, "actions:",
      "actions:\n  - !scheduledTask: { path: '\\Microsoft\\X', operation: remove }",
      "operation: 'remove' tidak valid"),
-    ("tab di YAML", MAIN, "  - !writeStatus: { status: 'Menyelesaikan' }",
-     "\t- !writeStatus: { status: 'Menyelesaikan' }", "karakter tab"),
+    ("tab di YAML", MAIN, "  - !writeStatus: { status: 'Finishing up' }",
+     "\t- !writeStatus: { status: 'Finishing up' }", "karakter tab"),
     ("XML rusak", CONF, "</Version>", "</Versio>", "XML tidak valid"),
     ("UUID kosong", CONF, "26dd6cef-05e4-4674-a9d5-d0460896ba6a",
      "00000000-0000-0000-0000-000000000000", "UUID kosong"),
@@ -70,12 +76,19 @@ MUTATIONS = [
      "lebih lama dari batas TGOS"),
     ("requirement salah ketik", CONF, "<Requirement>PluggedIn", "<Requirement>Pluggedin",
      "tidak dikenal AME Wizard"),
-    ("judul tidak memuat versi", CONF, "<Version>0.0.1</Version>", "<Version>0.0.2</Version>",
+    ("judul tidak memuat versi", CONF, "</Version>", ".9</Version>",
      "tidak memuat versi"),
     ("elemen conf salah ketik", CONF, "<Overhaul>false</Overhaul>", "<Overhall>false</Overhall>",
      "<Overhall> tidak dikenal"),
-    ("non-ASCII di skrip", INFO_SCRIPT, "'Versi TGOS ", "'Versi TGOS – ",
+    ("non-ASCII di skrip", INFO_SCRIPT, "'TGOS version ", "'TGOS version \u2013 ",
      "karakter non-ASCII"),
+]
+
+# (nama, file, isi baru dalam byte atau None untuk menghapus, potongan pesan)
+BINARY_MUTATIONS = [
+    ("ikon hilang", ICON, None, "ikon playbook tidak ditemukan"),
+    ("ikon bukan PNG", ICON, b"GIF89a bukan png, cuma teks pengisi", "bukan file PNG"),
+    ("ikon salah ukuran", ICON, TINY_PNG, "harus 256x256"),
 ]
 
 # (edisi, build, arsitektur, kode keluar yang diharapkan)
@@ -134,6 +147,25 @@ def test_validator() -> int:
                 continue
             with open(target, "w", encoding="utf-8", newline="") as handle:
                 handle.write(text.replace(old_text, new_text, 1))
+            code, output = run_validator(work)
+        if code == 0:
+            print(f"GAGAL  {name}: validator meloloskan kesalahan ini")
+            failures += 1
+        elif expected not in output:
+            print(f"GAGAL  {name}: pesan '{expected}' tidak muncul:\n{output}")
+            failures += 1
+        else:
+            print(f"lolos  {name}")
+
+    for name, file, content, expected in BINARY_MUTATIONS:
+        with tempfile.TemporaryDirectory() as temp:
+            work = Path(temp)
+            copy_sources(work)
+            target = work / file
+            if content is None:
+                target.unlink()
+            else:
+                target.write_bytes(content)
             code, output = run_validator(work)
         if code == 0:
             print(f"GAGAL  {name}: validator meloloskan kesalahan ini")

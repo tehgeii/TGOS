@@ -3,7 +3,7 @@
 Playbook AME Wizard yang mengubah Windows 11 Pro menjadi OS gaming yang sangat ringan,
 dengan prioritas performa.
 
-> **Status: `0.0.1`, kerangka uji.** Versi ini hanya memeriksa kompatibilitas sistem dan
+> **Status: `0.0.2`, kerangka uji.** Versi ini hanya memeriksa kompatibilitas sistem dan
 > belum menerapkan tweak apa pun. Belum diuji di AME Wizard. Jangan dipakai di komputer
 > utama.
 
@@ -23,7 +23,8 @@ dengan prioritas performa.
 | Folder | Isi |
 |---|---|
 | `src/` | Sumber playbook: `playbook.conf`, `Configuration/`, `Executables/` |
-| `tools/` | Validasi dan skrip build |
+| `assets/branding/` | Logo TGO, ikon TGOS, wallpaper |
+| `tools/` | Validasi, skrip build, pembuat ikon |
 | `docs/` | Dokumen pengujian |
 | `release/` | Hasil build (tidak di-commit) |
 

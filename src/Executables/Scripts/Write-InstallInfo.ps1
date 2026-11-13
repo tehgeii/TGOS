@@ -28,7 +28,7 @@ try {
         $OutputDirectory = Join-Path $env:ProgramData 'TGOS'
     }
 
-    $version = 'tidak diketahui'
+    $version = 'unknown'
     if (Test-Path -LiteralPath $ConfPath) {
         $conf = New-Object System.Xml.XmlDocument
         $conf.Load($ConfPath)
@@ -55,20 +55,20 @@ try {
 
     $lines = @(
         'TGOS (Tech Gameplay Operating System)',
-        ('Versi TGOS      : {0}' -f $version),
-        ('Waktu instalasi : {0}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')),
-        ('Edisi Windows   : {0}' -f $edition),
-        ('Versi Windows   : {0}' -f $displayVersion),
-        ('Build Windows   : {0}' -f $build)
+        ('TGOS version    : {0}' -f $version),
+        ('Installed at    : {0}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')),
+        ('Windows edition : {0}' -f $edition),
+        ('Windows version : {0}' -f $displayVersion),
+        ('Windows build   : {0}' -f $build)
     )
 
     $outFile = Join-Path $OutputDirectory 'install-info.txt'
     Set-Content -LiteralPath $outFile -Value $lines -Encoding ASCII
 
-    Write-Output ("TGOS: info instalasi ditulis ke {0}" -f $outFile)
+    Write-Output ("TGOS: install info written to {0}" -f $outFile)
     exit 0
 }
 catch {
-    Write-Output ("GALAT: gagal menulis info instalasi: {0}" -f $_.Exception.Message)
+    Write-Output ("ERROR: failed to write install info: {0}" -f $_.Exception.Message)
     exit 1
 }

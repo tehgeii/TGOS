@@ -132,6 +132,8 @@ SCRIPT_REF = re.compile(r'-File\s+"?\.\\([^"\s]+)"?', re.IGNORECASE)
 VERSION_RE = re.compile(r"^\d+(\.\d+){0,2}( .*)?$")
 BUILD_FILTER_RE = re.compile(r"^!?(>=|<=|>|<)?\d+(\.\d+)?$")
 ASCII_ONLY_SUFFIXES = {".ps1", ".psm1", ".cmd", ".bat"}
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+ICON_SIZE = 256  # sama dengan ikon playbook AtlasOS
 
 
 # --------------------------------------------------------------------------- #
@@ -543,6 +545,26 @@ def validate_executables(report: Report) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Ikon
+# --------------------------------------------------------------------------- #
+
+def validate_icon(report: Report) -> None:
+    path = SRC / "playbook.png"
+    where = rel(path)
+    if not path.is_file():
+        report.error(where, "ikon playbook tidak ditemukan (buat dengan tools/make-icon.py)")
+        return
+    header = path.read_bytes()[:24]
+    if len(header) < 24 or header[:8] != PNG_SIGNATURE or header[12:16] != b"IHDR":
+        report.error(where, "bukan file PNG yang valid")
+        return
+    width = int.from_bytes(header[16:20], "big")
+    height = int.from_bytes(header[20:24], "big")
+    if (width, height) != (ICON_SIZE, ICON_SIZE):
+        report.error(where, f"ukuran {width}x{height}; harus {ICON_SIZE}x{ICON_SIZE}")
+
+
+# --------------------------------------------------------------------------- #
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validasi sumber playbook TGOS.")
@@ -562,6 +584,7 @@ def main() -> int:
 
     validate_yaml(report, options)
     validate_executables(report)
+    validate_icon(report)
 
     for message in report.warnings:
         print(f"PERINGATAN  {message}")
