@@ -1,0 +1,17 @@
+# Hasil build — tidak pernah di-commit
+release/
+*.apbx
+*.7z
+*.zip
+
+# Rahasia lokal
+.env
+*.secret
+
+# Sampah OS / editor
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+__pycache__/
