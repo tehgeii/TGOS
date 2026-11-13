@@ -1,0 +1,13 @@
+---
+title: TGOS
+description: Titik masuk playbook TGOS. Urutan aksi di file ini adalah urutan eksekusi.
+actions:
+  # Harus selalu yang pertama: menghentikan playbook sebelum ada perubahan apa pun
+  # bila sistem bukan Windows 11 Pro x64 build 22621 atau lebih baru.
+  - !writeStatus: { status: 'Memeriksa kompatibilitas' }
+  - !task: { path: 'Tasks\00-preflight.yml' }
+
+  # Modul tweak (10 sampai 80) ditambahkan mulai Fase 1. Lihat PLAN.md bagian 6.
+
+  - !writeStatus: { status: 'Menyelesaikan' }
+  - !task: { path: 'Tasks\90-finalize.yml' }

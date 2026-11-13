@@ -1,0 +1,17 @@
+---
+title: Preflight
+description: Memastikan sistem adalah target TGOS sebelum ada perubahan apa pun.
+actions:
+  # AME Wizard hanya memeriksa nomor build (SupportedBuilds), tidak memeriksa edisi.
+  # Skrip ini keluar dengan kode bukan 0 bila edisi bukan Pro, build terlalu lama,
+  # atau arsitektur bukan x64. Kode bukan 0 menghentikan seluruh playbook.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Test-Compatibility.ps1"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 1
+    showOutput: true
+    showError: true
+    handleExitCodes: { "!0": halt }

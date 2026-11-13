@@ -7,8 +7,8 @@ pilihan sadar pengguna, bukan sesuatu yang terjadi diam-diam.
 
 | | |
 |---|---|
-| Status dokumen | Draf v1 — menunggu review pemilik proyek |
-| Versi playbook target pertama | `0.1.0` (uji di VMware) |
+| Status dokumen | Draf v2 — keputusan pemilik proyek (password, Defender, branch) sudah masuk |
+| Versi playbook saat ini | `0.0.1` — kerangka Fase 0, siap diuji di VMware |
 | Target OS | Windows 11 **Pro**, 22H2 sampai 26H2 |
 | Cara pasang | File `.apbx` dibuka di AME Wizard |
 
@@ -41,7 +41,7 @@ Daftar isi:
 3. **Tetap bisa dipakai.** Game, launcher (Steam, Epic, Riot, Battle.net, Xbox app bila
    dipilih), driver GPU, Discord, dan browser harus tetap jalan normal.
 4. **Bisa dibalik.** Keputusan besar (Defender, mitigasi, Windows Update) punya skrip
-   pembalik di folder TGOS setelah instalasi.
+   pengubah dan pembalik di folder **TGOS Toolbox** setelah instalasi.
 5. **Terukur.** Setiap tweak yang diklaim "menambah performa" harus lolos benchmark
    sebelum jadi default. Tweak yang tidak terbukti tidak dimasukkan.
 
@@ -159,7 +159,10 @@ Kesimpulan jujurnya: **tidak ada cara membuat isi playbook benar-benar rahasia**
 dijalankan AME Wizard di komputer pengguna. Perlindungan yang berarti untuk produk premium
 ada di sisi lisensi (misalnya verifikasi lisensi lewat aplikasi TGO), bukan di password arsip.
 
-Dua aturan yang dipakai apa pun opsinya:
+**Keputusan pemilik proyek: Opsi A.** Skrip build sudah membuat kedua file:
+`TGOS-vX.Y.Z.apbx` dan pembungkusnya `TGOS-vX.Y.Z.7z`.
+
+Dua aturan yang dipakai:
 
 - Password distribusi **tidak ditulis di repo** (kalau repo publik, password ikut publik).
   Skrip build membacanya dari variabel lingkungan `TGOS_DIST_PASSWORD`.
@@ -210,8 +213,10 @@ Yang perlu diputuskan: apakah varian `ProfessionalN`, `ProfessionalWorkstation`,
 2. **Tidak ada tweak mitos.** Banyak "tweak gaming" yang beredar tidak berpengaruh atau
    malah merugikan. Tweak seperti itu masuk daftar "perlu bukti" di
    [8.5](#85-kandidat-yang-butuh-bukti-benchmark-dulu), bukan default.
-3. **Keamanan dikurangi lewat opsi, bukan diam-diam.** Mematikan Defender, VBS, dan
-   mitigasi CPU ditawarkan di halaman opsi Wizard dengan penjelasan risikonya.
+3. **Keamanan dikurangi lewat pilihan sadar, bukan diam-diam.** VBS dan mitigasi CPU
+   ditawarkan di halaman opsi Wizard dengan penjelasan risikonya. Defender **tidak
+   disentuh saat instalasi**; pengguna bisa mematikannya sendiri sesudahnya lewat
+   TGOS Toolbox.
 4. **Pisahkan "hapus" dari "matikan".** Sebisa mungkin layanan diubah startup-nya, bukan
    dihapus, supaya bisa dibalik. Penghapusan permanen hanya untuk bloat murni.
 5. **Jangan rusak yang dibutuhkan game.** Microsoft Store, Xbox/Gaming Services, dan
@@ -245,17 +250,18 @@ TGOS/
 │  │     ├─ 60-security-options.yml
 │  │     ├─ 70-components.yml      ← Edge, OneDrive
 │  │     ├─ 80-interface.yml
-│  │     └─ 90-finalize.yml        ← folder TGOS, pembersihan
+│  │     └─ 90-finalize.yml        ← TGOS Toolbox, info instalasi, pembersihan
 │  └─ Executables/
 │     ├─ Scripts/                  ← skrip PowerShell yang dipanggil playbook
-│     └─ TGOS/                     ← disalin ke sistem: skrip toggle & pembalik
+│     └─ TGOS Toolbox/             ← disalin ke sistem: skrip pengubah & pembalik
 ├─ tools/
 │  ├─ build.ps1                    ← build di Windows (butuh 7-Zip)
 │  ├─ build.sh                     ← build di Linux/CI
-│  └─ validate.py                  ← cek XML + YAML terhadap skema aksi AME
+│  ├─ validate.py                  ← cek XML + YAML terhadap skema aksi AME
+│  └─ selftest.py                  ← memastikan validator & cek kompatibilitas benar
 ├─ docs/
 │  ├─ TESTING.md                   ← checklist & hasil uji per versi
-│  └─ TWEAKS.md                    ← daftar semua tweak + alasan + cara balik
+│  └─ TWEAKS.md                    ← daftar semua tweak + alasan + cara balik (mulai Fase 1)
 └─ release/                        ← hasil build (tidak di-commit)
 ```
 
@@ -277,19 +283,20 @@ penyebab masalah.
 | `Version` | `0.1.0` |
 | `UniqueId` | UUID v4 baru, dibuat sekali |
 | `SupportedBuilds` | `22621`, `22631`, `26100`, `26200`, `26300` |
-| `Overhaul` | `true` |
+| `Overhaul` | `true` mulai `0.1.0` (Fase 0 memakai `false` karena belum mengubah sistem) |
 | `UseKernelDriver` | `false` |
 | `EstimatedMinutes` | `15` (dikoreksi setelah uji) |
 | `Website` | `https://tgopremium.my.id` |
+| `Git` | Belum diisi. Wizard memakai field ini untuk memeriksa rilis terbaru lewat API GitHub, yang gagal bila repo private atau belum punya rilis. |
 
 ### 7.2 Requirements
 
 | Requirement | Dipakai? | Alasan |
 |---|---|---|
-| `DefenderToggled` | Ya | Wizard butuh proteksi real-time mati selama proses. |
-| `NoAntivirus` | Ya | Antivirus pihak ketiga mengganggu modifikasi sistem. |
-| `NoPendingUpdates` | Ya | Update yang menggantung bisa menimpa perubahan atau merusak servicing. |
-| `PluggedIn` | Ya | Mencegah laptop mati di tengah proses. |
+| `DefenderToggled` | Tidak | Keputusan pemilik: Defender tetap aktif selama instalasi. **Perlu dibuktikan di VM** bahwa Wizard bisa menyelesaikan playbook dengan Defender aktif; bila Defender memblokir prosesnya, requirement ini terpaksa dipakai (proteksi real-time mati sementara, lalu dinyalakan lagi di akhir). |
+| `NoAntivirus` | Ya (mulai `0.1.0`) | Antivirus pihak ketiga mengganggu modifikasi sistem. |
+| `NoPendingUpdates` | Ya (mulai `0.1.0`) | Update yang menggantung bisa menimpa perubahan atau merusak servicing. |
+| `PluggedIn` | Ya (sudah di Fase 0) | Mencegah laptop mati di tengah proses. |
 | `Internet` | Tidak (0.1.0) | Belum ada yang diunduh. Ditambahkan bila nanti memasang software. |
 | `Activation` | Tidak | Tidak relevan untuk uji VM. Dipertimbangkan untuk rilis. |
 
@@ -299,28 +306,24 @@ Kolom "Nama opsi" adalah yang dipakai di filter `option:` pada YAML. Default che
 diatur lewat atribut `IsChecked` (bawaan Wizard: tercentang); default radio lewat
 `DefaultOption`. Halaman bisa dibuat bergantung pada opsi lain dengan `DependsOn`.
 
-**Halaman 1 — Defender** (`RadioPage`, wajib)
+Tidak ada halaman Defender: Defender tetap aktif selama dan sesudah instalasi, dan hanya
+bisa dimatikan pengguna lewat TGOS Toolbox.
 
-| Pilihan | Nama opsi |
-|---|---|
-| Matikan Defender (performa maksimal) | `defender-disable` |
-| Biarkan Defender aktif | `defender-enable` |
-
-**Halaman 2 — Mitigasi CPU** (`RadioPage`, wajib)
+**Halaman 1 — Mitigasi CPU** (`RadioPage`, wajib)
 
 | Pilihan | Nama opsi |
 |---|---|
 | Mitigasi default Windows | `mitigations-default` |
 | Matikan semua mitigasi | `mitigations-disable` |
 
-**Halaman 3 — Windows Update** (`RadioPage`, wajib)
+**Halaman 2 — Windows Update** (`RadioPage`, wajib)
 
 | Pilihan | Nama opsi |
 |---|---|
 | Matikan update otomatis (tetap bisa manual) | `updates-manual` |
 | Biarkan default | `updates-default` |
 
-**Halaman 4 — Performa** (`CheckboxPage`)
+**Halaman 3 — Performa** (`CheckboxPage`)
 
 | Pilihan | Nama opsi | Default |
 |---|---|---|
@@ -329,7 +332,7 @@ diatur lewat atribut `IsChecked` (bawaan Wizard: tercentang); default radio lewa
 | Matikan penghematan daya (desktop) | `disable-power-saving` | ✔ |
 | Matikan Windows Search indexing | `disable-indexing` | ✔ |
 
-**Halaman 5 — Komponen** (`CheckboxPage`)
+**Halaman 4 — Komponen** (`CheckboxPage`)
 
 | Pilihan | Nama opsi | Default |
 |---|---|---|
@@ -338,15 +341,15 @@ diatur lewat atribut `IsChecked` (bawaan Wizard: tercentang); default radio lewa
 | Hapus aplikasi Xbox (Game Bar, Xbox app) | `remove-xbox` | ✘ |
 | Hapus Widgets, Copilot, Recall | `remove-ai-widgets` | ✔ |
 
-Default Halaman 1–3 menunggu keputusan pemilik proyek
-(lihat [bagian 15](#15-pertanyaan-terbuka)).
+Default radio rencana: `mitigations-default` dan `updates-manual`. Keduanya masih bisa
+diubah pemilik proyek sebelum `0.3.0`.
 
 ---
 
 ## 8. Rancangan modul tweak
 
 Kolom **Risiko** menilai kemungkinan merusak fungsi: R = rendah, S = sedang, T = tinggi.
-Kolom **Balik** menandai apakah ada skrip pembalik di folder TGOS.
+Kolom **Balik** menandai apakah ada skrip pembalik di TGOS Toolbox.
 
 ### 8.1 Debloat aplikasi (`10-debloat-appx.yml`)
 
@@ -453,17 +456,24 @@ Hasil benchmark tiap kandidat dicatat di `docs/TWEAKS.md` beserta keputusannya.
 
 ### 8.6 Opsi keamanan (`60-security-options.yml`)
 
-Semua di modul ini hanya jalan bila opsinya dipilih di Wizard.
+Baris bertanda *Wizard* hanya jalan bila opsinya dipilih saat instalasi. Baris bertanda
+*Toolbox* tidak pernah dijalankan playbook; hanya tersedia sebagai skrip sesudah instalasi.
 
-| Opsi | Yang dilakukan | Dampak keamanan | Balik |
-|---|---|---|---|
-| `defender-disable` | Mematikan layanan & driver Defender, SmartScreen | Tidak ada antivirus. Malware dari cheat, crack, dan mod jadi ancaman nyata. | Ya |
-| `disable-vbs` | `EnableVirtualizationBasedSecurity=0`, HVCI `Enabled=0` | Proteksi kernel berkurang. Di banyak sistem ini memberi kenaikan performa terukur. | Ya |
-| `mitigations-disable` | `FeatureSettingsOverride=3`, `FeatureSettingsOverrideMask=3` | Rentan terhadap Spectre/Meltdown. Manfaatnya terutama di CPU lama; di CPU baru bisa nol atau negatif. | Ya |
-| `updates-manual` | Policy menunda update otomatis; update manual tetap bisa | Patch keamanan tertunda sampai pengguna memasangnya. | Ya |
+| Opsi | Lewat | Yang dilakukan | Dampak keamanan | Balik |
+|---|---|---|---|---|
+| Matikan Defender | Toolbox | Mematikan proteksi real-time, layanan Defender, SmartScreen | Tidak ada antivirus. Malware dari cheat, crack, dan mod jadi ancaman nyata. | Ya |
+| `disable-vbs` | Wizard | `EnableVirtualizationBasedSecurity=0`, HVCI `Enabled=0` | Proteksi kernel berkurang. Di banyak sistem ini memberi kenaikan performa terukur. | Ya |
+| `mitigations-disable` | Wizard | `FeatureSettingsOverride=3`, `FeatureSettingsOverrideMask=3` | Rentan terhadap Spectre/Meltdown. Manfaatnya terutama di CPU lama; di CPU baru bisa nol atau negatif. | Ya |
+| `updates-manual` | Wizard | Policy menunda update otomatis; update manual tetap bisa | Patch keamanan tertunda sampai pengguna memasangnya. | Ya |
 
 Yang **tetap aktif** apa pun pilihannya: Windows Firewall, UAC, dan Secure Boot/TPM (tidak
 disentuh sama sekali karena dibutuhkan anti-cheat).
+
+Catatan soal mematikan Defender sesudah instalasi: di Windows 11, Tamper Protection
+menolak perubahan pengaturan Defender dari skrip. Jadi skrip Toolbox tidak bisa
+melakukannya sepenuhnya sendiri; pengguna harus mematikan Tamper Protection dulu di
+Windows Security. Mekanisme pastinya (dan pembaliknya) dirancang dan dibuktikan di Fase 3,
+bukan diasumsikan sekarang.
 
 ### 8.7 Komponen (`70-components.yml`)
 
@@ -480,9 +490,11 @@ menyusul setelah aset desainnya tersedia.
 
 ### 8.9 Finalisasi (`90-finalize.yml`)
 
-- Menyalin folder `TGOS` ke `%SystemDrive%\TGOS` dan membuat pintasan di Desktop, berisi
-  skrip: aktifkan/matikan Defender, VBS, mitigasi, update otomatis, indexing; dan
-  `Info.txt` yang mencatat versi TGOS serta opsi yang dipilih.
+- Menyalin folder **TGOS Toolbox** ke `%SystemDrive%\TGOS Toolbox` dan membuat pintasan di
+  Desktop. Isinya skrip berpasangan (matikan / aktifkan lagi) untuk: Defender, VBS,
+  mitigasi CPU, update otomatis, indexing, hibernasi.
+- Menulis `%ProgramData%\TGOS\install-info.txt` berisi versi TGOS, edisi, build, dan
+  (mulai `0.1.0`) opsi yang dipilih. Bagian ini sudah ada sejak Fase 0.
 - Membersihkan cache komponen (`DISM /StartComponentCleanup`) dan file sementara.
 - Wizard meminta restart.
 
@@ -506,12 +518,12 @@ publik, dan hasilnya ditulis di dokumentasi.
 ## 10. Build & packaging
 
 ```
-src/  ──validate.py──▶  7z (password malte, format 7z)  ──▶  release/TGOS-v0.1.0.apbx
+src/  ──validate.py──▶  7z (password malte, format 7z)  ──▶  release/TGOS-vX.Y.Z.apbx
                                                                    │
                                      (opsional, opsi A bagian 3)   ▼
                               7z (password dari TGOS_DIST_PASSWORD, header terenkripsi)
                                                                    ▼
-                                                      release/TGOS-v0.1.0.7z
+                                                      release/TGOS-vX.Y.Z.7z
 ```
 
 1. `tools/validate.py` — memeriksa `playbook.conf` (XML valid, field wajib, UUID bukan
@@ -553,18 +565,22 @@ atas hasil sebelumnya kecuali memang sedang menguji upgrade.
 
 1. Catat metrik dasar di `S2` (tabel [bagian 1](#1-tujuan)).
 2. Salin AME Wizard dan `TGOS-vX.Y.Z.apbx` ke VM.
-3. Jalankan Wizard, seret `.apbx`, ikuti langkah syarat (termasuk mematikan Defender).
+3. Jalankan Wizard, seret `.apbx`, ikuti langkah syarat. Defender dibiarkan aktif; catat
+   bila Wizard atau Defender memblokir sesuatu.
 4. Pilih kombinasi opsi sesuai matriks di bawah, jalankan, tunggu restart.
 5. Setelah login: tunggu 5 menit, catat metrik, jalankan checklist fungsi.
 6. Simpan log AME dan hasilnya ke `docs/TESTING.md`.
 
 ### 11.3 Matriks opsi
 
-| Run | Defender | Mitigasi | Update | Lainnya | Tujuan |
-|---|---|---|---|---|---|
-| A | enable | default | default | semua checkbox mati | Jalur paling aman — dasar perbandingan |
-| B | disable | default | manual | default rencana | Konfigurasi yang paling mungkin dipakai |
-| C | disable | disable | manual | semua checkbox nyala | Jalur paling agresif — mencari yang rusak |
+| Run | Mitigasi | Update | Checkbox | Tujuan |
+|---|---|---|---|---|
+| A | default | default | semua mati | Jalur paling aman — dasar perbandingan |
+| B | default | manual | default rencana | Konfigurasi yang paling mungkin dipakai |
+| C | disable | manual | semua nyala | Jalur paling agresif — mencari yang rusak |
+
+Sesudah Run B dan C: jalankan skrip Toolbox "matikan Defender" lalu "aktifkan lagi", dan
+ulangi checklist fungsi di tiap keadaan.
 
 ### 11.4 Checklist fungsi setelah instalasi
 
@@ -580,7 +596,7 @@ atas hasil sebelumnya kecuali memang sedang menguji upgrade.
 - [ ] Pemasang .NET / Visual C++ Redistributable / DirectX jalan.
 - [ ] `sfc /verifyonly` tanpa pelanggaran integritas.
 - [ ] Event Viewer: tidak ada error berulang dari layanan yang dimatikan.
-- [ ] Skrip pembalik di folder TGOS jalan dan efeknya benar setelah restart.
+- [ ] Tiap pasangan skrip di TGOS Toolbox jalan dan efeknya benar setelah restart.
 - [ ] Restart 3 kali berturut-turut tanpa masalah.
 
 ### 11.5 Batasan uji di VM
@@ -599,11 +615,11 @@ menunggu hardware asli.
 
 | Fase | Versi | Isi | Selesai bila |
 |---|---|---|---|
-| 0. Kerangka | `0.0.1` | `playbook.conf`, `main.yml` berisi cek kompatibilitas saja, skrip build & validasi | `.apbx` dimuat Wizard, cek edisi menolak non-Pro, tidak ada perubahan sistem |
+| 0. Kerangka | `0.0.1` | `playbook.conf`, cek kompatibilitas, pencatat info instalasi, skrip build & validasi. **Sudah dibuat; menunggu uji VM** ([docs/TESTING.md](docs/TESTING.md)). | `.apbx` dimuat Wizard, cek edisi menolak non-Pro, satu-satunya perubahan sistem adalah `install-info.txt` |
 | 1. Inti | `0.1.0` | Debloat, privasi, layanan, tugas terjadwal | Run A lolos checklist di 26H2 |
 | 2. Performa | `0.2.0` | Modul performa + opsi daya | Run B lolos checklist |
-| 3. Opsi keamanan | `0.3.0` | Defender, VBS, mitigasi, update + skrip pembalik | Run C lolos, semua pembalik terbukti jalan |
-| 4. Komponen & tampilan | `0.4.0` | Edge, OneDrive, antarmuka, folder TGOS, branding | Checklist lolos di 24H2, 25H2, 26H2 |
+| 3. Opsi keamanan & Toolbox | `0.3.0` | VBS, mitigasi, update; TGOS Toolbox termasuk pengubah Defender | Run C lolos, semua pasangan skrip Toolbox terbukti jalan |
+| 4. Komponen & tampilan | `0.4.0` | Edge, OneDrive, antarmuka, branding | Checklist lolos di 24H2, 25H2, 26H2 |
 | 5. Beta hardware asli | `0.9.x` | Benchmark, uji anti-cheat, uji 22H2/23H2, keputusan [8.5](#85-kandidat-yang-butuh-bukti-benchmark-dulu) | Data benchmark tercatat, tidak ada bug kritis |
 | 6. Rilis | `1.0.0` | Dokumentasi pengguna, paket distribusi | Disetujui pemilik proyek |
 
@@ -619,7 +635,8 @@ sebelum ada satu pun tweak yang ditambahkan.
 | Update Windows mengembalikan atau bentrok dengan tweak | Sedang | Filter `builds:`, uji ulang tiap update fitur, opsi update manual |
 | Menghapus terlalu banyak sampai fitur penting rusak | Tinggi | Daftar "tidak pernah disentuh" di [8.3](#83-layanan-30-servicesyml), matikan bukan hapus, checklist fungsi |
 | Anti-cheat menolak jalan | Tinggi | Tidak menyentuh Secure Boot/TPM, uji game populer di fase beta, dokumentasikan kombinasi opsi yang aman |
-| Pengguna terkena malware setelah Defender mati | Tinggi | Peringatan jelas di halaman opsi, skrip pengaktif kembali di folder TGOS |
+| Pengguna terkena malware setelah Defender mati | Tinggi | Defender aktif secara default; skrip Toolbox menampilkan peringatan dan menyediakan pengaktif kembali |
+| Defender aktif memblokir AME Wizard saat instalasi | Sedang | Diuji sejak Fase 0; cadangannya requirement `DefenderToggled` |
 | Salah ketik YAML baru ketahuan saat instalasi | Sedang | `tools/validate.py` wajib lolos sebelum build |
 | Versi AME Wizard baru mengubah format | Sedang | Catat versi Wizard yang dipakai uji di `docs/TESTING.md` |
 | Build Windows baru belum diuji | Sedang | `SupportedBuilds` eksplisit; build baru ditambah hanya setelah lolos uji |
@@ -629,7 +646,7 @@ sebelum ada satu pun tweak yang ditambahkan.
 
 ## 14. Aturan Git
 
-- Semua commit atas nama **tehgeii** saja. Tidak ada co-author dan tidak ada baris
+- Branch utama: `main`. Semua commit atas nama **tehgeii** saja. Tidak ada co-author dan tidak ada baris
   atribusi lain di pesan commit atau deskripsi pull request.
 - Email commit memakai alamat noreply GitHub akun tehgeii, supaya commit tetap tertaut ke
   akun tanpa menampilkan email pribadi.
@@ -640,15 +657,18 @@ sebelum ada satu pun tweak yang ditambahkan.
 
 ## 15. Pertanyaan terbuka
 
-1. **Password** — pilih opsi A, B, atau C di [bagian 3](#3-soal-password-apbx)?
-2. **Default Defender** — default-nya mati atau aktif di halaman opsi?
-3. **Edisi** — hanya `Professional`, atau varian Pro N / Workstation / Education ikut?
-4. **Visibilitas repo** — private atau publik? (Menentukan apakah password arsip ada artinya.)
-5. **Aplikasi TGO v2** — apakah TGOS memasang atau menautkan aplikasi TGO v2 di akhir
+Sudah diputuskan: password memakai Opsi A (pembungkus 7z); Defender tetap aktif dan
+diubah lewat TGOS Toolbox; branch utama `main`.
+
+Masih terbuka:
+
+1. **Edisi** — hanya `Professional`, atau varian Pro N / Workstation / Education ikut?
+2. **Visibilitas repo** — private atau publik? (Menentukan apakah password arsip ada artinya.)
+3. **Aplikasi TGO v2** — apakah TGOS memasang atau menautkan aplikasi TGO v2 di akhir
    instalasi? Kalau ya, dari mana installer-nya diambil?
-6. **Branding** — ikon playbook (`playbook.png`), wallpaper, dan warna aksen: ada asetnya?
-7. **Browser** — bila Edge dihapus, apakah Wizard menawarkan pemasangan browser lain?
-8. **Bahasa** — teks di Wizard dan skrip TGOS pakai bahasa Indonesia, Inggris, atau keduanya?
+4. **Branding** — ikon playbook (`playbook.png`), wallpaper, dan warna aksen: ada asetnya?
+5. **Browser** — bila Edge dihapus, apakah Wizard menawarkan pemasangan browser lain?
+6. **Bahasa** — teks di Wizard dan skrip TGOS pakai bahasa Indonesia, Inggris, atau keduanya?
 
 ---
 

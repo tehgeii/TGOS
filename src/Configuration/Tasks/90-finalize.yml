@@ -1,0 +1,15 @@
+---
+title: Finalize
+description: Mencatat hasil instalasi TGOS.
+actions:
+  # Menulis %ProgramData%\TGOS\install-info.txt (versi TGOS, edisi, build, waktu).
+  # Di Fase 0 ini satu-satunya perubahan yang dibuat playbook pada sistem.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 1
+    showOutput: true
+    showError: true
