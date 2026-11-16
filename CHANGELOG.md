@@ -3,6 +3,40 @@
 Semua perubahan penting pada TGOS dicatat di sini. Nomor versi mengikuti roadmap di
 [PLAN.md](PLAN.md#12-roadmap).
 
+## 0.9.1 — perbaikan dari uji pertama di Windows 11 Pro 26H2
+
+Versi `0.9.0` diuji pemilik di VMware (Windows 11 Pro 26H2 build 26300, AME Beta 0.8.4,
+semua opsi dicentang): 139 pemeriksaan lolos, 1 gagal (Edge). Rilis ini memperbaiki yang
+ditemukan di uji itu. Lolos uji otomatis di kelima job; belum diuji ulang di VM.
+
+- **Teks Wizard tidak lagi terpotong.** Deskripsi playbook, deskripsi halaman opsi, dan
+  status progres dipendekkan. Batas panjangnya sekarang dijaga `tools/validate.py`,
+  jadi teks yang terlalu panjang menggagalkan build.
+- **OneDrive tanpa prompt.** Uninstaller-nya dijalankan dengan hak admin pengguna yang
+  login, supaya Windows tidak menampilkan jendela "Yes/No" di tengah instalasi.
+- **Taskbar.** Pin bawaan diganti lewat policy layout taskbar Windows: File Explorer,
+  Edge, Microsoft Store. Pin Copilot yang tertinggal (kotak abu-abu) hilang. Pencarian
+  tampil sebagai ikon; tombol Task View disembunyikan.
+- **Edge (tetap eksperimental).** Uninstaller Edge menolak bekerja di Windows 11 Pro 26H2
+  (kode 93). Skrip sekarang mencoba dua cara tambahan. Belum terbukti di edisi Pro:
+  mesin uji otomatis memakai edisi Enterprise, tempat Edge memang bisa dihapus.
+- **Edge di latar belakang.** Startup Boost dan mode latar Edge dimatikan lewat policy,
+  baik Edge dihapus maupun tidak.
+- **Widgets.** Prosesnya dihentikan sebelum paketnya dihapus, supaya filenya tidak
+  tertinggal terkunci di disk.
+- **Wallpaper** digambar ulang 3840x2160 dengan gradasi halus (`tools/make-wallpaper.py`);
+  file lama 2000x1125 bergaris. Windows juga dicegah mengompres ulang wallpaper.
+- **Layanan:** `InventorySvc` dan `whesvc` dimatikan; `WSAIFabricSvc` dijadikan Manual
+  bila opsi Copilot dan Widgets dipilih. Ketiganya berjalan otomatis di 26H2.
+- **Tugas terjadwal:** 12 tugas ditambahkan (pelaporan pemakaian fitur, telemetri
+  Sustainability, Family Safety, RetailDemo, DiskFootprint, pop-up umpan balik); total 25.
+- Pemeriksaan diri memeriksa file layout taskbar.
+- Uji otomatis: log menampilkan hasil skrip OneDrive, Edge, dan Toolbox, dan
+  mengelompokkan baris error mesin AME yang berulang.
+
+Bukan bug, tapi perlu diketahui: wallpaper dan mode gelap baru tampil setelah restart,
+karena Windows membaca pengaturan itu saat login.
+
 ## 0.9.0 — semua modul, TGOS Toolbox, dan uji otomatis
 
 Rilis pertama yang berisi semua modul rencana. Lolos uji lewat mesin AME yang asli di

@@ -7,8 +7,8 @@ pilihan sadar pengguna, bukan sesuatu yang terjadi diam-diam.
 
 | | |
 |---|---|
-| Status dokumen | Draf v4 — semua modul sudah dibuat; uji otomatis lewat mesin AME sudah jalan |
-| Versi playbook saat ini | `0.9.0` — semua modul + TGOS Toolbox; lolos uji mesin AME di Windows Server 2025 dan Windows 11 Enterprise 25H2; menunggu uji VM Windows 11 Pro |
+| Status dokumen | Draf v5 — semua modul sudah dibuat; sudah diuji sekali di Windows 11 Pro 26H2 |
+| Versi playbook saat ini | `0.9.1` — perbaikan dari uji VM pertama; lolos uji mesin AME di Windows Server 2025 dan Windows 11 Enterprise 25H2; menunggu uji ulang di VM Windows 11 Pro |
 | Target OS | Windows 11 **Pro**, 22H2 sampai 26H2 |
 | Cara pasang | File `.apbx` dibuka di AME Wizard |
 
@@ -55,8 +55,14 @@ Kriteria keberhasilan `0.1.0` (diukur di VM, dibanding Windows 11 Pro bersih):
 | Ukuran disk terpakai | `Get-Volume C` | Turun (dicatat, tanpa target keras) |
 | Stabilitas | 0 error di log AME, 0 BSOD, `sfc /verifyonly` bersih | Wajib |
 
-Angka target ini tebakan awal yang masuk akal, **bukan** hasil pengukuran. Angka riilnya
-baru ada setelah uji pertama dan dokumen ini diperbarui.
+Angka target ini tebakan awal yang masuk akal, **bukan** hasil pengukuran.
+
+Hasil ukur pertama (`0.9.0`, Windows 11 Pro 26H2 di VMware, semua opsi dicentang):
+proses −18%, RAM −30%, layanan berjalan −15%, disk −5,3 GB. Target RAM tercapai; target
+proses dan layanan **belum**. Potret "sesudah" diambil sekitar 2,5 menit setelah boot,
+jadi angka itu indikatif. `0.9.1` menambah 3 layanan dan 12 tugas terjadwal dari potret
+itu; selisihnya baru terukur di uji ulang. Rincian di
+[docs/TESTING.md](docs/TESTING.md#catatan-hasil).
 
 ---
 
@@ -101,6 +107,18 @@ Nilai `Requirement` yang dikenali: `Internet`, `NoInternet`, `DefenderDisabled`,
 
 > **Penting:** Wizard hanya memeriksa **nomor build**, tidak memeriksa **edisi**. Jadi
 > pembatasan "hanya Pro" harus kita tulis sendiri (lihat [4.2](#42-pembatasan-edisi-pro)).
+
+Ruang tampil teks di Wizard terbatas; yang lebih panjang dipotong dengan "...". Batas
+berikut diukur dari screenshot uji `0.9.0` (AME Beta 0.8.4), diambil sedikit di bawah
+batas sebenarnya karena font-nya proporsional, dan dijaga `tools/validate.py`:
+
+| Teks | Ruang |
+|---|---|
+| `ShortDescription` | 2 baris x 20 karakter |
+| `Description` | 5 baris x 44 karakter, baris kosong ikut dihitung |
+| `Description` halaman opsi | 2 baris x 44 karakter |
+| Teks opsi | 44 karakter |
+| `!writeStatus` | 22 karakter |
 
 ### 2.3 Aksi YAML
 
@@ -390,8 +408,9 @@ pada catatan itu.
 > - Tugas terjadwal dinonaktifkan lewat skrip, bukan aksi `!scheduledTask` (lihat 2.4).
 > - Layanan Xbox dan geolokasi (`lfsvc`) tidak disentuh.
 > - Policy `AllowGameDVR` tidak dipakai, supaya perekaman tetap bisa dinyalakan pengguna.
-> - Menu klik kanan klasik dan tombol taskbar tidak diubah: sebagian nilai itu dilindungi
->   Windows dan penulisan dari luar ditolak.
+> - Menu klik kanan klasik tidak dikerjakan. Taskbar baru diatur di `0.9.1`
+>   (lihat [8.8](#88-antarmuka-80-interfaceyml)); tombol Widgets tidak ditulis karena
+>   nilainya dilindungi Windows.
 > - Pembersihan komponen (`DISM /StartComponentCleanup`) tidak dijalankan.
 > - "Matikan Defender" di Toolbox mematikan pemindaian lewat policy; layanan Defender
 >   tidak dicabut.
@@ -472,6 +491,12 @@ Semua memakai `operation: change` dengan `startup: 4` (disabled) kecuali disebut
 | Print Spooler | `Spooler` | S | **Tidak disentuh** di 0.1.0. Banyak pengguna butuh printer. |
 | Bluetooth | `bthserv`, `BTAGService` | T | **Tidak disentuh.** Controller & headset bergantung padanya. |
 | Xbox | `XblAuthManager`, `XblGameSave`, `XboxNetApiSvc`, `XboxGipSvc` | S | Hanya bila `remove-xbox`. `GamingServices` tidak dihapus. |
+| Inventaris & kesehatan perangkat | `InventorySvc`, `whesvc` | R | Ditambah di `0.9.1` dari potret 26H2: keduanya berjalan otomatis. |
+| AI Fabric | `WSAIFabricSvc` | S | Dijadikan Manual (3) pada opsi `remove-ai-widgets`. |
+
+Dari potret 26H2 juga terlihat `PcaSvc`, `DPS`, `camsvc`, dan `CDPSvc` berjalan. Keempatnya
+sengaja **tidak** disentuh: dipakai pemecah masalah kompatibilitas, diagnostik jaringan,
+izin kamera/mikrofon, dan berbagi antarperangkat.
 
 Yang **tidak pernah** disentuh: `AudioSrv`, `AudioEndpointBuilder`, `Dhcp`, `Dnscache`,
 `nsi`, `NlaSvc`, `BFE`, `mpssvc` (firewall), `CryptSvc`, `RpcSs`, `DcomLaunch`,
@@ -552,10 +577,37 @@ bukan diasumsikan sekarang.
 | `remove-edge` | WebView2 Runtime **dipertahankan** — banyak launcher dan aplikasi bergantung padanya. Tanpa browser, pengguna harus memasang browser lain lewat `winget`. |
 | `remove-onedrive` | Menjalankan uninstaller resmi dan membersihkan entri Explorer. |
 
+Dua temuan dari uji `0.9.0` di Windows 11 Pro 26H2:
+
+- **Edge.** Uninstaller Edge (`setup.exe --uninstall`) keluar dengan kode 93 tanpa
+  menghapus apa pun, padahal di Enterprise dan Server ia bekerja. `0.9.1` mencoba dua
+  cara dari pengamatan komunitas: berkas penanda Edge lama di `SystemApps`, lalu
+  menjalankan uninstaller tanpa variabel `windir` (hanya untuk proses itu). Keduanya
+  bukan cara resmi dan bisa berhenti bekerja; opsi ini tetap eksperimental dan tidak
+  fatal. Baik Edge terhapus maupun tidak, Startup Boost dan mode latarnya dimatikan
+  lewat policy.
+- **OneDrive.** Uninstaller-nya meminta hak admin. Dijalankan sebagai pengguna biasa
+  (`runas: currentUser`) Windows menampilkan prompt UAC di tengah instalasi, jadi
+  sejak `0.9.1` dipakai `runas: currentUserElevated`.
+
 ### 8.8 Antarmuka (`80-interface.yml`)
 
-Mode gelap, menu klik kanan klasik, taskbar tanpa Search/Task View/Widgets/Chat, File
-Explorer membuka "This PC", ekstensi file ditampilkan.
+Mode gelap, File Explorer membuka "This PC", ekstensi file ditampilkan. Wallpaper dan
+mode gelap baru tampil setelah restart.
+
+Taskbar (sejak `0.9.1`): pin bawaan diganti lewat policy layout taskbar Windows
+(`StartLayoutFile` menunjuk `%ProgramData%\TGOS\TaskbarLayout.xml`,
+`PinListPlacement="Replace"`) menjadi File Explorer, Edge, Microsoft Store. Ini
+menghilangkan pin Copilot yang tertinggal setelah aplikasinya dihapus. Pencarian jadi
+ikon (`SearchboxTaskbarMode = 1`), tombol Task View disembunyikan
+(`ShowTaskViewButton = 0`). Tombol Widgets tidak ditulis (nilainya dilindungi Windows);
+Widgets dimatikan lewat policy. Menu klik kanan klasik tidak dikerjakan.
+
+Di uji otomatis Windows 11, Windows menolak satu penulisan registry langsung
+(`UnauthorizedAccessException`; paling mungkin salah satu dari dua nilai taskbar itu), lalu
+mesin AME mengulanginya dengan cara cadangannya sendiri dan nilainya tertulis. Bila di
+Windows 11 Pro nilainya ternyata tidak bertahan, penggantinya policy `SearchOnTaskbarMode`
+dan `HideTaskViewButton`, dengan konsekuensi pengaturannya terkunci di Settings.
 
 Branding (aset di `assets/branding/`):
 
@@ -563,16 +615,15 @@ Branding (aset di `assets/branding/`):
 |---|---|---|
 | Logo TGO asli | `tgo-logo.png` (1024x1024) | Sumber; tidak diubah |
 | Ikon TGOS | `tgos-icon.png` → `src/playbook.png` (256x256) | Logo TGO + garis merah + label `OS`; ikon playbook di Wizard |
-| Wallpaper | `tgo-wallpaper.webp` (2000x1125) | Diterapkan di Fase 4, dikonversi ke PNG/JPG |
+| Wallpaper asli | `tgo-wallpaper.webp` (2000x1125) | Sumber desain; tidak dipakai langsung karena gradasinya bergaris |
+| Wallpaper TGOS | `tgos-wallpaper.png` → `src/Executables/TGOS/TGOS.png` (3840x2160) | Digambar ulang oleh `tools/make-wallpaper.py` dengan dithering supaya gradasinya halus |
 
 Warna mengikuti website TGO: latar `#05070d`, permukaan `#0f1522` / `#151c2c`, teks
 `#e8edf7`, aksen biru `#3b82f6`, merah logo `#eb121c`. Aksen Windows TGOS memakai biru
 itu supaya senada dengan web dan aplikasi.
 
-Dua catatan: file wallpaper yang ada hanya 9 KB dan gradasinya bergaris, jadi perlu
-file asli beresolusi tinggi sebelum Fase 4. Dan dari source code Wizard, ikon playbook
-yang sudah diterapkan hanya ditampilkan bila playbook terverifikasi AME; apakah ikon
-TGOS tampil saat memuat `.apbx` harus dilihat di uji VM.
+Catatan: dari source code Wizard, ikon playbook yang sudah diterapkan hanya ditampilkan
+bila playbook terverifikasi AME. Saat memuat `.apbx`, ikon TGOS tampil (uji Fase 0).
 
 ### 8.9 Finalisasi (`90-finalize.yml`)
 
@@ -711,7 +762,7 @@ menunggu hardware asli.
 | Fase | Versi | Isi | Selesai bila |
 |---|---|---|---|
 | 0. Kerangka | `0.0.1`–`0.0.2` | `playbook.conf`, cek kompatibilitas, pencatat info instalasi, branding, skrip build & validasi | **Lolos** di AME Beta, 14 Nov 2026 |
-| 1–4. Semua modul | `0.9.0` | Aplikasi bawaan, privasi, layanan, tugas terjadwal, performa, opsi keamanan, komponen, tampilan, TGOS Toolbox, pemeriksaan diri, uji otomatis. **Sudah dibuat; uji mesin AME di CI lolos.** | Satu uji di VM Windows 11 Pro 26H2 lolos |
+| 1–4. Semua modul | `0.9.0`–`0.9.1` | Aplikasi bawaan, privasi, layanan, tugas terjadwal, performa, opsi keamanan, komponen, tampilan, TGOS Toolbox, pemeriksaan diri, uji otomatis. **`0.9.0` diuji di VM 16 Nov 2026: 139 lolos, 1 gagal (Edge), beberapa cacat tampilan. `0.9.1` memperbaikinya.** | Uji ulang `0.9.1` di VM Windows 11 Pro 26H2 tanpa temuan |
 | 5. Beta hardware asli | `0.9.x` | Benchmark, uji anti-cheat, uji 22H2/23H2, keputusan [8.5](#85-kandidat-yang-butuh-bukti-benchmark-dulu) | Data benchmark tercatat, tidak ada bug kritis |
 | 6. Rilis | `1.0.0` | Dokumentasi pengguna, paket distribusi | Disetujui pemilik proyek |
 
@@ -737,6 +788,9 @@ sebelum ada satu pun tweak yang ditambahkan.
 | Versi AME Wizard baru mengubah format | Sedang | Catat versi Wizard yang dipakai uji di `docs/TESTING.md` |
 | Build Windows baru belum diuji | Sedang | `SupportedBuilds` eksplisit; build baru ditambah hanya setelah lolos uji |
 | Hasil VM tidak mewakili hardware asli | Sedang | Fase 5 khusus hardware asli sebelum rilis |
+| Microsoft menolak uninstall Edge di edisi Pro | Rendah | Opsi eksperimental, default mati, tidak fatal; hasilnya diperiksa laporan verifikasi; Edge di latar dimatikan lewat policy apa pun hasilnya |
+| Mesin uji otomatis (Enterprise, Server) berperilaku beda dari Pro | Sedang | Terbukti pada Edge. Setiap rilis tetap diuji sekali di VM Windows 11 Pro sebelum dianggap lolos |
+| Teks Wizard terpotong | Rendah | Batas panjang dijaga validator ([2.2](#22-playbookconf)) |
 
 ---
 

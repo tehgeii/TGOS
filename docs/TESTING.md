@@ -95,7 +95,13 @@ Laporan otomatis tidak bisa menilai hal berikut. Cukup jawab ya/tidak:
 - [ ] Start menu terbuka; tidak ada ubin kosong bekas aplikasi yang dihapus.
 - [ ] Mengetik "notepad" di Start menemukan Notepad.
 - [ ] Settings terbuka.
-- [ ] Wallpaper TGO terpasang dan mode gelap aktif.
+- [ ] Wallpaper TGO terpasang dan mode gelap aktif (setelah restart). Gradasinya halus,
+      tanpa garis-garis melingkar.
+- [ ] Di Wizard tidak ada teks yang terpotong dengan "...": deskripsi playbook, teks
+      kecil di kiri, deskripsi tiap halaman opsi, dan status saat instalasi.
+- [ ] Selama instalasi tidak muncul jendela "Yes/No" (UAC) untuk Microsoft OneDrive.
+- [ ] Taskbar: tidak ada kotak abu-abu; pencarian berupa ikon; tombol Task View tidak
+      ada; yang tersisa Start, Search, File Explorer, Edge, Store.
 - [ ] Microsoft Store bisa memasang satu aplikasi.
 - [ ] Microsoft Store bisa memasang ulang satu aplikasi yang dihapus (mis. Sticky Notes).
 - [ ] Suara keluar dan internet jalan.
@@ -131,7 +137,7 @@ terpotong setelah sekitar 5 baris, jadi sejak itu deskripsi dipendekkan.
 |---|---|---|---|
 | 1. Uji bentuk | 16 Nov 2026 | Lolos | 68 pemeriksaan di `tools/selftest.py` |
 | 2. Mesin AME | 16 Nov 2026 | Lolos di kelima job | Rincian di bawah |
-| 3. VM pemilik | | Belum | Menunggu uji di Windows 11 Pro 26H2 |
+| 3. VM pemilik | 16 Nov 2026 | 139 PASS, 1 FAIL, 7 SKIP | Windows 11 Pro 26H2; rincian di bawah |
 
 Lapis 2, runner command-line AME versi 0.8.4:
 
@@ -157,3 +163,74 @@ Yang terlihat di log mesin AME pada Windows 11 dengan semua opsi:
 - Power plan "TGOS Ultimate Performance" aktif; hibernasi mati.
 - Proteksi real-time Defender aktif sebelum dan sesudah.
 - Toolbox: *Defender OFF* ditolak karena Tamper Protection aktif, tanpa mengubah apa pun.
+
+Lapis 3, uji pemilik: Windows 11 Pro 26H2 build 26300.9974 di VMware, AME Beta 0.8.4,
+**semua opsi dicentang**. Angka dari `TGOS-snapshot-before.json` dan `TGOS-report.zip`:
+
+| | Sebelum | Sesudah | Target `PLAN.md` |
+|---|---|---|---|
+| Proses | 149 | 122 (−18%) | −35%, belum tercapai |
+| RAM terpakai | 3.345 MB | 2.352 MB (−30%) | −30%, tercapai |
+| Layanan berjalan | 97 | 82 (−15%) | −30%, belum tercapai |
+| Disk terpakai | 30,0 GB | 24,7 GB | tanpa target |
+| Paket AppX | 108 | 84 | |
+
+Potret "sesudah" diambil sekitar 2,5 menit setelah boot, bukan 5 menit, jadi angka
+proses dan RAM-nya indikatif.
+
+- Restore point terbuat; Defender tetap aktif dan terlindung Tamper Protection.
+- 11 tugas terjadwal dinonaktifkan, 2 tidak ada di build itu.
+- **Satu FAIL: Edge masih terpasang.** Uninstaller Edge keluar dengan kode 93.
+- OneDrive terhapus, tetapi uninstaller-nya menampilkan prompt UAC dan menunggu jawaban.
+- 57 baris error di log AME: file Widgets masih terkunci saat paketnya dihapus.
+- Yang terlihat mata: beberapa teks Wizard terpotong; taskbar menyisakan kotak abu-abu
+  (pin Copilot yang aplikasinya sudah dihapus); wallpaper bergaris; wallpaper dan mode
+  gelap baru tampil setelah restart (memang begitu cara kerjanya).
+
+Semua temuan itu ditangani di `0.9.1`.
+
+### `0.9.1`
+
+| Lapis | Tanggal | Hasil | Catatan |
+|---|---|---|---|
+| 1. Uji bentuk | 16 Nov 2026 | Lolos | 75 pemeriksaan di `tools/selftest.py` |
+| 2. Mesin AME | 16 Nov 2026 | Lolos di kelima job | Rincian di bawah |
+| 3. VM pemilik | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
+
+Lapis 2, runner command-line AME versi 0.8.4:
+
+| Runner | Opsi | Mesin AME | Pemeriksaan diri | Pemeriksaan CI |
+|---|---|---|---|---|
+| Windows Server 2025, build 26100, x64 | bawaan | selesai tanpa error | 142 PASS, 0 FAIL, 1 WARN, 26 SKIP | 34 dari 34 |
+| Windows Server 2025, build 26100, x64 | semua | selesai tanpa error | 151 PASS, 0 FAIL, 1 WARN, 18 SKIP | 34 dari 34 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan | selesai tanpa error | 153 PASS, 0 FAIL, 0 WARN, 16 SKIP | 34 dari 34 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua | selesai tanpa error | 162 PASS, 0 FAIL, 0 WARN, 8 SKIP | 34 dari 34 |
+
+Yang terlihat di log mesin AME pada Windows 11 dengan semua opsi:
+
+- Tugas terjadwal: 22 dinonaktifkan, 3 tidak ada di build itu, 0 gagal.
+- OneDrive terhapus dengan `runas: currentUserElevated`.
+- Edge terhapus pada cara 1 (kode keluar 0); cara 2 tidak sampai dijalankan.
+- `TaskbarLayout.xml` tersalin ke `C:\ProgramData\TGOS`; policy layout dan dua nilai
+  taskbar (`SearchboxTaskbarMode`, `ShowTaskViewButton`) terbaca benar sesudahnya.
+- Satu peringatan `UnauthorizedAccessException` dari mesin AME: Windows menolak satu
+  penulisan registry langsung, lalu mesin AME mengulanginya dengan cara cadangannya
+  sendiri. Nilai akhirnya benar (0 FAIL). Paling mungkin itu salah satu dari dua nilai
+  taskbar, yang dilindungi Windows; log tidak menyebut nilainya.
+- Empat pasang baris `Could not get app executable file location data` dari mesin AME
+  saat menghapus paket AppX. Sudah ada sejak `0.9.0` dan tidak memengaruhi hasil.
+- Paket AppX: 106 menjadi 83. Proteksi real-time Defender aktif sebelum dan sesudah.
+
+Angka proses dan RAM di runner uji naik, bukan turun: potret "sesudah" diambil saat
+runner masih sibuk tepat setelah instalasi, tanpa restart. Angka itu tidak dipakai untuk
+menilai performa; yang dipakai adalah ukuran di VM.
+
+Yang **tidak** bisa dibuktikan uji otomatis, jadi baru terlihat di uji ulang VM:
+
+- Teks Wizard tidak terpotong. Batas panjang di validator adalah perkiraan dari
+  screenshot `0.9.0`; runner uji tidak menampilkan Wizard.
+- Prompt OneDrive tidak muncul. Runner uji berjalan tanpa UAC interaktif.
+- Tampilan taskbar. Uji otomatis hanya membuktikan policy dan nilainya tertulis.
+- Edge di edisi Pro. Di runner (Enterprise) Edge terhapus pada cara pertama, jadi cara
+  kedua dan penolakan kode 93 tidak pernah terjadi di sana.
+- Wallpaper tampil halus di layar.
