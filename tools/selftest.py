@@ -30,6 +30,7 @@ SERVICES = "src/Configuration/Tasks/30-services.yml"
 TASK_LIST = "src/Executables/TGOS/scheduled-tasks.txt"
 EXPECTED_STATE = "src/Executables/TGOS Toolbox/Support/expected-state.json"
 ICON = "src/playbook.png"
+TASKBAR_LAYOUT = "src/Executables/TGOS/TaskbarLayout.xml"
 
 # PNG 1x1 yang valid: dipakai untuk menguji pemeriksaan ukuran ikon.
 TINY_PNG = bytes.fromhex(
@@ -144,6 +145,20 @@ MUTATIONS = [
     # --- Halaman opsi ---
     ("IsChecked bukan boolean", CONF, 'IsChecked="false"', 'IsChecked="no"',
      "IsChecked harus 'true' atau 'false'"),
+    ("deskripsi singkat terlalu panjang", CONF, "<ShortDescription>Tech Gameplay Operating System<",
+     "<ShortDescription>Tech Gameplay Operating System for Windows 11 Pro<",
+     "<ShortDescription> butuh sekitar 3 baris"),
+    ("deskripsi terlalu panjang", CONF, "Windows jadi lebih ringan untuk gaming.",
+     "Windows jadi lebih ringan untuk gaming.\n\nWindows Defender stays on.\n\nSatu baris lagi.",
+     "<Description> butuh sekitar 8 baris"),
+    ("deskripsi halaman terlalu panjang", CONF, "Choose which built-in components to remove.",
+     "Choose which built-in components TGOS removes from this Windows installation for you today.",
+     "<CheckboxPage> Description butuh sekitar 3 baris"),
+    ("teks opsi terlalu panjang", CONF, "<Text>Automatic Windows updates (default)</Text>",
+     "<Text>Automatic Windows updates (the Windows default)</Text>",
+     "teks opsi 'updates-default' 47 karakter"),
+    ("status terlalu panjang", MAIN, "status: 'Removing components'",
+     "status: 'Removing optional components'", "Wizard memotong status di atas 22"),
     ("atribut halaman salah ketik", CONF, "<CheckboxPage Description=", "<CheckboxPage Descripton=",
      "atribut 'Descripton' tidak dikenal"),
     ("jenis opsi salah", CONF, '<CheckboxOption IsChecked="false">', "<RadioOption>",
@@ -160,6 +175,7 @@ BINARY_MUTATIONS = [
     ("ikon bukan PNG", ICON, b"GIF89a bukan png, cuma teks pengisi", "bukan file PNG"),
     ("ikon salah ukuran", ICON, TINY_PNG, "harus 256x256"),
     ("file pendukung hilang", EXPECTED_STATE, None, "file pendukung tidak ditemukan"),
+    ("layout taskbar hilang", TASKBAR_LAYOUT, None, "TaskbarLayout.xml: file pendukung tidak ditemukan"),
 ]
 
 # (edisi, build, arsitektur, kode keluar yang diharapkan)

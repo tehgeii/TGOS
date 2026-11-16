@@ -64,6 +64,15 @@ BOOL_ATTRIBUTES = {"IsRequired", "IsChecked", "IsEnabled", "CheckDefaultBrowser"
 MAX_PAGE_OPTIONS = 4  # batas AME Wizard; turun jadi 3 atau 2 bila ada TopLine/BottomLine
 INVALID_NAME_CHARS = set('\\/:*?"<>|')
 
+# Ruang tampil teks di AME Wizard. Teks yang lebih panjang dipotong dengan "...".
+# Angkanya diukur dari tampilan Wizard 0.8.4 dan sengaja diambil sedikit di bawah
+# batas sebenarnya, karena font-nya proporsional: (baris, karakter per baris).
+SHORT_DESCRIPTION_ROOM = (2, 20)
+DESCRIPTION_ROOM = (5, 44)
+PAGE_DESCRIPTION_ROOM = (2, 44)
+MAX_OPTION_TEXT = 44
+MAX_STATUS_TEXT = 22
+
 ROOT_KEYS = {
     "title", "description", "actions", "iso", "oobe", "priority", "privilege",
     "option", "options", "builds", "cpuArch", "onUpgrade", "onUpgradeVersions",
@@ -245,6 +254,40 @@ def rel(path: Path) -> str:
 # playbook.conf
 # --------------------------------------------------------------------------- #
 
+def wrapped_rows(text: str, width: int) -> int:
+    """Jumlah baris yang dipakai teks bila dibungkus per kata pada lebar tertentu.
+
+    Baris kosong di antara paragraf ikut dihitung, sama seperti di layar.
+    """
+    rows = 0
+    for paragraph in text.strip().splitlines():
+        words = paragraph.split()
+        if not words:
+            rows += 1
+            continue
+        rows += 1
+        used = 0
+        for word in words:
+            if used == 0:
+                used = len(word)
+            elif used + 1 + len(word) <= width:
+                used += 1 + len(word)
+            else:
+                rows += 1
+                used = len(word)
+    return rows
+
+
+def check_room(report: Report, where: str, label: str, text: str | None, room: tuple[int, int]) -> None:
+    if not text:
+        return
+    rows, width = room
+    needed = wrapped_rows(text, width)
+    if needed > rows:
+        report.error(where, f"{label} butuh sekitar {needed} baris; Wizard hanya menampilkan {rows} "
+                            f"baris x {width} karakter, sisanya terpotong")
+
+
 def text_of(root: ET.Element, tag: str) -> str | None:
     node = root.find(tag)
     if node is None or node.text is None:
@@ -332,6 +375,9 @@ def validate_conf(report: Report) -> tuple[set[str], str | None]:
             elif value not in REQUIREMENTS:
                 report.error(where, f"requirement '{value}' tidak dikenal AME Wizard")
 
+    check_room(report, where, "<ShortDescription>", text_of(root, "ShortDescription"), SHORT_DESCRIPTION_ROOM)
+    check_room(report, where, "<Description>", text_of(root, "Description"), DESCRIPTION_ROOM)
+
     for tag in ("Overhaul", "UseKernelDriver", "AllowUnsupportedUpgrades", "SupportsISO"):
         value = text_of(root, tag)
         if value is not None and value not in ("true", "false"):
@@ -352,6 +398,7 @@ def validate_conf(report: Report) -> tuple[set[str], str | None]:
                 report.error(where, f"<{page.tag}>: atribut '{attribute}' tidak dikenal")
             elif attribute in BOOL_ATTRIBUTES and value not in ("true", "false"):
                 report.error(where, f"<{page.tag}>: {attribute} harus 'true' atau 'false', bukan '{value}'")
+        check_room(report, where, f"<{page.tag}> Description", page.get("Description"), PAGE_DESCRIPTION_ROOM)
         if page.tag == "CheckboxPage" and page.get("DefaultOption") is not None:
             report.error(where, "<CheckboxPage> tidak punya DefaultOption; pakai IsChecked pada opsinya")
         for child in page:
@@ -380,8 +427,12 @@ def validate_conf(report: Report) -> tuple[set[str], str | None]:
             if not option_name:
                 report.error(where, f"<{option.tag}> tanpa <Name>")
                 continue
-            if not text_of(option, "Text"):
+            option_text = text_of(option, "Text")
+            if not option_text:
                 report.error(where, f"opsi '{option_name}' tanpa <Text>")
+            elif len(option_text) > MAX_OPTION_TEXT:
+                report.error(where, f"teks opsi '{option_name}' {len(option_text)} karakter; "
+                                    f"Wizard memotong di atas {MAX_OPTION_TEXT}")
             if not re.match(r"^[a-z0-9]+(-[a-z0-9]+)*$", option_name):
                 report.error(where, f"nama opsi '{option_name}' harus huruf kecil dipisah tanda hubung")
             if option_name in options:
@@ -481,6 +532,10 @@ def validate_action(report: Report, where: str, action: Action, options: set[str
     for key in REQUIRED_KEYS.get(tag, []):
         if body.get(key) in (None, ""):
             report.error(where, f"!{tag}: properti '{key}' wajib diisi")
+
+    if tag == "writeStatus" and isinstance(body.get("status"), str) and len(body["status"]) > MAX_STATUS_TEXT:
+        report.error(where, f"!writeStatus: '{body['status']}' {len(body['status'])} karakter; "
+                            f"Wizard memotong status di atas {MAX_STATUS_TEXT}")
 
     if tag == "taskKill" and not (body.get("name") or body.get("pathContains")):
         report.error(where, "!taskKill: butuh 'name' atau 'pathContains'")
@@ -734,6 +789,7 @@ def validate_install_record(report: Report, options: set[str]) -> None:
 REQUIRED_SUPPORT_FILES = [
     "TGOS/scheduled-tasks.txt",
     "TGOS/TGOS.png",
+    "TGOS/TaskbarLayout.xml",
     "TGOS Toolbox/README.txt",
     "TGOS Toolbox/Support/Set-TgosFeature.ps1",
     "TGOS Toolbox/Support/Test-TgosResult.ps1",

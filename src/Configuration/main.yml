@@ -2,30 +2,33 @@
 title: TGOS
 description: Titik masuk playbook TGOS. Urutan aksi di file ini adalah urutan eksekusi.
 actions:
+  # Teks status dibatasi 22 karakter (dijaga tools/validate.py): Wizard memotong yang
+  # lebih panjang, mis. "Removing optional componen...".
+
   # Harus selalu yang pertama: menghentikan playbook sebelum ada perubahan apa pun
   # bila sistem bukan Windows 11 Pro x64 build 22621 atau lebih baru, lalu membuat
   # restore point.
-  - !writeStatus: { status: 'Checking compatibility' }
+  - !writeStatus: { status: 'Checking system' }
   - !task: { path: 'Tasks\00-preflight.yml' }
 
-  - !writeStatus: { status: 'Removing preinstalled apps' }
+  - !writeStatus: { status: 'Removing apps' }
   - !task: { path: 'Tasks\10-debloat-appx.yml' }
 
-  - !writeStatus: { status: 'Applying privacy settings' }
+  - !writeStatus: { status: 'Applying privacy' }
   - !task: { path: 'Tasks\20-privacy.yml' }
 
-  - !writeStatus: { status: 'Disabling unneeded services' }
+  - !writeStatus: { status: 'Tuning services' }
   - !task: { path: 'Tasks\30-services.yml' }
   - !task: { path: 'Tasks\40-scheduled-tasks.yml' }
 
-  - !writeStatus: { status: 'Applying performance settings' }
+  - !writeStatus: { status: 'Tuning performance' }
   - !task: { path: 'Tasks\50-performance.yml' }
   - !task: { path: 'Tasks\60-security-options.yml' }
 
-  - !writeStatus: { status: 'Removing optional components' }
+  - !writeStatus: { status: 'Removing components' }
   - !task: { path: 'Tasks\70-components.yml' }
 
-  - !writeStatus: { status: 'Applying the TGOS look' }
+  - !writeStatus: { status: 'Applying TGOS theme' }
   - !task: { path: 'Tasks\80-interface.yml' }
 
   # Harus selalu yang terakhir: memasang Toolbox, mencatat instalasi, lalu memeriksa

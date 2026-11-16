@@ -22,6 +22,12 @@ actions:
   - !service: { name: 'WerSvc', operation: change, startup: 4 }
   # Windows Insider Service: hanya dipakai bila ikut program Insider.
   - !service: { name: 'wisvc', operation: change, startup: 4 }
+  # Inventory and Compatibility Appraisal: menginventaris aplikasi dan perangkat untuk
+  # telemetri kompatibilitas. Berjalan otomatis di 24H2 ke atas.
+  - !service: { name: 'InventorySvc', operation: change, startup: 4 }
+  # Windows Health and Optimized Experiences: pengumpul data kesehatan perangkat.
+  # Berjalan otomatis di 24H2 ke atas.
+  - !service: { name: 'whesvc', operation: change, startup: 4 }
 
   # --- Aktivitas latar yang tidak perlu --------------------------------------------
   # SysMain (Superfetch): memuat aplikasi ke RAM lebih dulu. Di SSD manfaatnya kecil,
@@ -47,6 +53,11 @@ actions:
   - !service: { name: 'SEMgrSvc', operation: change, startup: 4 }
   # Berbagi pustaka Windows Media Player ke jaringan.
   - !service: { name: 'WMPNetworkSvc', operation: change, startup: 4 }
+
+  # --- Opsi: Copilot dan Widgets ---------------------------------------------------
+  # Windows AI Fabric: runtime fitur AI. Dijadikan Manual (bukan Disabled) supaya hanya
+  # jalan bila ada yang memintanya.
+  - !service: { name: 'WSAIFabricSvc', operation: change, startup: 3, option: 'remove-ai-widgets' }
 
   # --- Opsi: Windows Search --------------------------------------------------------
   # Pengindeksan isi file. Tanpa ini pencarian file di Explorer lebih lambat, tetapi

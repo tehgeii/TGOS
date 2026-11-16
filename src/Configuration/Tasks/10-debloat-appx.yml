@@ -49,6 +49,11 @@ actions:
   - !appx: { name: 'Microsoft.549981C3F5F10*', type: family }  # Cortana
 
   # --- Opsi: Copilot dan Widgets ---------------------------------------------------
+  # Proses Widgets dihentikan dulu. Tanpa ini filenya masih terkunci saat paketnya
+  # dihapus, dan sisa file tertinggal di disk.
+  - !taskKill: { name: 'Widgets', option: 'remove-ai-widgets' }
+  - !taskKill: { name: 'WidgetService', option: 'remove-ai-widgets' }
+  - !taskKill: { name: 'WidgetBoard', option: 'remove-ai-widgets' }
   - !appx: { name: 'Microsoft.Copilot*', type: family, option: 'remove-ai-widgets' }  # Copilot
   - !appx: { name: 'Microsoft.Windows.Ai.Copilot.Provider*', type: family, option: 'remove-ai-widgets' }  # Copilot provider
   - !appx: { name: 'MicrosoftWindows.Client.WebExperience*', type: family, option: 'remove-ai-widgets' }  # Widgets (Windows Web Experience Pack)
