@@ -67,183 +67,197 @@
   },
   {
    "type": "appx",
-   "name": "Microsoft.MicrosoftOfficeHub*",
-   "source": "10-debloat-appx.yml:31",
-   "option": null,
-   "builds": null
-  },
-  {
-   "type": "appx",
    "name": "Microsoft.OutlookForWindows*",
-   "source": "10-debloat-appx.yml:32",
-   "option": null,
-   "builds": null
-  },
-  {
-   "type": "appx",
-   "name": "microsoft.windowscommunicationsapps*",
    "source": "10-debloat-appx.yml:33",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.People*",
+   "name": "microsoft.windowscommunicationsapps*",
    "source": "10-debloat-appx.yml:34",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.Todos*",
+   "name": "Microsoft.People*",
    "source": "10-debloat-appx.yml:35",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.PowerAutomateDesktop*",
+   "name": "Microsoft.Todos*",
    "source": "10-debloat-appx.yml:36",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.Windows.DevHome*",
+   "name": "Microsoft.PowerAutomateDesktop*",
    "source": "10-debloat-appx.yml:37",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "MicrosoftTeams_*",
+   "name": "Microsoft.Windows.DevHome*",
    "source": "10-debloat-appx.yml:38",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "MSTeams_*",
+   "name": "MicrosoftTeams_*",
    "source": "10-debloat-appx.yml:39",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Clipchamp.Clipchamp*",
+   "name": "MSTeams_*",
    "source": "10-debloat-appx.yml:40",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.WindowsMaps*",
-   "source": "10-debloat-appx.yml:43",
+   "name": "Clipchamp.Clipchamp*",
+   "source": "10-debloat-appx.yml:41",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.YourPhone*",
+   "name": "Microsoft.WindowsMaps*",
    "source": "10-debloat-appx.yml:44",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.WindowsSoundRecorder*",
+   "name": "Microsoft.YourPhone*",
    "source": "10-debloat-appx.yml:45",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.WindowsAlarms*",
+   "name": "MicrosoftWindows.CrossDevice*",
    "source": "10-debloat-appx.yml:46",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.MicrosoftStickyNotes*",
+   "name": "Microsoft.WindowsSoundRecorder*",
    "source": "10-debloat-appx.yml:47",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "MicrosoftCorporationII.MicrosoftFamily*",
+   "name": "Microsoft.WindowsAlarms*",
    "source": "10-debloat-appx.yml:48",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.549981C3F5F10*",
+   "name": "Microsoft.MicrosoftStickyNotes*",
    "source": "10-debloat-appx.yml:49",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
+   "name": "MicrosoftCorporationII.MicrosoftFamily*",
+   "source": "10-debloat-appx.yml:50",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.549981C3F5F10*",
+   "source": "10-debloat-appx.yml:51",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.MicrosoftOfficeHub*",
+   "source": "10-debloat-appx.yml:69",
+   "option": "remove-ai-widgets",
+   "builds": null
+  },
+  {
+   "type": "appx",
    "name": "Microsoft.Copilot*",
-   "source": "10-debloat-appx.yml:57",
+   "source": "10-debloat-appx.yml:75",
    "option": "remove-ai-widgets",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.Windows.Ai.Copilot.Provider*",
-   "source": "10-debloat-appx.yml:58",
+   "source": "10-debloat-appx.yml:76",
    "option": "remove-ai-widgets",
    "builds": null
   },
   {
    "type": "appx",
    "name": "MicrosoftWindows.Client.WebExperience*",
-   "source": "10-debloat-appx.yml:59",
+   "source": "10-debloat-appx.yml:77",
    "option": "remove-ai-widgets",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.WidgetsPlatformRuntime*",
-   "source": "10-debloat-appx.yml:60",
+   "source": "10-debloat-appx.yml:78",
+   "option": "remove-ai-widgets",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.StartExperiencesApp*",
+   "source": "10-debloat-appx.yml:79",
    "option": "remove-ai-widgets",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.GamingApp*",
-   "source": "10-debloat-appx.yml:66",
+   "source": "10-debloat-appx.yml:97",
    "option": "remove-xbox",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.XboxGamingOverlay*",
-   "source": "10-debloat-appx.yml:67",
+   "source": "10-debloat-appx.yml:98",
    "option": "remove-xbox",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.XboxGameOverlay*",
-   "source": "10-debloat-appx.yml:68",
+   "source": "10-debloat-appx.yml:99",
    "option": "remove-xbox",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.XboxSpeechToTextOverlay*",
-   "source": "10-debloat-appx.yml:69",
+   "source": "10-debloat-appx.yml:100",
    "option": "remove-xbox",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.Xbox.TCUI*",
-   "source": "10-debloat-appx.yml:70",
+   "source": "10-debloat-appx.yml:101",
    "option": "remove-xbox",
    "builds": null
   },
@@ -671,9 +685,22 @@
   },
   {
    "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+   "value": "DisableClickToDo",
+   "source": "20-privacy.yml:94",
+   "option": "remove-ai-widgets",
+   "builds": [
+    ">=26100"
+   ],
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
    "path": "HKCU\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsCopilot",
    "value": "TurnOffWindowsCopilot",
-   "source": "20-privacy.yml:94",
+   "source": "20-privacy.yml:97",
    "option": "remove-ai-widgets",
    "builds": [
     "<26100"
@@ -686,7 +713,7 @@
    "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
    "value": "ShowCopilotButton",
-   "source": "20-privacy.yml:95",
+   "source": "20-privacy.yml:98",
    "option": "remove-ai-widgets",
    "builds": [
     "<26100"
@@ -1218,9 +1245,53 @@
   },
   {
    "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer",
+   "value": "HideRecentlyAddedApps",
+   "source": "80-interface.yml:24",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer",
+   "value": "HideRecommendedSection",
+   "source": "80-interface.yml:25",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+   "value": "Start_TrackDocs",
+   "source": "80-interface.yml:26",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+   "value": "Start_TrackProgs",
+   "source": "80-interface.yml:27",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
    "value": "AppsUseLightTheme",
-   "source": "80-interface.yml:21",
+   "source": "80-interface.yml:30",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1231,7 +1302,7 @@
    "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
    "value": "SystemUsesLightTheme",
-   "source": "80-interface.yml:22",
+   "source": "80-interface.yml:31",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1242,7 +1313,7 @@
    "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
    "value": "LaunchTo",
-   "source": "80-interface.yml:26",
+   "source": "80-interface.yml:35",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1253,7 +1324,7 @@
    "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
    "value": "HideFileExt",
-   "source": "80-interface.yml:28",
+   "source": "80-interface.yml:37",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1264,7 +1335,7 @@
    "type": "registry",
    "path": "HKCU\\Control Panel\\Desktop",
    "value": "WallPaper",
-   "source": "80-interface.yml:34",
+   "source": "80-interface.yml:43",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1275,7 +1346,7 @@
    "type": "registry",
    "path": "HKCU\\Control Panel\\Desktop",
    "value": "WallpaperStyle",
-   "source": "80-interface.yml:35",
+   "source": "80-interface.yml:44",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1286,7 +1357,7 @@
    "type": "registry",
    "path": "HKCU\\Control Panel\\Desktop",
    "value": "TileWallpaper",
-   "source": "80-interface.yml:36",
+   "source": "80-interface.yml:45",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1297,7 +1368,7 @@
    "type": "registry",
    "path": "HKCU\\Control Panel\\Desktop",
    "value": "JPEGImportQuality",
-   "source": "80-interface.yml:37",
+   "source": "80-interface.yml:46",
    "option": null,
    "builds": null,
    "absent": false,

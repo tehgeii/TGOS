@@ -89,6 +89,9 @@ actions:
   # Widgets dimatikan lewat policy. Tombol taskbar-nya (TaskbarDa) tidak ditulis
   # langsung karena nilai itu dilindungi Windows dan penulisan dari luar ditolak.
   - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Dsh', value: 'AllowNewsAndInterests', data: '0', type: REG_DWORD, option: 'remove-ai-widgets' }
+  # Click to Do (aksi AI atas isi layar) dimatikan. Aplikasinya bagian dari Windows dan
+  # tidak bisa dihapus.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI', value: 'DisableClickToDo', data: '1', type: REG_DWORD, option: 'remove-ai-widgets', builds: ['>=26100'] }
   # Copilot versi panel samping hanya ada di 22H2 dan 23H2; di 24H2 ke atas Copilot
   # adalah aplikasi biasa yang dihapus modul 10.
   - !registryValue: { path: 'HKCU\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot', value: 'TurnOffWindowsCopilot', data: '1', type: REG_DWORD, option: 'remove-ai-widgets', builds: ['<26100'] }

@@ -1,28 +1,20 @@
 <#
 .SYNOPSIS
-    Menghapus Microsoft Edge dengan uninstaller milik Edge sendiri. EKSPERIMENTAL.
+    Menghapus Microsoft Edge dengan uninstaller milik Edge sendiri.
 
 .DESCRIPTION
     Uninstaller Edge (setup.exe) menolak bekerja di banyak instalasi Windows 11: di
-    Windows 11 Pro 26H2 ia keluar dengan kode 93 tanpa menghapus apa pun. Skrip ini
-    mencoba dua cara berurutan dan berhenti begitu Edge hilang:
+    Windows 11 Pro 26H2 uninstall biasa keluar dengan kode 93 tanpa menghapus apa pun.
+    Skrip ini memakai Remove-TgosChromiumProduct di Common.ps1, yang mencoba dua cara
+    berurutan. Di uji Windows 11 Pro 26H2 (TGOS 0.9.1) cara pertama berhasil.
 
-    Cara 1 - penanda Edge lama.
-        Membuat berkas kosong
-        %SystemRoot%\SystemApps\Microsoft.MicrosoftEdge_8wekyb3d8bbwe\MicrosoftEdge.exe
-        (lokasi Edge versi lama), menandai Edge boleh di-uninstall (AllowUninstall),
-        menghapus label eksperimen EdgeUpdate, lalu menjalankan uninstaller.
+    Microsoft Edge WebView2 Runtime TIDAK dihapus: itu produk terpisah yang dipakai
+    banyak launcher dan aplikasi. Update Windows bisa memasang Edge lagi.
 
-    Cara 2 - variabel windir dikosongkan.
-        Menjalankan uninstaller yang sama dengan variabel lingkungan "windir" dihapus
-        HANYA untuk proses uninstaller itu. Variabel sistem tidak diubah.
-
-    Berkas penanda dari cara 1 selalu dibersihkan lagi di akhir.
-
-    Kedua cara berasal dari pengamatan komunitas, bukan dari dokumentasi Microsoft,
-    jadi bisa berhenti bekerja kapan saja. Microsoft Edge WebView2 Runtime TIDAK
-    dihapus: itu produk terpisah yang dipakai banyak launcher dan aplikasi. Update
-    Windows bisa memasang Edge lagi.
+    -RequireBrowser
+        Edge TIDAK dihapus bila tidak ada browser lain yang terpasang. Dipakai playbook
+        ketika pengguna memilih browser untuk dipasang: bila pemasangannya gagal, Edge
+        dibiarkan supaya pengguna tidak kehilangan browser.
 
     Skrip ini tidak fatal (kode keluar selalu 0); hasil sebenarnya diperiksa
     Test-TgosResult.ps1.
@@ -30,13 +22,16 @@
     File ini harus tetap ASCII murni dan kompatibel dengan Windows PowerShell 5.1.
 #>
 [CmdletBinding()]
-param()
+param(
+    [switch]$RequireBrowser
+)
 
 $ErrorActionPreference = 'Stop'
 
-$EdgeClientState = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\ClientState\{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}'
+. (Join-Path $PSScriptRoot 'Common.ps1')
+
+$EdgeGuid = '{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}'
 $UninstallArguments = '--uninstall --msedge --system-level --channel=stable --verbose-logging --force-uninstall'
-$TimeoutMilliseconds = 300000
 
 function Get-EdgeRoot {
     foreach ($base in @(${env:ProgramFiles(x86)}, $env:ProgramFiles)) {
@@ -48,52 +43,20 @@ function Get-EdgeRoot {
     return $null
 }
 
-function Test-EdgeInstalled {
-    param([string]$Root)
-    return (Test-Path -LiteralPath (Join-Path $Root 'msedge.exe'))
-}
-
-function Stop-EdgeProcesses {
-    Get-Process -Name 'msedge' -ErrorAction SilentlyContinue |
-        Stop-Process -Force -ErrorAction SilentlyContinue
-}
-
-function Invoke-EdgeUninstaller {
-    # Mengembalikan kode keluar uninstaller, atau $null bila tidak selesai tepat waktu.
-    param(
-        [string]$Setup,
-        [switch]$WithoutWindir
-    )
-
-    $info = New-Object System.Diagnostics.ProcessStartInfo
-    $info.FileName = $Setup
-    $info.Arguments = $UninstallArguments
-    $info.WorkingDirectory = Split-Path -Parent $Setup
-    $info.UseShellExecute = $false
-    $info.CreateNoWindow = $true
-    if ($WithoutWindir) {
-        # Hanya salinan lingkungan milik proses anak yang diubah.
-        $info.EnvironmentVariables.Remove('windir')
-    }
-
-    $process = [System.Diagnostics.Process]::Start($info)
-    if (-not $process.WaitForExit($TimeoutMilliseconds)) {
-        try { $process.Kill() } catch { }
-        return $null
-    }
-    return $process.ExitCode
-}
-
-$stubDirectory = Join-Path $env:SystemRoot 'SystemApps\Microsoft.MicrosoftEdge_8wekyb3d8bbwe'
-$stubFile = Join-Path $stubDirectory 'MicrosoftEdge.exe'
-$createdStubDirectory = $false
-$createdStubFile = $false
-
 try {
     $edgeRoot = Get-EdgeRoot
-    if (-not $edgeRoot -or -not (Test-EdgeInstalled -Root $edgeRoot)) {
+    if (-not $edgeRoot -or -not (Test-Path -LiteralPath (Join-Path $edgeRoot 'msedge.exe'))) {
         Write-Output 'TGOS: Microsoft Edge is not installed; nothing to remove'
         exit 0
+    }
+
+    if ($RequireBrowser) {
+        $other = @(Get-TgosInstalledBrowsers)
+        if ($other.Count -eq 0) {
+            Write-Output 'WARNING: Microsoft Edge was kept: the selected browser is not installed, and removing Edge would leave no browser'
+            exit 0
+        }
+        Write-Output ("TGOS: another browser is installed ({0}); removing Microsoft Edge" -f (($other | ForEach-Object { $_.Name }) -join ', '))
     }
 
     $setup = Get-ChildItem -LiteralPath $edgeRoot -Directory -ErrorAction SilentlyContinue |
@@ -106,56 +69,15 @@ try {
         exit 0
     }
 
-    # --- Persiapan bersama -----------------------------------------------------------
-    $allowKey = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdateDev'
-    if (-not (Test-Path -LiteralPath $allowKey)) {
-        New-Item -Path $allowKey -Force | Out-Null
+    $isInstalled = { Test-Path -LiteralPath (Join-Path $edgeRoot 'msedge.exe') }
+    $stopEdge = {
+        Get-Process -Name 'msedge' -ErrorAction SilentlyContinue |
+            Stop-Process -Force -ErrorAction SilentlyContinue
     }
-    Set-ItemProperty -LiteralPath $allowKey -Name 'AllowUninstall' -Value '' -Type String
+    Remove-TgosChromiumProduct -Label 'Edge' -Setup $setup -Arguments $UninstallArguments `
+        -TestInstalled $isInstalled -StopProcesses $stopEdge -ClientStateGuid $EdgeGuid
 
-    if (Test-Path -LiteralPath $EdgeClientState) {
-        Remove-ItemProperty -LiteralPath $EdgeClientState -Name 'experiment_control_labels' -ErrorAction SilentlyContinue
-    }
-
-    try {
-        if (-not (Test-Path -LiteralPath $stubDirectory)) {
-            New-Item -ItemType Directory -Path $stubDirectory -Force | Out-Null
-            $createdStubDirectory = $true
-        }
-        if (-not (Test-Path -LiteralPath $stubFile)) {
-            New-Item -ItemType File -Path $stubFile -Force | Out-Null
-            $createdStubFile = $true
-        }
-    }
-    catch {
-        Write-Output ("WARNING: could not create the legacy Edge marker: {0}" -f (($_.Exception.Message -replace '\s+', ' ').Trim()))
-    }
-
-    # --- Cara 1 ----------------------------------------------------------------------
-    Stop-EdgeProcesses
-    Write-Output ("TGOS: Edge removal method 1 (legacy marker): {0} {1}" -f $setup, $UninstallArguments)
-    $exitCode = Invoke-EdgeUninstaller -Setup $setup
-    if ($null -eq $exitCode) {
-        Write-Output 'WARNING: the Edge uninstaller did not finish within 5 minutes (method 1)'
-    }
-    else {
-        Write-Output ("TGOS: Edge uninstaller exit code {0} (method 1)" -f $exitCode)
-    }
-
-    # --- Cara 2 ----------------------------------------------------------------------
-    if ((Test-EdgeInstalled -Root $edgeRoot) -and (Test-Path -LiteralPath $setup)) {
-        Stop-EdgeProcesses
-        Write-Output 'TGOS: Edge removal method 2 (uninstaller without the windir variable)'
-        $exitCode = Invoke-EdgeUninstaller -Setup $setup -WithoutWindir
-        if ($null -eq $exitCode) {
-            Write-Output 'WARNING: the Edge uninstaller did not finish within 5 minutes (method 2)'
-        }
-        else {
-            Write-Output ("TGOS: Edge uninstaller exit code {0} (method 2)" -f $exitCode)
-        }
-    }
-
-    if (Test-EdgeInstalled -Root $edgeRoot) {
+    if (& $isInstalled) {
         Write-Output 'WARNING: Microsoft Edge is still installed; Windows refused the uninstall'
     }
     else {
@@ -170,16 +92,7 @@ try {
     }
 }
 catch {
-    Write-Output ("WARNING: could not remove Microsoft Edge: {0}" -f (($_.Exception.Message -replace '\s+', ' ').Trim()))
-}
-finally {
-    # Hanya yang dibuat skrip ini yang dihapus.
-    if ($createdStubFile -and (Test-Path -LiteralPath $stubFile)) {
-        Remove-Item -LiteralPath $stubFile -Force -ErrorAction SilentlyContinue
-    }
-    if ($createdStubDirectory -and (Test-Path -LiteralPath $stubDirectory)) {
-        Remove-Item -LiteralPath $stubDirectory -Force -ErrorAction SilentlyContinue
-    }
+    Write-Output ("WARNING: could not remove Microsoft Edge: {0}" -f (Format-TgosError $_))
 }
 
 exit 0

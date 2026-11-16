@@ -5,6 +5,9 @@
    menangkapnya. Ini menjaga supaya validator tidak diam-diam berhenti memeriksa.
 2. Menjalankan Test-Compatibility.ps1 dengan berbagai edisi/build/arsitektur dan
    memastikan kode keluarnya benar (dilewati bila PowerShell tidak terpasang).
+3. Menjalankan Set-ShellLayout.ps1 -GenerateOnly dan memeriksa layout taskbar dan pin
+   Start yang dihasilkannya.
+4. Memastikan file yang dibuat dari YAML tidak usang.
 
 Pemakaian:
     python tools/selftest.py
@@ -30,7 +33,6 @@ SERVICES = "src/Configuration/Tasks/30-services.yml"
 TASK_LIST = "src/Executables/TGOS/scheduled-tasks.txt"
 EXPECTED_STATE = "src/Executables/TGOS Toolbox/Support/expected-state.json"
 ICON = "src/playbook.png"
-TASKBAR_LAYOUT = "src/Executables/TGOS/TaskbarLayout.xml"
 
 # PNG 1x1 yang valid: dipakai untuk menguji pemeriksaan ukuran ikon.
 TINY_PNG = bytes.fromhex(
@@ -175,7 +177,6 @@ BINARY_MUTATIONS = [
     ("ikon bukan PNG", ICON, b"GIF89a bukan png, cuma teks pengisi", "bukan file PNG"),
     ("ikon salah ukuran", ICON, TINY_PNG, "harus 256x256"),
     ("file pendukung hilang", EXPECTED_STATE, None, "file pendukung tidak ditemukan"),
-    ("layout taskbar hilang", TASKBAR_LAYOUT, None, "TaskbarLayout.xml: file pendukung tidak ditemukan"),
 ]
 
 # (edisi, build, arsitektur, kode keluar yang diharapkan)
@@ -296,6 +297,63 @@ def test_compatibility() -> int:
     return failures
 
 
+# (nama, argumen tambahan, jumlah pin taskbar, potongan yang harus ada, yang tidak boleh ada)
+SHELL_LAYOUT_CASES = [
+    ("Brave terpasang", ["-BrowserLinkNames", "Brave.lnk"], 3, "Programs\\Brave.lnk", "MSEdge"),
+    ("hanya Edge", ["-EdgeInstalled"], 3, "MSEdge", ".lnk"),
+    ("Edge dan Chrome: Chrome yang dipin", ["-BrowserLinkNames", "Google Chrome.lnk", "-EdgeInstalled"],
+     3, "Google Chrome.lnk", "MSEdge"),
+    ("tanpa browser, Store dihapus", ["-StoreRemoved"], 1, "Microsoft.Windows.Explorer", "WindowsStore"),
+]
+
+
+def test_shell_layout() -> int:
+    """Set-ShellLayout.ps1 -GenerateOnly: layout taskbar dan pin Start harus sah."""
+    import json
+    import xml.etree.ElementTree as ET
+
+    shell = find_powershell()
+    if not shell:
+        print("lewat  Set-ShellLayout.ps1: PowerShell tidak terpasang")
+        return 0
+
+    script = ROOT / "src" / "Executables" / "Scripts" / "Set-ShellLayout.ps1"
+    failures = 0
+    for name, extra, pin_count, must_have, must_not_have in SHELL_LAYOUT_CASES:
+        label = f"layout shell: {name}"
+        with tempfile.TemporaryDirectory(prefix="tgos-layout-") as tmp:
+            result = subprocess.run(
+                [shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                 "-File", str(script), "-GenerateOnly", "-DataDirectory", tmp, *extra],
+                capture_output=True, text=True, errors="replace")
+            problems = []
+            try:
+                xml_text = (Path(tmp) / "TaskbarLayout.xml").read_text(encoding="utf-8")
+                json_text = (Path(tmp) / "StartPins.json").read_text(encoding="utf-8")
+                root = ET.fromstring(xml_text.encode("utf-8"))
+                pins = [node for node in root.iter() if node.tag.endswith("}DesktopApp") or node.tag.endswith("}UWA")]
+                if len(pins) != pin_count:
+                    problems.append(f"{len(pins)} pin taskbar, seharusnya {pin_count}")
+                start = json.loads(json_text)["pinnedList"]
+                if not start or any(len(item) != 1 for item in start):
+                    problems.append("pinnedList kosong atau salah bentuk")
+                for text in (xml_text, json_text.replace("\\\\", "\\")):
+                    if must_have not in text:
+                        problems.append(f"tidak memuat '{must_have}'")
+                    if must_not_have in text:
+                        problems.append(f"memuat '{must_not_have}'")
+            except (OSError, ValueError, KeyError, ET.ParseError) as exc:
+                problems.append(f"{type(exc).__name__}: {exc}")
+            if "WARNING" in result.stdout or result.returncode != 0:
+                problems.append(result.stdout.strip())
+        if problems:
+            print(f"GAGAL  {label}: {'; '.join(dict.fromkeys(problems))}")
+            failures += 1
+        else:
+            print(f"lolos  {label}")
+    return failures
+
+
 def test_generated_files() -> int:
     """File yang dibuat dari YAML tidak boleh usang."""
     failures = 0
@@ -312,7 +370,7 @@ def test_generated_files() -> int:
 
 
 def main() -> int:
-    failures = test_validator() + test_compatibility() + test_generated_files()
+    failures = test_validator() + test_compatibility() + test_shell_layout() + test_generated_files()
     if failures:
         print(f"\nUji diri GAGAL: {failures} kegagalan")
         return 1

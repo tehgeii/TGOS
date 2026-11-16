@@ -28,7 +28,8 @@ actions:
   - !appx: { name: 'MicrosoftCorporationII.QuickAssist*', type: family }  # Quick Assist
 
   # --- Office, kerja, komunikasi ---------------------------------------------------
-  - !appx: { name: 'Microsoft.MicrosoftOfficeHub*', type: family }  # Microsoft 365 (Office hub)
+  # Microsoft.MicrosoftOfficeHub ("Microsoft 365 Copilot") ada di bagian opsi Copilot di
+  # bawah: di 26H2 paket itu adalah identitas aplikasi Copilot.
   - !appx: { name: 'Microsoft.OutlookForWindows*', type: family }  # Outlook (new)
   - !appx: { name: 'microsoft.windowscommunicationsapps*', type: family }  # Mail and Calendar
   - !appx: { name: 'Microsoft.People*', type: family }  # People
@@ -42,6 +43,7 @@ actions:
   # --- Utilitas yang jarang dipakai ------------------------------------------------
   - !appx: { name: 'Microsoft.WindowsMaps*', type: family }  # Maps
   - !appx: { name: 'Microsoft.YourPhone*', type: family }  # Phone Link
+  - !appx: { name: 'MicrosoftWindows.CrossDevice*', type: family }  # Cross Device Experience Host (pasangan Phone Link)
   - !appx: { name: 'Microsoft.WindowsSoundRecorder*', type: family }  # Sound Recorder
   - !appx: { name: 'Microsoft.WindowsAlarms*', type: family }  # Clock
   - !appx: { name: 'Microsoft.MicrosoftStickyNotes*', type: family }  # Sticky Notes
@@ -49,6 +51,22 @@ actions:
   - !appx: { name: 'Microsoft.549981C3F5F10*', type: family }  # Cortana
 
   # --- Opsi: Copilot dan Widgets ---------------------------------------------------
+  # Di 26H2 Copilot adalah program biasa (bukan paket Store) dengan uninstaller sendiri.
+  # Uninstaller itu harus jalan SEBELUM paket Microsoft.MicrosoftOfficeHub di bawah
+  # dihapus, karena paket itu identitas aplikasinya. Di TGOS 0.9.1 urutannya terbalik:
+  # identitasnya hilang, programnya (1,7 GB) tertinggal, dan pin taskbar-nya jadi kotak
+  # abu-abu. Tidak fatal; di build tanpa program Copilot skrip ini tidak berbuat apa-apa.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Remove-Copilot.ps1"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 10
+    showOutput: true
+    showError: true
+    option: 'remove-ai-widgets'
+  - !appx: { name: 'Microsoft.MicrosoftOfficeHub*', type: family, option: 'remove-ai-widgets' }  # Microsoft 365 Copilot (dulu Office hub)
   # Proses Widgets dihentikan dulu. Tanpa ini filenya masih terkunci saat paketnya
   # dihapus, dan sisa file tertinggal di disk.
   - !taskKill: { name: 'Widgets', option: 'remove-ai-widgets' }
@@ -58,6 +76,19 @@ actions:
   - !appx: { name: 'Microsoft.Windows.Ai.Copilot.Provider*', type: family, option: 'remove-ai-widgets' }  # Copilot provider
   - !appx: { name: 'MicrosoftWindows.Client.WebExperience*', type: family, option: 'remove-ai-widgets' }  # Widgets (Windows Web Experience Pack)
   - !appx: { name: 'Microsoft.WidgetsPlatformRuntime*', type: family, option: 'remove-ai-widgets' }  # Widgets Platform Runtime
+  - !appx: { name: 'Microsoft.StartExperiencesApp*', type: family, option: 'remove-ai-widgets' }  # Start Experiences App (host Widgets baru)
+  # Sebagian file Widgets tetap terkunci Windows walau prosesnya sudah dihentikan. Skrip
+  # ini menghapus folder sisanya, atau mendaftarkannya untuk dihapus saat restart.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Remove-AppxLeftovers.ps1"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 2
+    showOutput: true
+    showError: true
+    option: 'remove-ai-widgets'
 
   # --- Opsi: Xbox app dan Game Bar -------------------------------------------------
   # Microsoft.XboxIdentityProvider dan Microsoft.GamingServices TIDAK dihapus:

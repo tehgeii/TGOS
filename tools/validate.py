@@ -789,7 +789,6 @@ def validate_install_record(report: Report, options: set[str]) -> None:
 REQUIRED_SUPPORT_FILES = [
     "TGOS/scheduled-tasks.txt",
     "TGOS/TGOS.png",
-    "TGOS/TaskbarLayout.xml",
     "TGOS Toolbox/README.txt",
     "TGOS Toolbox/Support/Set-TgosFeature.ps1",
     "TGOS Toolbox/Support/Test-TgosResult.ps1",

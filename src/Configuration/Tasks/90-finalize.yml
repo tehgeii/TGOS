@@ -42,6 +42,30 @@ actions:
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "updates-manual"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'updates-manual' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "updates-default"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'updates-default' }
 
+  # Menyusun ulang pin taskbar dan Start menjadi set TGOS. Dijalankan setelah opsi
+  # tercatat (skrip membaca opsi "remove-store" dari install-info.txt) dan setelah
+  # browser terpasang. Skrip ini menghentikan Explorer; aksi berikutnya menjalankannya
+  # lagi sebagai pengguna yang login.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Set-ShellLayout.ps1"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 5
+    showOutput: true
+    showError: true
+
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Start-Shell.ps1"'
+    runas: currentUser
+    exeDir: true
+    wait: true
+    weight: 1
+    showOutput: true
+    showError: true
+
   # Mencocokkan sistem dengan expected-state.json dan menulis
   # %ProgramData%\TGOS\verify-report.txt. Hanya membaca; tidak fatal.
   - !run:

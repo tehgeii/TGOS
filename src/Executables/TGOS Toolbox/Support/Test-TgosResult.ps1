@@ -316,10 +316,35 @@ function Test-ScriptResults {
 
     $layout = Join-Path $dataDirectory 'TaskbarLayout.xml'
     if (Test-Path -LiteralPath $layout) {
-        Add-Result 'PASS' 'taskbar' $layout 'present' 'Install-Toolbox.ps1'
+        Add-Result 'PASS' 'taskbar' $layout 'present' 'Set-ShellLayout.ps1'
     }
     else {
-        Add-Result 'FAIL' 'taskbar' $layout 'missing; the taskbar pin policy points to it' 'Install-Toolbox.ps1'
+        Add-Result 'FAIL' 'taskbar' $layout 'missing; the taskbar pin policy points to it' 'Set-ShellLayout.ps1'
+    }
+
+    $pins = Read-RegistryValue ([Microsoft.Win32.Registry]::LocalMachine) 'SOFTWARE\Policies\Microsoft\Windows\Explorer' 'ConfigureStartPins'
+    if ($pins.Found -and ([string]$pins.Data).Contains('pinnedList')) {
+        Add-Result 'PASS' 'start menu' 'ConfigureStartPins policy' 'written' 'Set-ShellLayout.ps1'
+    }
+    else {
+        Add-Result 'FAIL' 'start menu' 'ConfigureStartPins policy' 'missing' 'Set-ShellLayout.ps1'
+    }
+
+    if (Test-Option 'remove-ai-widgets') {
+        # Program Copilot (bukan paket Store) terdaftar di sini selama masih terpasang.
+        $copilot = $false
+        foreach ($subKey in @(
+                'SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Copilot',
+                'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Copilot')) {
+            $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($subKey)
+            if ($null -ne $key) { $copilot = $true; $key.Dispose() }
+        }
+        if ($copilot) {
+            Add-Result 'FAIL' 'copilot' 'Copilot program' 'still installed' 'Remove-Copilot.ps1'
+        }
+        else {
+            Add-Result 'PASS' 'copilot' 'Copilot program' 'not installed' 'Remove-Copilot.ps1'
+        }
     }
 
     $restoreLine = @($installInfo | Where-Object { $_ -match '^Restore point\s*:' }) | Select-Object -First 1

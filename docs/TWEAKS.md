@@ -73,16 +73,15 @@ dipasang lagi dari Store (lihat [TESTING.md](TESTING.md)).
 
 | Aplikasi | Paket | Syarat | Keterangan |
 |---|---|---|---|
-| Microsoft 365 (Office hub) | `Microsoft.MicrosoftOfficeHub*` |  |  |
-| Outlook (new) | `Microsoft.OutlookForWindows*` |  |  |
-| Mail and Calendar | `microsoft.windowscommunicationsapps*` |  |  |
-| People | `Microsoft.People*` |  |  |
-| Microsoft To Do | `Microsoft.Todos*` |  |  |
-| Power Automate | `Microsoft.PowerAutomateDesktop*` |  |  |
-| Dev Home | `Microsoft.Windows.DevHome*` |  |  |
-| Teams versi pribadi (22H2/23H2) | `MicrosoftTeams_*` |  |  |
-| Microsoft Teams | `MSTeams_*` |  |  |
-| Clipchamp | `Clipchamp.Clipchamp*` |  |  |
+| Outlook (new) | `Microsoft.OutlookForWindows*` |  | Microsoft.MicrosoftOfficeHub ("Microsoft 365 Copilot") ada di bagian opsi Copilot di bawah: di 26H2 paket itu adalah identitas aplikasi Copilot. |
+| Mail and Calendar | `microsoft.windowscommunicationsapps*` |  | Microsoft.MicrosoftOfficeHub ("Microsoft 365 Copilot") ada di bagian opsi Copilot di bawah: di 26H2 paket itu adalah identitas aplikasi Copilot. |
+| People | `Microsoft.People*` |  | Microsoft.MicrosoftOfficeHub ("Microsoft 365 Copilot") ada di bagian opsi Copilot di bawah: di 26H2 paket itu adalah identitas aplikasi Copilot. |
+| Microsoft To Do | `Microsoft.Todos*` |  | Microsoft.MicrosoftOfficeHub ("Microsoft 365 Copilot") ada di bagian opsi Copilot di bawah: di 26H2 paket itu adalah identitas aplikasi Copilot. |
+| Power Automate | `Microsoft.PowerAutomateDesktop*` |  | Microsoft.MicrosoftOfficeHub ("Microsoft 365 Copilot") ada di bagian opsi Copilot di bawah: di 26H2 paket itu adalah identitas aplikasi Copilot. |
+| Dev Home | `Microsoft.Windows.DevHome*` |  | Microsoft.MicrosoftOfficeHub ("Microsoft 365 Copilot") ada di bagian opsi Copilot di bawah: di 26H2 paket itu adalah identitas aplikasi Copilot. |
+| Teams versi pribadi (22H2/23H2) | `MicrosoftTeams_*` |  | Microsoft.MicrosoftOfficeHub ("Microsoft 365 Copilot") ada di bagian opsi Copilot di bawah: di 26H2 paket itu adalah identitas aplikasi Copilot. |
+| Microsoft Teams | `MSTeams_*` |  | Microsoft.MicrosoftOfficeHub ("Microsoft 365 Copilot") ada di bagian opsi Copilot di bawah: di 26H2 paket itu adalah identitas aplikasi Copilot. |
+| Clipchamp | `Clipchamp.Clipchamp*` |  | Microsoft.MicrosoftOfficeHub ("Microsoft 365 Copilot") ada di bagian opsi Copilot di bawah: di 26H2 paket itu adalah identitas aplikasi Copilot. |
 
 ### Utilitas yang jarang dipakai
 
@@ -90,6 +89,7 @@ dipasang lagi dari Store (lihat [TESTING.md](TESTING.md)).
 |---|---|---|---|
 | Maps | `Microsoft.WindowsMaps*` |  |  |
 | Phone Link | `Microsoft.YourPhone*` |  |  |
+| Cross Device Experience Host (pasangan Phone Link) | `MicrosoftWindows.CrossDevice*` |  |  |
 | Sound Recorder | `Microsoft.WindowsSoundRecorder*` |  |  |
 | Clock | `Microsoft.WindowsAlarms*` |  |  |
 | Sticky Notes | `Microsoft.MicrosoftStickyNotes*` |  |  |
@@ -100,10 +100,16 @@ dipasang lagi dari Store (lihat [TESTING.md](TESTING.md)).
 
 | Aplikasi | Paket | Syarat | Keterangan |
 |---|---|---|---|
+| Microsoft 365 Copilot (dulu Office hub) | `Microsoft.MicrosoftOfficeHub*` | opsi: `remove-ai-widgets` | Di 26H2 Copilot adalah program biasa (bukan paket Store) dengan uninstaller sendiri. Uninstaller itu harus jalan SEBELUM paket Microsoft.MicrosoftOfficeHub di bawah dihapus, karena paket itu identitas aplikasinya. Di TGOS 0.9.1 urutannya terbalik: identitasnya hilang, programnya (1,7 GB) tertinggal, dan pin taskbar-nya jadi kotak abu-abu. Tidak fatal; di build tanpa program Copilot skrip ini tidak berbuat apa-apa. |
 | Copilot | `Microsoft.Copilot*` | opsi: `remove-ai-widgets` | Proses Widgets dihentikan dulu. Tanpa ini filenya masih terkunci saat paketnya dihapus, dan sisa file tertinggal di disk. |
 | Copilot provider | `Microsoft.Windows.Ai.Copilot.Provider*` | opsi: `remove-ai-widgets` | Proses Widgets dihentikan dulu. Tanpa ini filenya masih terkunci saat paketnya dihapus, dan sisa file tertinggal di disk. |
 | Widgets (Windows Web Experience Pack) | `MicrosoftWindows.Client.WebExperience*` | opsi: `remove-ai-widgets` | Proses Widgets dihentikan dulu. Tanpa ini filenya masih terkunci saat paketnya dihapus, dan sisa file tertinggal di disk. |
 | Widgets Platform Runtime | `Microsoft.WidgetsPlatformRuntime*` | opsi: `remove-ai-widgets` | Proses Widgets dihentikan dulu. Tanpa ini filenya masih terkunci saat paketnya dihapus, dan sisa file tertinggal di disk. |
+| Start Experiences App (host Widgets baru) | `Microsoft.StartExperiencesApp*` | opsi: `remove-ai-widgets` | Proses Widgets dihentikan dulu. Tanpa ini filenya masih terkunci saat paketnya dihapus, dan sisa file tertinggal di disk. |
+| Skrip | Syarat | Keterangan |
+|---|---|---|
+| `Scripts\Remove-Copilot.ps1` | opsi: `remove-ai-widgets` | Di 26H2 Copilot adalah program biasa (bukan paket Store) dengan uninstaller sendiri. Uninstaller itu harus jalan SEBELUM paket Microsoft.MicrosoftOfficeHub di bawah dihapus, karena paket itu identitas aplikasinya. Di TGOS 0.9.1 urutannya terbalik: identitasnya hilang, programnya (1,7 GB) tertinggal, dan pin taskbar-nya jadi kotak abu-abu. Tidak fatal; di build tanpa program Copilot skrip ini tidak berbuat apa-apa. |
+| `Scripts\Remove-AppxLeftovers.ps1` | opsi: `remove-ai-widgets` | Sebagian file Widgets tetap terkunci Windows walau prosesnya sudah dihentikan. Skrip ini menghapus folder sisanya, atau mendaftarkannya untuk dihapus saat restart. |
 
 ### Opsi: Xbox app dan Game Bar
 
@@ -210,6 +216,7 @@ Bukan penghapusan: hanya mengosongkan cache `*Client.CBS*`, `*StartMenuExperienc
 | Kunci | Nilai | Data | Syarat | Keterangan |
 |---|---|---|---|---|
 | `HKLM\SOFTWARE\Policies\Microsoft\Dsh` | `AllowNewsAndInterests` | `0` | opsi: `remove-ai-widgets` | Widgets dimatikan lewat policy. Tombol taskbar-nya (TaskbarDa) tidak ditulis langsung karena nilai itu dilindungi Windows dan penulisan dari luar ditolak. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI` | `DisableClickToDo` | `1` | opsi: `remove-ai-widgets`; build: `>=26100` | Click to Do (aksi AI atas isi layar) dimatikan. Aplikasinya bagian dari Windows dan tidak bisa dihapus. |
 | `HKCU\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot` | `TurnOffWindowsCopilot` | `1` | opsi: `remove-ai-widgets`; build: `<26100` | Copilot versi panel samping hanya ada di 22H2 dan 23H2; di 24H2 ke atas Copilot adalah aplikasi biasa yang dihapus modul 10. |
 | `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | `ShowCopilotButton` | `0` | opsi: `remove-ai-widgets`; build: `<26100` | Copilot versi panel samping hanya ada di 22H2 dan 23H2; di 24H2 ke atas Copilot adalah aplikasi biasa yang dihapus modul 10. |
 
@@ -454,10 +461,19 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 
 | Kunci | Nilai | Data | Syarat | Keterangan |
 |---|---|---|---|---|
-| `HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer` | `StartLayoutFile` | `%ProgramData%\TGOS\TaskbarLayout.xml` |  | Pin taskbar ditetapkan lewat policy "Start Layout" resmi Windows, dari file yang disalin Install-Toolbox.ps1: File Explorer, Edge, Microsoft Store. Pin bawaan lain diganti, termasuk pin Copilot yang tertinggal setelah aplikasinya dihapus. Pin yang dibuat pengguna tidak disentuh, dan aplikasi yang tidak terpasang dilewati. |
-| `HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer` | `LockedStartLayout` | `1` |  | Pin taskbar ditetapkan lewat policy "Start Layout" resmi Windows, dari file yang disalin Install-Toolbox.ps1: File Explorer, Edge, Microsoft Store. Pin bawaan lain diganti, termasuk pin Copilot yang tertinggal setelah aplikasinya dihapus. Pin yang dibuat pengguna tidak disentuh, dan aplikasi yang tidak terpasang dilewati. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer` | `StartLayoutFile` | `%ProgramData%\TGOS\TaskbarLayout.xml` |  | Pin taskbar ditetapkan lewat policy "Start Layout" resmi Windows. File layout-nya ditulis Set-ShellLayout.ps1 di modul finalisasi, sesuai browser yang terpasang: File Explorer, browser, Microsoft Store. Skrip itu juga mereset daftar pin yang tersimpan di profil, karena policy ini saja tidak membuang pin yang sudah ada. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer` | `LockedStartLayout` | `1` |  | Pin taskbar ditetapkan lewat policy "Start Layout" resmi Windows. File layout-nya ditulis Set-ShellLayout.ps1 di modul finalisasi, sesuai browser yang terpasang: File Explorer, browser, Microsoft Store. Skrip itu juga mereset daftar pin yang tersimpan di profil, karena policy ini saja tidak membuang pin yang sudah ada. |
 | `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search` | `SearchboxTaskbarMode` | `1` |  | Pencarian tampil sebagai ikon saja (0 = sembunyi, 1 = ikon, 2 = kotak). |
 | `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | `ShowTaskViewButton` | `0` |  | Tombol Task View disembunyikan (Win+Tab tetap jalan). |
+
+### Start menu
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer` | `HideRecentlyAddedApps` | `1` |  | Daftar pin Start ditulis Set-ShellLayout.ps1 (bergantung pada browser yang terpasang). Di sini hanya bagian "Recent"/rekomendasi yang disembunyikan: aplikasi yang baru dipasang, aplikasi yang sering dipakai, dan file terakhir. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer` | `HideRecommendedSection` | `1` |  | Daftar pin Start ditulis Set-ShellLayout.ps1 (bergantung pada browser yang terpasang). Di sini hanya bagian "Recent"/rekomendasi yang disembunyikan: aplikasi yang baru dipasang, aplikasi yang sering dipakai, dan file terakhir. |
+| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | `Start_TrackDocs` | `0` |  | Daftar pin Start ditulis Set-ShellLayout.ps1 (bergantung pada browser yang terpasang). Di sini hanya bagian "Recent"/rekomendasi yang disembunyikan: aplikasi yang baru dipasang, aplikasi yang sering dipakai, dan file terakhir. |
+| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | `Start_TrackProgs` | `0` |  | Daftar pin Start ditulis Set-ShellLayout.ps1 (bergantung pada browser yang terpasang). Di sini hanya bagian "Recent"/rekomendasi yang disembunyikan: aplikasi yang baru dipasang, aplikasi yang sering dipakai, dan file terakhir. |
 
 ### Mode gelap
 
@@ -489,4 +505,6 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 |---|---|---|
 | `Scripts\Install-Toolbox.ps1` |  | Menyalin TGOS Toolbox ke drive sistem, membuat pintasan di Desktop, dan menyalin wallpaper. |
 | `Scripts\Write-InstallInfo.ps1` `-Modules "preflight,debloat-appx,privacy,services,scheduled-tasks,performance,security-options,components,interface"` |  | Menulis %ProgramData%\TGOS\install-info.txt: versi TGOS, edisi, build, waktu, hasil restore point, dan modul yang dijalankan. Nama modul di -Modules harus sama dengan modul yang dipanggil main.yml (dijaga tools/validate.py). |
+| `Scripts\Set-ShellLayout.ps1` |  | Menyusun ulang pin taskbar dan Start menjadi set TGOS. Dijalankan setelah opsi tercatat (skrip membaca opsi "remove-store" dari install-info.txt) dan setelah browser terpasang. Skrip ini menghentikan Explorer; aksi berikutnya menjalankannya lagi sebagai pengguna yang login. |
+| `Scripts\Start-Shell.ps1` |  |  |
 | `TGOS Toolbox\Support\Test-TgosResult.ps1` |  | Mencocokkan sistem dengan expected-state.json dan menulis %ProgramData%\TGOS\verify-report.txt. Hanya membaca; tidak fatal. |

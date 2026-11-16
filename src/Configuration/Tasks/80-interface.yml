@@ -6,16 +6,25 @@ actions:
   # Widgets sudah dimatikan lewat policy di modul privasi.
 
   # --- Taskbar ---------------------------------------------------------------------
-  # Pin taskbar ditetapkan lewat policy "Start Layout" resmi Windows, dari file yang
-  # disalin Install-Toolbox.ps1: File Explorer, Edge, Microsoft Store. Pin bawaan lain
-  # diganti, termasuk pin Copilot yang tertinggal setelah aplikasinya dihapus. Pin yang
-  # dibuat pengguna tidak disentuh, dan aplikasi yang tidak terpasang dilewati.
+  # Pin taskbar ditetapkan lewat policy "Start Layout" resmi Windows. File layout-nya
+  # ditulis Set-ShellLayout.ps1 di modul finalisasi, sesuai browser yang terpasang:
+  # File Explorer, browser, Microsoft Store. Skrip itu juga mereset daftar pin yang
+  # tersimpan di profil, karena policy ini saja tidak membuang pin yang sudah ada.
   - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer', value: 'StartLayoutFile', data: '%ProgramData%\TGOS\TaskbarLayout.xml', type: REG_EXPAND_SZ }
   - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer', value: 'LockedStartLayout', data: '1', type: REG_DWORD }
   # Pencarian tampil sebagai ikon saja (0 = sembunyi, 1 = ikon, 2 = kotak).
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search', value: 'SearchboxTaskbarMode', data: '1', type: REG_DWORD }
   # Tombol Task View disembunyikan (Win+Tab tetap jalan).
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'ShowTaskViewButton', data: '0', type: REG_DWORD }
+
+  # --- Start menu ------------------------------------------------------------------
+  # Daftar pin Start ditulis Set-ShellLayout.ps1 (bergantung pada browser yang
+  # terpasang). Di sini hanya bagian "Recent"/rekomendasi yang disembunyikan: aplikasi
+  # yang baru dipasang, aplikasi yang sering dipakai, dan file terakhir.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer', value: 'HideRecentlyAddedApps', data: '1', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer', value: 'HideRecommendedSection', data: '1', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'Start_TrackDocs', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'Start_TrackProgs', data: '0', type: REG_DWORD }
 
   # --- Mode gelap ------------------------------------------------------------------
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', value: 'AppsUseLightTheme', data: '0', type: REG_DWORD }
