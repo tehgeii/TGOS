@@ -39,25 +39,36 @@ jobs:
 
   engine:
     name: AME engine (${{ matrix.name }})
-    runs-on: windows-2025
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    # Runner Windows 11 masih percobaan: hasilnya dibaca, tetapi tidak menggagalkan run.
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: default
+            os: windows-2025
             set: default
             options: ''
+            experimental: false
           - name: all-options
+            os: windows-2025
             set: all
             options: 'mitigations-disable'
+            experimental: false
+          - name: windows-11-arm
+            os: windows-11-arm
+            set: default
+            options: ''
+            experimental: true
     defaults:
       run:
         shell: powershell
     steps:
       - uses: actions/checkout@v4
       - name: Install Python packages
-        run: python -m pip install --quiet pyyaml pillow
+        run: python -m pip install --quiet pyyaml
       - name: Run playbook through the AME engine
         run: .\tools\ci\Test-Engine.ps1 -OptionSet ${{ matrix.set }} -Options '${{ matrix.options }}'
       - name: Upload logs and snapshots

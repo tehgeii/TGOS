@@ -237,7 +237,8 @@ function Get-EngineLogSummary {
 Write-Section 'System'
 $cv = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 $runnerEdition = [string]$cv.EditionID
-Write-Host ('   {0} {1} build {2}.{3}, PowerShell {4}' -f $runnerEdition, $cv.DisplayVersion, $cv.CurrentBuildNumber, $cv.UBR, $PSVersionTable.PSVersion)
+if ($env:PROCESSOR_ARCHITEW6432) { $runnerArch = $env:PROCESSOR_ARCHITEW6432 } else { $runnerArch = $env:PROCESSOR_ARCHITECTURE }
+Write-Host ('   {0} {1} build {2}.{3}, {4}, PowerShell {5}' -f $runnerEdition, $cv.DisplayVersion, $cv.CurrentBuildNumber, $cv.UBR, $runnerArch, $PSVersionTable.PSVersion)
 
 # =======================================================================================
 Write-Section 'Build'
@@ -289,9 +290,9 @@ $optionList = (Get-PlaybookOptions -ConfPath (Join-Path $playbook 'playbook.conf
 Write-Section ('Options ({0}): {1}' -f $OptionSet, $optionList)
 
 # =======================================================================================
-Write-Section ('Reject test (edition {0} is not Pro)' -f $runnerEdition)
-if ($runnerEdition -eq 'Professional') {
-    Write-Host '   runner is Windows Pro; the reject test does not apply'
+Write-Section ('Reject test (runner is {0} {1}; TGOS accepts only Professional AMD64)' -f $runnerEdition, $runnerArch)
+if ($runnerEdition -eq 'Professional' -and $runnerArch -eq 'AMD64') {
+    Write-Host '   runner is Windows Pro x64; the reject test does not apply'
 }
 else {
     $reject = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbook -OptionList $optionList -Name 'reject'
@@ -310,9 +311,11 @@ Copy-Item -LiteralPath $playbook -Destination $playbookPass -Recurse -Force
 $compatibility = Join-Path $playbookPass 'Executables\Scripts\Test-Compatibility.ps1'
 $original = "`$AllowedEditions = @('Professional')"
 $patched = "`$AllowedEditions = @('Professional', '{0}')" -f $runnerEdition
+$originalArch = "if (`$Architecture -ne 'AMD64') {"
+$patchedArch = "if (`$Architecture -ne 'AMD64' -and `$Architecture -ne '{0}') {{" -f $runnerArch
 $content = Get-Content -LiteralPath $compatibility -Raw
-$null = Assert-That ($content.Contains($original)) 'pass: the edition list was found for patching'
-Set-Content -LiteralPath $compatibility -Value $content.Replace($original, $patched) -Encoding ASCII
+$null = Assert-That ($content.Contains($original) -and $content.Contains($originalArch)) 'pass: the edition and architecture checks were found for patching'
+Set-Content -LiteralPath $compatibility -Value $content.Replace($original, $patched).Replace($originalArch, $patchedArch) -Encoding ASCII
 
 $pass = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbookPass -OptionList $optionList -Name 'pass'
 $ok = Assert-That (-not $pass.TimedOut) 'pass: the engine did not hang'

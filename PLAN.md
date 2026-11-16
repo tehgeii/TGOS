@@ -596,6 +596,8 @@ src/  ──validate.py──▶  7z (password malte, format 7z)  ──▶  rel
                                                       release/TGOS-vX.Y.Z.7z
 ```
 
+0. Setiap push dijalankan `.github/workflows/test.yml`: validasi, uji diri, lalu playbook
+   dijalankan lewat mesin AME di Windows (lihat [docs/TESTING.md](docs/TESTING.md)).
 1. `tools/validate.py` — memeriksa `playbook.conf` (XML valid, field wajib, UUID bukan
    kosong, format versi), setiap YAML (tag aksi dikenal, nama properti dikenal, opsi yang
    dirujuk memang ada di `playbook.conf`, file yang dirujuk `!task` ada).
@@ -609,6 +611,11 @@ ketik nama properti baru ketahuan saat Wizard gagal di tengah jalan.
 ---
 
 ## 11. Rencana pengujian di VMware
+
+> Pengujian sekarang berlapis tiga (uji bentuk, mesin AME di GitHub Actions, VM). Alur
+> yang berlaku dan catatan hasilnya ada di [docs/TESTING.md](docs/TESTING.md). Matriks
+> opsi di 11.3 kini dijalankan otomatis di lapis kedua; uji VM cukup sekali dengan opsi
+> bawaan. Subbagian di bawah tetap berlaku untuk persiapan VM.
 
 ### 11.1 Persiapan VM
 
@@ -745,8 +752,12 @@ Sudah diputuskan:
 
 Masih terbuka:
 
-1. **Browser** — bila Edge dihapus, apakah Wizard menawarkan pemasangan browser lain?
-2. **Wallpaper** — file asli beresolusi tinggi (lihat [8.8](#88-antarmuka-80-interfaceyml)).
+1. **Potret VM** — `TGOS-snapshot-before.json` dari snapshot bersih pemilik, untuk
+   mencocokkan daftar layanan dan tugas terjadwal dengan Windows 11 Pro 26H2 yang nyata.
+2. **Browser** — bila Edge dihapus, apakah Wizard menawarkan pemasangan browser lain?
+   Saat ini tidak; pengguna memasang sendiri lewat Store atau `winget`.
+3. **Wallpaper** — file asli beresolusi tinggi (lihat [8.8](#88-antarmuka-80-interfaceyml)).
+   Yang terpasang sekarang adalah file 2000x1125 yang dikirim, apa adanya.
 
 ---
 
