@@ -3,9 +3,10 @@
 Playbook AME Wizard yang mengubah Windows 11 Pro menjadi OS gaming yang sangat ringan,
 dengan prioritas performa.
 
-> **Status: `0.1.0`, tahap uji.** Versi ini menghapus aplikasi bawaan dan menerapkan
-> pengaturan privasi. Belum diuji di AME Wizard. Pakai hanya di mesin virtual, jangan di
-> komputer utama.
+> **Status: `0.9.0`, tahap uji.** Semua modul sudah ada dan lolos uji otomatis lewat
+> mesin AME di Windows Server 2025 dan Windows 11 Enterprise 25H2. Belum diuji di target
+> sebenarnya (Windows 11 Pro x64 lewat AME Wizard). Pakai hanya di mesin virtual, jangan
+> di komputer utama.
 
 ## Target
 
@@ -25,7 +26,8 @@ dengan prioritas performa.
 |---|---|
 | `src/` | Sumber playbook: `playbook.conf`, `Configuration/`, `Executables/` |
 | `assets/branding/` | Logo TGO, ikon TGOS, wallpaper |
-| `tools/` | Validasi, skrip build, potret sistem, pembuat ikon dan dokumen |
+| `tools/` | Validasi, skrip build, pembanding potret, pembuat ikon dan dokumen |
+| `.github/workflows/` | Uji otomatis lewat mesin AME di Windows |
 | `docs/` | Dokumen pengujian |
 | `release/` | Hasil build (tidak di-commit) |
 
@@ -60,14 +62,23 @@ python tools/selftest.py
 ```
 
 Memastikan validator masih menangkap kesalahan, pemeriksaan kompatibilitas memberi kode
-keluar yang benar, dan `docs/TWEAKS.md` sesuai dengan playbook.
+keluar yang benar, dan file turunan (`docs/TWEAKS.md`, `expected-state.json`) sesuai
+dengan playbook. Setelah mengubah YAML, buat ulang file turunan itu:
+
+```bash
+python tools/make-tweaks-doc.py
+```
+
+```bash
+python tools/make-expected-state.py
+```
 
 ## Mengukur hasil
 
 Di Windows, PowerShell sebagai Administrator, sebelum dan sesudah menerapkan TGOS:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\Get-SystemSnapshot.ps1 -Label before
+powershell -ExecutionPolicy Bypass -File ".\src\Executables\TGOS Toolbox\Support\Get-SystemSnapshot.ps1" -Label before
 ```
 
 Lalu bandingkan dua file hasilnya:

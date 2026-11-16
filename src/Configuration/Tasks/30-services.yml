@@ -1,0 +1,54 @@
+---
+title: Services
+description: Mematikan layanan Windows yang tidak dibutuhkan untuk gaming.
+actions:
+  # Aturan file ini (dijaga tools/validate.py):
+  #   - Hanya 'operation: change'. Tidak ada layanan yang dihapus, jadi semuanya bisa
+  #     dikembalikan dengan mengubah Startup type di services.msc.
+  #   - startup: 2 = Automatic, 3 = Manual, 4 = Disabled.
+  #   - AME hanya mengubah nilai Start layanan yang memang ada; layanan yang tidak ada di
+  #     build tertentu dilewati. Perubahan berlaku setelah restart.
+  #   - Layanan di daftar PROTECTED_SERVICES pada tools/validate.py tidak boleh disentuh
+  #     (audio, jaringan, firewall, Windows Update, Store, Bluetooth, printer, Defender).
+
+  # --- Telemetri dan diagnostik ----------------------------------------------------
+  # Connected User Experiences and Telemetry: pengirim utama data telemetri.
+  - !service: { name: 'DiagTrack', operation: change, startup: 4 }
+  # Perutean pesan push WAP untuk telemetri perangkat.
+  - !service: { name: 'dmwappushservice', operation: change, startup: 4 }
+  # Pengumpul data untuk Diagnostics Hub (alat profiling pengembang).
+  - !service: { name: 'diagnosticshub.standardcollector.service', operation: change, startup: 4 }
+  # Windows Error Reporting: mengirim laporan crash ke Microsoft.
+  - !service: { name: 'WerSvc', operation: change, startup: 4 }
+  # Windows Insider Service: hanya dipakai bila ikut program Insider.
+  - !service: { name: 'wisvc', operation: change, startup: 4 }
+
+  # --- Aktivitas latar yang tidak perlu --------------------------------------------
+  # SysMain (Superfetch): memuat aplikasi ke RAM lebih dulu. Di SSD manfaatnya kecil,
+  # sedangkan aktivitas disk dan RAM-nya mengganggu saat bermain.
+  - !service: { name: 'SysMain', operation: change, startup: 4 }
+  # Pengunduh peta offline untuk aplikasi Maps (aplikasinya sudah dihapus).
+  - !service: { name: 'MapsBroker', operation: change, startup: 4 }
+  # Mode demo toko.
+  - !service: { name: 'RetailDemo', operation: change, startup: 4 }
+  # Kontrol orang tua (Family Safety; aplikasinya sudah dihapus).
+  - !service: { name: 'WpcMonSvc', operation: change, startup: 4 }
+  # Pelacak tautan file antar-komputer dalam domain NTFS.
+  - !service: { name: 'TrkWks', operation: change, startup: 4 }
+
+  # --- Fitur yang tidak dipakai di PC gaming ---------------------------------------
+  - !service: { name: 'Fax', operation: change, startup: 4 }
+  # Mengizinkan registry diubah dari komputer lain. Mematikannya juga menambah keamanan.
+  - !service: { name: 'RemoteRegistry', operation: change, startup: 4 }
+  # Router AllJoyn untuk perangkat IoT.
+  - !service: { name: 'AJRouter', operation: change, startup: 4 }
+  # Dompet dan pembayaran NFC.
+  - !service: { name: 'WalletService', operation: change, startup: 4 }
+  - !service: { name: 'SEMgrSvc', operation: change, startup: 4 }
+  # Berbagi pustaka Windows Media Player ke jaringan.
+  - !service: { name: 'WMPNetworkSvc', operation: change, startup: 4 }
+
+  # --- Opsi: Windows Search --------------------------------------------------------
+  # Pengindeksan isi file. Tanpa ini pencarian file di Explorer lebih lambat, tetapi
+  # pencarian aplikasi di Start tetap jalan.
+  - !service: { name: 'WSearch', operation: change, startup: 4, option: 'disable-indexing' }

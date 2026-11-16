@@ -1,0 +1,25 @@
+---
+title: Security options
+description: Pengurangan fitur keamanan demi performa. Hanya bila opsinya dipilih.
+actions:
+  # Semua aksi di file ini bersyarat opsi dan punya pasangan pembalik di TGOS Toolbox.
+  # Windows Defender TIDAK disentuh playbook; hanya bisa diubah lewat TGOS Toolbox
+  # setelah instalasi. Firewall, UAC, Secure Boot, dan TPM tidak pernah disentuh.
+
+  # --- Opsi: Virtualization-Based Security -----------------------------------------
+  # VBS dan Memory Integrity (HVCI) menjalankan sebagian kernel di dalam hypervisor.
+  # Mematikannya mengurangi proteksi kernel dan memberi kenaikan performa di banyak
+  # sistem. Berlaku setelah restart.
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard', value: 'EnableVirtualizationBasedSecurity', data: '0', type: REG_DWORD, option: 'disable-vbs' }
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity', value: 'Enabled', data: '0', type: REG_DWORD, option: 'disable-vbs' }
+
+  # --- Opsi: mitigasi CPU ----------------------------------------------------------
+  # Mematikan mitigasi Spectre dan Meltdown. Sistem menjadi rentan terhadap serangan
+  # itu. Manfaat performanya terutama di CPU lama; di CPU baru bisa nol atau negatif.
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management', value: 'FeatureSettingsOverride', data: '3', type: REG_DWORD, option: 'mitigations-disable' }
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management', value: 'FeatureSettingsOverrideMask', data: '3', type: REG_DWORD, option: 'mitigations-disable' }
+
+  # --- Opsi: update otomatis -------------------------------------------------------
+  # Windows tidak mengunduh atau memasang update sendiri. Update tetap bisa dipasang
+  # manual lewat Settings > Windows Update. Patch keamanan tertunda sampai dipasang.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU', value: 'NoAutoUpdate', data: '1', type: REG_DWORD, option: 'updates-manual' }

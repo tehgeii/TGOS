@@ -1,0 +1,39 @@
+---
+title: Components
+description: Menghapus OneDrive dan Microsoft Edge. Hanya bila opsinya dipilih.
+actions:
+  # --- Opsi: OneDrive --------------------------------------------------------------
+  # OneDrive terpasang per pengguna, jadi uninstaller resminya dijalankan sebagai
+  # pengguna yang sedang login. Tidak fatal: hasilnya diperiksa di laporan verifikasi.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Remove-OneDrive.ps1"'
+    runas: currentUser
+    exeDir: true
+    wait: true
+    weight: 10
+    showOutput: true
+    showError: true
+    option: 'remove-onedrive'
+  # Mencegah OneDrive dipakai atau dipasang lagi untuk sinkronisasi file.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive', value: 'DisableFileSyncNGSC', data: '1', type: REG_DWORD, option: 'remove-onedrive' }
+  # Pengguna baru tidak mendapat pemasangan OneDrive otomatis saat login pertama.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run', value: 'OneDriveSetup', operation: delete, option: 'remove-onedrive' }
+
+  # --- Opsi: Microsoft Edge (eksperimental) ----------------------------------------
+  # Memakai uninstaller milik Edge sendiri. WebView2 Runtime TIDAK dihapus karena
+  # banyak launcher dan aplikasi bergantung padanya. Microsoft bisa memblokir cara ini
+  # atau memasang Edge kembali lewat update; hasilnya diperiksa di laporan verifikasi.
+  # Tidak fatal.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Remove-Edge.ps1"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 15
+    showOutput: true
+    showError: true
+    option: 'remove-edge'
+  # Edge Update tidak memasang Edge lagi. GUID di bawah adalah ID produk Edge Stable.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate', value: 'Install{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}', data: '0', type: REG_DWORD, option: 'remove-edge' }

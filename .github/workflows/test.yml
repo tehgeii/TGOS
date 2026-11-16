@@ -1,0 +1,86 @@
+name: Test
+
+# Menguji playbook TGOS setiap ada perubahan:
+#   lint   - validasi dan uji diri (Linux)
+#   engine - menjalankan playbook lewat mesin AME yang asli di Windows
+#
+# Runner Windows di GitHub adalah Windows Server, bukan Windows 11 Pro. Job engine
+# membuktikan playbook diterima dan dijalankan mesin AME tanpa error; perilaku khusus
+# Windows 11 (aplikasi bawaan, tampilan) tetap diuji di VM. Lihat docs/TESTING.md.
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'tools/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python packages
+        run: python3 -m pip install --quiet pyyaml pillow
+      - name: Validate playbook
+        run: python3 tools/validate.py
+      - name: Self-test
+        run: python3 tools/selftest.py
+
+  engine:
+    name: AME engine (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    # Runner Windows 11 masih percobaan: hasilnya dibaca, tetapi tidak menggagalkan run.
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            os: windows-2025
+            set: default
+            options: ''
+            experimental: false
+          - name: all-options
+            os: windows-2025
+            set: all
+            options: 'mitigations-disable'
+            experimental: false
+          - name: windows-11
+            os: windows-11-arm
+            set: default
+            options: ''
+            experimental: true
+          - name: windows-11-all-options
+            os: windows-11-arm
+            set: all
+            options: 'mitigations-disable'
+            experimental: true
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python packages
+        run: python -m pip install --quiet pyyaml
+      - name: Run playbook through the AME engine
+        run: .\tools\ci\Test-Engine.ps1 -OptionSet ${{ matrix.set }} -Options '${{ matrix.options }}'
+      - name: Upload logs and snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-${{ matrix.name }}
+          path: ${{ runner.temp }}\tgos\artifacts
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,154 +1,159 @@
 # Pengujian TGOS
 
-Dokumen ini berisi langkah uji per versi dan tempat mencatat hasilnya. Rencana uji
-lengkap (spesifikasi VM, urutan snapshot) ada di
-[PLAN.md bagian 11](../PLAN.md#11-rencana-pengujian-di-vmware).
+TGOS diuji di tiga lapis. Tujuannya: kesalahan tertangkap sebelum sampai ke VM, supaya
+uji di VM cukup sekali per rilis.
 
-## Yang sudah diuji tanpa Windows
+| Lapis | Di mana | Yang dibuktikan | Yang TIDAK dibuktikan |
+|---|---|---|---|
+| 1. Uji bentuk | Linux, `python tools/selftest.py` | YAML dan `playbook.conf` sesuai format AME; aturan pengaman TGOS dipatuhi; file turunan tidak usang | Apa pun yang terjadi di Windows |
+| 2. Mesin AME | GitHub Actions: Windows Server 2025 (x64) dan Windows 11 Enterprise 25H2 (ARM64) | Mesin AME yang asli menjalankan playbook tanpa error; setiap tweak benar-benar ada di sistem; aplikasi bawaan terhapus; restore point terbuat; Toolbox bolak-balik | Edisi Pro, build 26300, x64 asli, tampilan, pasang ulang dari Store |
+| 3. VM pemilik | VMware, Windows 11 Pro 26H2 | Hasil sebenarnya di sistem target | — |
 
-Bisa diulang kapan saja dengan `python tools/selftest.py` dan skrip build. Ini membuktikan
-file-nya benar secara bentuk, **bukan** bahwa playbook berjalan benar di Windows.
+## Lapis 1 — uji bentuk
 
-| Pemeriksaan | Hasil `0.1.0` |
-|---|---|
-| `tools/validate.py` pada `src/` | Lolos, 0 error, 0 peringatan |
-| `tools/selftest.py`: validator menangkap 40 jenis kesalahan yang sengaja disisipkan | 40 dari 40 tertangkap |
-| `tools/selftest.py`: `Test-Compatibility.ps1` untuk 13 kombinasi edisi/build/arsitektur | Kode keluar sesuai (0, 10, 11, 12) |
-| `tools/selftest.py`: `docs/TWEAKS.md` sesuai dengan YAML | Lolos |
-| Sintaks semua `.ps1` (parser PowerShell), tanpa operator khusus PowerShell 7 | Lolos |
-| `New-RestorePoint.ps1` saat restore point tidak bisa dibuat | Keluar 0, kegagalan tercatat |
-| `Get-SystemSnapshot.ps1` saat sebagian data tidak bisa dibaca | Tetap menulis JSON, galat tercatat |
-| `compare-snapshots.py` dengan data buatan (normal, aplikasi tersisa, paket dilindungi hilang) | Hasil sesuai |
-| `tools/build.sh` dan `tools/build.ps1` | Keduanya menghasilkan `.apbx` dan `.7z` |
-| `.apbx` terbuka dengan password `malte`, ditolak dengan password lain | Lolos |
-| Ekstrak pembungkus → ekstrak `.apbx` → bandingkan dengan `src/` | Identik |
+```bash
+python tools/selftest.py
+```
 
-Yang **belum** diuji dan hanya bisa diuji di Windows: semua efek nyata v0.1.0 (penghapusan
-aplikasi, nilai registry, restore point), dan skrip PowerShell di Windows PowerShell 5.1
-(baru dijalankan di PowerShell 7 di Linux).
+- `tools/validate.py` harus lolos pada `src/`.
+- Validator harus menangkap setiap kesalahan yang sengaja disisipkan (salah ketik
+  properti, paket atau layanan yang dilindungi, opsi yang tidak dicatat, dan lainnya).
+- `Test-Compatibility.ps1` harus memberi kode keluar yang benar untuk 13 kombinasi
+  edisi/build/arsitektur.
+- `docs/TWEAKS.md` dan `expected-state.json` harus sama dengan hasil generatornya.
 
----
+## Lapis 2 — mesin AME di GitHub Actions
 
-## Fase 0 — kerangka `0.0.2`: LOLOS
+Workflow `.github/workflows/test.yml` jalan otomatis di setiap push. Job `engine`
+menjalankan `tools/ci/Test-Engine.ps1` di tiga susunan: Windows Server dengan opsi
+bawaan, Windows Server dengan semua opsi dicentang, dan Windows 11 dengan opsi bawaan:
 
-| Tanggal | Penguji | Windows | AME Wizard | Uji 1 (Pro) | Uji 2 (bukan Pro) |
-|---|---|---|---|---|---|
-| 14 Nov 2026 | tehgeii | Windows 11 Pro, VMware | AME Beta | Lolos | Belum diuji |
+1. `tools/build.ps1` dijalankan di Windows PowerShell 5.1, lalu `.apbx` hasilnya
+   diekstrak. Yang diuji adalah arsip yang sama dengan yang dikirim ke pengguna.
+2. **Uji tolak.** Playbook apa adanya dijalankan lewat runner command-line AME
+   (`TrustedUninstaller.CLI.exe`). Karena runner bukan Windows Pro x64, playbook harus
+   berhenti di langkah pertama tanpa mengubah apa pun.
+3. **Uji lolos.** Salinan sementara playbook dengan edisi dan arsitektur runner
+   diizinkan harus selesai dengan "Playbook completed successfully." Tugas terjadwal di
+   daftar diaktifkan dulu, supaya penonaktifannya benar-benar teruji.
+4. **Pemeriksaan diri.** `Test-TgosResult.ps1` tidak boleh melaporkan `FAIL`.
+5. **Toolbox.** Tiap fitur dimatikan lalu dinyalakan lagi, dan nilai registrinya dicek.
+   Di Windows 11, *Defender OFF* harus **ditolak** selama Tamper Protection aktif.
+6. **Pengumpul laporan** harus menghasilkan `TGOS-report.zip` yang lengkap.
 
-Yang terbukti:
+Yang dibuktikan runner Windows 11 dan tidak bisa dibuktikan Windows Server: aplikasi
+bawaan benar-benar terhapus lewat aksi `!appx`, restore point bisa dibuat dari dalam
+playbook, Defender tidak mengganggu dan tetap aktif sesudahnya, dan tidak ada nilai
+registry yang ditolak Windows.
 
-- AME memuat `.apbx`; nama **TGOS**, pembuat **tehgeii**, dan versi tampil benar.
-- Ikon TGOS tampil walau playbook berstatus "Unverified".
-- Status akhir "This Playbook is currently applied".
-- `C:\ProgramData\TGOS\install-info.txt` terbuat dengan isi benar, jadi aksi `!run`
-  dan skrip PowerShell berjalan.
-- AME tidak meminta mematikan Defender.
+Batas lapis ini:
 
-Yang ditemukan:
+- Runner Windows 11 adalah edisi **Enterprise**, build **26200**, **ARM64**. Target TGOS
+  adalah Pro, sampai build 26300, x64. Isi bawaan Pro bisa berbeda (mis. OneDrive).
+- Pengukuran proses dan RAM di CI tidak berarti: diambil tanpa restart, saat skrip uji
+  masih berjalan.
+- Tidak ada yang melihat layar: Start, taskbar, wallpaper tidak dinilai.
+- Pasang ulang aplikasi dari Store tidak dicoba.
+- Mematikan Defender setelah Tamper Protection dimatikan manual tidak dicoba di Windows 11
+  (di Windows Server, yang tanpa Tamper Protection, jalur itu lolos).
 
-- Deskripsi di Wizard terpotong setelah sekitar 5 baris. Sejak `0.1.0` deskripsi
-  dipendekkan supaya intinya muat.
+## Lapis 3 — uji di VM
 
-Yang masih terutang: **Uji 2** (playbook harus berhenti di edisi bukan Pro). Butuh VM
-Windows 11 Home. Logikanya sudah diuji di luar Windows untuk 13 kombinasi, tapi belum
-pernah dibuktikan lewat AME.
+**Jalankan hanya di VM.** TGOS mengubah Windows secara nyata.
 
----
+### Sekali saja: potret sistem bersih
 
-## Fase 1a — `0.1.0`: aplikasi bawaan + privasi
+Dari snapshot VMware sesudah-update, tunggu 5 menit setelah boot, lalu di **PowerShell
+sebagai Administrator**:
 
-**Ini versi pertama yang benar-benar mengubah Windows.** Jalankan hanya di VM, dan selalu
-mulai dari snapshot bersih.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Get-SystemSnapshot.ps1 -Label before
+```
 
-### Persiapan (sekali)
+File `TGOS-snapshot-before.json` muncul di Desktop. Skrip itu hanya membaca; tidak
+mengubah apa pun. Kirim file itu: daftar layanan dan tugas terjadwal TGOS dicocokkan
+dengan isinya sebelum rilis dibuat.
 
-1. Kembalikan VM ke snapshot bersih yang sudah di-update (`S1-updated` atau `S2`).
-   Jangan menerapkan `0.1.0` di atas hasil `0.0.2`; kalau terpaksa, tidak masalah, tapi
-   angka pembandingnya jadi kurang bersih.
-2. Salin ke VM: `TGOS-v0.1.0.7z`, `Get-SystemSnapshot.ps1`, dan AME Beta.
-3. Ekstrak `.7z` dengan password distribusi.
+### Uji rilis
 
-### Uji A — opsi bawaan
+1. Kembalikan VM ke snapshot sesudah-update.
+2. Ekstrak `TGOS-vX.Y.Z.7z` dengan password distribusi, buka AME Beta, seret
+   `TGOS-vX.Y.Z.apbx`.
+3. Biarkan semua opsi pada bawaannya. Jalankan sampai selesai, lalu restart.
+4. Di Desktop buka **TGOS Toolbox**, klik dua kali **Collect TGOS Report**.
+5. Kirim `TGOS-report.zip` yang muncul di Desktop.
 
-1. Restart VM, tunggu 5 menit, lalu buka **PowerShell sebagai Administrator** di folder
-   tempat skrip berada dan jalankan:
+Isi zip: laporan pemeriksaan tiap tweak, potret sistem, catatan instalasi, dan log AME
+yang ditemukan. Tidak memuat nama komputer, nama pengguna, alamat jaringan, atau file
+pribadi.
 
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\Get-SystemSnapshot.ps1 -Label before
-   ```
+### Yang hanya bisa dilihat mata
 
-2. Buat snapshot VMware di titik ini (supaya Uji B bisa mulai dari sini).
-3. Buka AME Beta, seret `TGOS-v0.1.0.apbx`. Di halaman opsi biarkan bawaan:
-   "Remove Copilot and Widgets" tercentang, "Remove Xbox app and Game Bar" tidak.
-4. Jalankan sampai selesai, lalu restart.
-5. Tunggu 5 menit, jalankan lagi dengan label lain:
-
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\Get-SystemSnapshot.ps1 -Label after-A
-   ```
-
-6. Kerjakan checklist di bawah.
-
-### Uji B — semua opsi dicentang
-
-Kembali ke snapshot dari langkah 2, terapkan lagi dengan **kedua** opsi dicentang,
-restart, lalu jalankan `Get-SystemSnapshot.ps1 -Label after-B`.
-
-### Checklist
-
-Selama proses:
-
-- [ ] Halaman opsi tampil dengan dua kotak centang dan bawaannya benar.
-- [ ] AME tidak meminta mematikan Defender.
-- [ ] Proses selesai tanpa pesan error. Bila ada, catat teksnya.
-
-Setelah restart:
+Laporan otomatis tidak bisa menilai hal berikut. Cukup jawab ya/tidak:
 
 - [ ] Login normal, tidak ada pesan error.
-- [ ] Start menu terbuka; aplikasi yang dihapus tidak tersisa sebagai ubin kosong.
-- [ ] Mengetik di Start menemukan aplikasi (mis. "notepad") dan tidak menampilkan
-      hasil web.
-- [ ] Settings terbuka dan halaman-halamannya bisa dibuka.
-- [ ] Masih ada: Microsoft Store, Notepad, Paint, Photos, Calculator, Snipping Tool,
-      Terminal, Media Player.
-- [ ] Sudah hilang: News, Weather, Solitaire, Teams, Outlook, Clipchamp, Feedback Hub,
-      Copilot. Tombol Widgets di taskbar hilang.
-- [ ] Microsoft Store bisa memasang satu aplikasi baru.
+- [ ] Start menu terbuka; tidak ada ubin kosong bekas aplikasi yang dihapus.
+- [ ] Mengetik "notepad" di Start menemukan Notepad.
+- [ ] Settings terbuka.
+- [ ] Wallpaper TGO terpasang dan mode gelap aktif.
+- [ ] Microsoft Store bisa memasang satu aplikasi.
 - [ ] Microsoft Store bisa memasang ulang satu aplikasi yang dihapus (mis. Sticky Notes).
-- [ ] `winget --version` jalan di Terminal.
-- [ ] Windows Update bisa memeriksa update.
-- [ ] Defender masih aktif (Windows Security > Virus & threat protection).
-- [ ] `C:\ProgramData\TGOS\install-info.txt` memuat baris `Restore point`, `Modules run`,
-      dan `Option selected` sesuai pilihan.
-- [ ] Restore point "Before TGOS 0.1.0" ada (*Create a restore point* > *System Restore*).
-- [ ] Uji B saja: Xbox app dan Game Bar hilang, dan **tidak muncul** popup
-      "You'll need a new app to open this ms-gamebar link" saat menekan Win+G atau
-      membuka aplikasi/game.
-- [ ] `sfc /verifyonly` (PowerShell Administrator) tidak menemukan pelanggaran.
+- [ ] Suara keluar dan internet jalan.
+- [ ] Windows Security menunjukkan Defender masih aktif.
+- [ ] Restore point "Before TGOS" ada (*Create a restore point* > *System Restore*).
+- [ ] Bila bisa: satu launcher atau game terpasang dan jalan.
 
-### Yang dikirim setelah uji
+### Opsional: Toolbox dan opsi non-bawaan
 
-1. File `TGOS-snapshot-before.json`, `TGOS-snapshot-after-A.json`, dan bila ada
-   `TGOS-snapshot-after-B.json` dari Desktop.
-2. Hasil checklist (mana yang gagal).
-3. Bila ada error: tangkapan layar dan folder log AME.
+Hanya bila ingin menguji lebih jauh. Buat snapshot VMware dulu.
 
-File snapshot tidak memuat nama komputer, nama pengguna, atau alamat jaringan. Isinya
-daftar proses (hanya jumlahnya), layanan, paket aplikasi, dan tugas terjadwal.
+- **Defender.** Klik dua kali *Windows Defender - Turn OFF*. Skrip seharusnya berhenti
+  dan meminta Tamper Protection dimatikan. Matikan di Windows Security, jalankan lagi,
+  restart, lalu cek Windows Security. Setelah itu *Turn ON* dan cek lagi.
+- **Opsi yang defaultnya mati:** *Remove Xbox app and Game Bar* (perhatikan popup
+  `ms-gamebar` saat menekan Win+G) dan *Remove Microsoft Edge (experimental)*.
 
-### Yang sengaja diamati di uji ini
+## Catatan hasil
 
-Empat hal ini belum pasti dan dijawab oleh hasil uji:
+### Fase 0 — kerangka `0.0.2`: lolos
 
-| Pertanyaan | Bila jawabannya buruk |
-|---|---|
-| Aplikasi yang dihapus bisa dipasang lagi dari Store? | Cara penghapusan diganti ke `Remove-AppxPackage` biasa. |
-| Restore point berhasil dibuat dari dalam playbook? | Dicoba dengan hak akses lain, atau dijadikan langkah manual sebelum instalasi. |
-| Menghapus Game Bar memunculkan popup `ms-gamebar`? | Opsi Xbox ditambah perbaikan penangan protokolnya, atau Game Bar dikeluarkan dari opsi. |
-| Defender mengganggu saat playbook mengubah sistem? | Requirement `DefenderToggled` terpaksa dipakai selama instalasi. |
+| Tanggal | Penguji | Windows | AME Wizard | Hasil |
+|---|---|---|---|---|
+| 14 Nov 2026 | tehgeii | Windows 11 Pro, VMware | AME Beta | Lolos |
 
-### Hasil
+AME memuat `.apbx`; nama, pembuat, versi, dan ikon tampil benar (walau "Unverified");
+`install-info.txt` terbuat; AME tidak meminta mematikan Defender. Deskripsi di Wizard
+terpotong setelah sekitar 5 baris, jadi sejak itu deskripsi dipendekkan.
 
-| Tanggal | Penguji | Windows (versi, build) | AME Wizard | Uji A | Uji B | Catatan |
-|---|---|---|---|---|---|---|
-| | | | | | | |
+### `0.9.0`
+
+| Lapis | Tanggal | Hasil | Catatan |
+|---|---|---|---|
+| 1. Uji bentuk | 16 Nov 2026 | Lolos | 68 pemeriksaan di `tools/selftest.py` |
+| 2. Mesin AME | 16 Nov 2026 | Lolos di kelima job | Rincian di bawah |
+| 3. VM pemilik | | Belum | Menunggu uji di Windows 11 Pro 26H2 |
+
+Lapis 2, runner command-line AME versi 0.8.4:
+
+| Runner | Opsi | Mesin AME | Pemeriksaan diri | Pemeriksaan CI |
+|---|---|---|---|---|
+| Windows Server 2025, build 26100, x64 | bawaan | selesai tanpa error | 126 PASS, 0 FAIL, 1 WARN, 19 SKIP | 34 dari 34 |
+| Windows Server 2025, build 26100, x64 | semua | selesai tanpa error | 135 PASS, 0 FAIL, 1 WARN, 11 SKIP | 34 dari 34 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan | selesai tanpa error | 131 PASS, 0 FAIL, 0 WARN, 15 SKIP | 34 dari 34 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua | selesai tanpa error | 140 PASS, 0 FAIL, 0 WARN, 7 SKIP | 34 dari 34 |
+
+Satu-satunya `WARN` adalah restore point di Windows Server, yang memang tidak mendukungnya.
+`SKIP` berasal dari opsi yang tidak dipilih, layanan atau tugas yang tidak ada di build
+runner, dan aksi khusus build di bawah 26100.
+
+Yang terlihat di log mesin AME pada Windows 11 dengan semua opsi:
+
+- Uji tolak: playbook berhenti di langkah pertama (runner Enterprise ARM64, bukan Pro x64).
+- Restore point "Before TGOS 0.9.0" terbuat.
+- Paket AppX: 106 menjadi 83; tidak ada paket yang dilindungi ikut hilang kecuali Edge,
+  yang memang dipilih.
+- Tugas terjadwal: 11 dinonaktifkan, 2 tidak ada di build itu, 0 gagal.
+- OneDrive terhapus lewat uninstaller resminya; Edge terhapus, WebView2 dipertahankan.
+- Power plan "TGOS Ultimate Performance" aktif; hibernasi mati.
+- Proteksi real-time Defender aktif sebelum dan sesudah.
+- Toolbox: *Defender OFF* ditolak karena Tamper Protection aktif, tanpa mengubah apa pun.

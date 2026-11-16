@@ -7,8 +7,8 @@ pilihan sadar pengguna, bukan sesuatu yang terjadi diam-diam.
 
 | | |
 |---|---|
-| Status dokumen | Draf v3 — keputusan pemilik proyek, branding, dan acuan website TGO sudah masuk |
-| Versi playbook saat ini | `0.1.0` — aplikasi bawaan + privasi; Fase 0 sudah lolos uji, `0.1.0` menunggu uji VM |
+| Status dokumen | Draf v4 — semua modul sudah dibuat; uji otomatis lewat mesin AME sudah jalan |
+| Versi playbook saat ini | `0.9.0` — semua modul + TGOS Toolbox; lolos uji mesin AME di Windows Server 2025 dan Windows 11 Enterprise 25H2; menunggu uji VM Windows 11 Pro |
 | Target OS | Windows 11 **Pro**, 22H2 sampai 26H2 |
 | Cara pasang | File `.apbx` dibuka di AME Wizard |
 
@@ -135,6 +135,38 @@ Filter yang bisa ditaruh di aksi apa pun:
 
 ---
 
+### 2.4 Runner command-line AME
+
+Selain Wizard, AME punya runner tanpa antarmuka: `TrustedUninstaller.CLI.exe "<folder
+playbook hasil ekstrak>" opsi1 opsi2 ...` (rilis `CLI-Standalone.zip` di repo
+`trusted-uninstaller-cli`). Runner ini dipakai TGOS untuk uji otomatis. Yang ditemukan
+saat memakainya (versi 0.8.4):
+
+- Tidak butuh interaksi selama playbook tidak punya requirement Defender.
+- **Gagal bila tidak ada opsi yang dikirim**, jadi daftar opsi selalu dikirim eksplisit.
+- Tidak memeriksa `SupportedBuilds` maupun requirement lain; itu tugas Wizard.
+- `!service` dengan `operation: change` hanya menulis nilai `Start` layanan yang ada,
+  jadi layanan yang tidak ada di sebuah build dilewati dengan aman.
+- `!scheduledTask` dengan `operation: disable` **gagal bila tugasnya tidak ada**. Karena
+  daftar tugas berbeda antar-build, TGOS menonaktifkan tugas lewat skrip sendiri.
+- Log mesin ditulis ke `Output.txt` di folder kerjanya.
+
+Yang terbukti saat runner itu menjalankan TGOS `0.9.0` di Windows 11 (Enterprise 25H2,
+build 26200) pada uji otomatis:
+
+- Aksi `!appx` benar-benar menghapus aplikasi bawaan (106 paket menjadi 87 dengan opsi
+  bawaan, 83 dengan semua opsi).
+- OneDrive terhapus lewat uninstaller resminya yang dijalankan sebagai pengguna aktif.
+- Edge terhapus lewat uninstaller-nya sendiri, WebView2 tetap ada. Opsinya tetap
+  berlabel eksperimental karena Microsoft bisa menolaknya di build atau wilayah lain.
+- Toolbox menolak mematikan Defender selama Tamper Protection aktif.
+- Restore point bisa dibuat dari skrip yang berjalan sebagai TrustedInstaller.
+- Defender dengan proteksi real-time aktif tidak menghalangi playbook, dan tetap aktif
+  sesudahnya. Requirement `DefenderToggled` tidak diperlukan.
+- Tidak ada penulisan registry TGOS yang ditolak Windows.
+
+---
+
 ## 3. Soal password `.apbx`
 
 **Permintaan awal:** file `.apbx` diberi password sendiri supaya tidak bisa diekstrak
@@ -233,11 +265,9 @@ TGOS/
 ├─ README.md
 ├─ PLAN.md                         ← dokumen ini
 ├─ CHANGELOG.md
-├─ .gitignore                      ← mengabaikan release/, *.apbx, *.7z
-├─ .gitattributes                  ← CRLF untuk .ps1/.cmd/.reg, LF untuk .yml
-├─ assets/
-│  └─ branding/                    ← logo TGO asli, ikon TGOS, wallpaper
-├─ src/
+├─ .github/workflows/test.yml      ← uji otomatis: lint + mesin AME di Windows
+├─ assets/branding/                ← logo TGO asli, ikon TGOS, wallpaper
+├─ src/                            ← isi .apbx
 │  ├─ playbook.conf
 │  ├─ playbook.png                 ← ikon 256x256, dibuat tools/make-icon.py
 │  ├─ Configuration/
@@ -250,24 +280,28 @@ TGOS/
 │  │     ├─ 40-scheduled-tasks.yml
 │  │     ├─ 50-performance.yml
 │  │     ├─ 60-security-options.yml
-│  │     ├─ 70-components.yml      ← Edge, OneDrive
+│  │     ├─ 70-components.yml      ← OneDrive, Edge
 │  │     ├─ 80-interface.yml
-│  │     └─ 90-finalize.yml        ← TGOS Toolbox, info instalasi, pembersihan
+│  │     └─ 90-finalize.yml        ← Toolbox, catatan instalasi, pemeriksaan diri
 │  └─ Executables/
-│     ├─ Scripts/                  ← skrip PowerShell yang dipanggil playbook (Common.ps1 = fungsi bersama)
-│     └─ TGOS Toolbox/             ← disalin ke sistem: skrip pengubah & pembalik
+│     ├─ Scripts/                  ← skrip yang dipanggil playbook (Common.ps1 = fungsi bersama)
+│     ├─ TGOS/                     ← data: daftar tugas terjadwal, wallpaper
+│     └─ TGOS Toolbox/             ← disalin ke C:\TGOS Toolbox
+│        ├─ *.cmd                  ← pasangan Turn OFF / Turn ON, Collect TGOS Report
+│        └─ Support/               ← Set-TgosFeature, Test-TgosResult, Collect-TgosReport,
+│                                    Get-SystemSnapshot, expected-state.json
 ├─ tools/
-│  ├─ build.ps1                    ← build di Windows (butuh 7-Zip)
-│  ├─ build.sh                     ← build di Linux/CI
-│  ├─ validate.py                  ← cek XML + YAML terhadap skema aksi AME
-│  ├─ make-icon.py                 ← membuat ikon TGOS dari logo TGO
-│  ├─ make-tweaks-doc.py           ← membuat docs/TWEAKS.md dari YAML
-│  ├─ Get-SystemSnapshot.ps1       ← potret sistem (dijalankan di Windows, hanya membaca)
+│  ├─ validate.py                  ← cek format AME + aturan pengaman TGOS
+│  ├─ selftest.py                  ← memastikan validator & file turunan benar
+│  ├─ build.ps1 / build.sh         ← membuat .apbx dan pembungkus .7z
+│  ├─ make-expected-state.py       ← YAML → expected-state.json
+│  ├─ make-tweaks-doc.py           ← YAML → docs/TWEAKS.md
+│  ├─ make-icon.py                 ← logo TGO → ikon TGOS
 │  ├─ compare-snapshots.py         ← membandingkan potret sebelum dan sesudah
-│  └─ selftest.py                  ← memastikan validator & cek kompatibilitas benar
+│  └─ ci/Test-Engine.ps1           ← uji lewat mesin AME (hanya di GitHub Actions)
 ├─ docs/
-│  ├─ TESTING.md                   ← checklist & hasil uji per versi
-│  └─ TWEAKS.md                    ← daftar semua tweak + cara balik (dibuat otomatis)
+│  ├─ TESTING.md                   ← tiga lapis pengujian dan catatan hasil
+│  └─ TWEAKS.md                    ← semua tweak + cara balik (dibuat otomatis)
 └─ release/                        ← hasil build (tidak di-commit)
 ```
 
@@ -299,7 +333,7 @@ penyebab masalah.
 
 | Requirement | Dipakai? | Alasan |
 |---|---|---|
-| `DefenderToggled` | Tidak | Keputusan pemilik: Defender tetap aktif selama instalasi. Terbukti di uji Fase 0: AME Beta menjalankan playbook tanpa meminta Defender dimatikan. Tetap diamati di `0.1.0` karena sekarang playbook benar-benar mengubah sistem; bila Defender memblokir, requirement ini terpaksa dipakai. |
+| `DefenderToggled` | Tidak | Keputusan pemilik: Defender tetap aktif selama instalasi. Terbukti dua kali: AME Beta menjalankan kerangka Fase 0 tanpa meminta Defender dimatikan, dan uji otomatis di Windows 11 menjalankan `0.9.0` penuh dengan proteksi real-time aktif. |
 | `NoAntivirus` | Ya (mulai `0.1.0`) | Antivirus pihak ketiga mengganggu modifikasi sistem. |
 | `NoPendingUpdates` | Ya (mulai `0.1.0`) | Update yang menggantung bisa menimpa perubahan atau merusak servicing. |
 | `PluggedIn` | Ya (sudah di Fase 0) | Mencegah laptop mati di tengah proses. |
@@ -308,63 +342,60 @@ penyebab masalah.
 
 ### 7.3 Halaman opsi (FeaturePages)
 
-Kolom "Nama opsi" adalah yang dipakai di filter `option:` pada YAML. Default checkbox
-diatur lewat atribut `IsChecked` (bawaan Wizard: tercentang); default radio lewat
-`DefaultOption`. Halaman bisa dibuat bergantung pada opsi lain dengan `DependsOn`.
-
-Tidak ada halaman Defender: Defender tetap aktif selama dan sesudah instalasi, dan hanya
-bisa dimatikan pengguna lewat TGOS Toolbox.
-
 Batas dari Wizard: satu halaman maksimal 4 opsi; 3 bila halaman punya `TopLine` atau
-`BottomLine`; 2 bila punya keduanya.
+`BottomLine`; 2 bila punya keduanya. Default checkbox lewat `IsChecked`, default radio
+lewat `DefaultOption`. Kolom "Nama opsi" dipakai di filter `option:` pada YAML.
 
-**Halaman Aplikasi** (`CheckboxPage`) — sudah ada sejak `0.1.0`
+**Halaman 1 — Komponen** (`CheckboxPage`)
 
 | Pilihan | Nama opsi | Default |
 |---|---|---|
 | Remove Copilot and Widgets | `remove-ai-widgets` | ✔ |
+| Remove OneDrive | `remove-onedrive` | ✔ |
 | Remove Xbox app and Game Bar | `remove-xbox` | ✘ |
+| Remove Microsoft Edge (experimental) | `remove-edge` | ✘ |
 
-Recall dan analisis data AI selalu dimatikan lewat policy, tanpa opsi.
-
-Halaman berikut baru direncanakan:
-
-**Halaman 1 — Mitigasi CPU** (`RadioPage`, wajib)
-
-| Pilihan | Nama opsi |
-|---|---|
-| Mitigasi default Windows | `mitigations-default` |
-| Matikan semua mitigasi | `mitigations-disable` |
-
-**Halaman 2 — Windows Update** (`RadioPage`, wajib)
-
-| Pilihan | Nama opsi |
-|---|---|
-| Matikan update otomatis (tetap bisa manual) | `updates-manual` |
-| Biarkan default | `updates-default` |
-
-**Halaman 3 — Performa** (`CheckboxPage`)
+**Halaman 2 — Performa** (`CheckboxPage`)
 
 | Pilihan | Nama opsi | Default |
 |---|---|---|
-| Matikan VBS / Core Isolation | `disable-vbs` | ✔ |
-| Matikan hibernasi & Fast Startup | `disable-hibernation` | ✔ |
-| Matikan penghematan daya (desktop) | `disable-power-saving` | ✔ |
-| Matikan Windows Search indexing | `disable-indexing` | ✔ |
+| Ultimate Performance power plan | `disable-power-saving` | ✔ |
+| Disable hibernation and Fast Startup | `disable-hibernation` | ✔ |
+| Disable Core Isolation (VBS) | `disable-vbs` | ✔ |
+| Disable search indexing | `disable-indexing` | ✔ |
 
-**Halaman 4 — Komponen** (`CheckboxPage`)
+**Halaman 3 — Mitigasi CPU** (`RadioPage`, wajib): `mitigations-default` (bawaan) atau
+`mitigations-disable`.
 
-| Pilihan | Nama opsi | Default |
-|---|---|---|
-| Hapus Microsoft Edge | `remove-edge` | ✘ |
-| Hapus OneDrive | `remove-onedrive` | ✔ |
+**Halaman 4 — Windows Update** (`RadioPage`, wajib): `updates-manual` (bawaan) atau
+`updates-default`.
 
-Default radio rencana: `mitigations-default` dan `updates-manual`. Keduanya masih bisa
-diubah pemilik proyek sebelum `0.3.0`.
+Tidak ada halaman Defender: Defender tetap aktif selama dan sesudah instalasi, dan hanya
+bisa dimatikan pengguna lewat TGOS Toolbox. Recall dan analisis data AI selalu dimatikan
+lewat policy, tanpa opsi.
+
+Setiap opsi yang dipilih dicatat ke `install-info.txt` oleh `90-finalize.yml`; validator
+menolak playbook bila ada opsi yang tidak dicatat, karena pemeriksaan diri bergantung
+pada catatan itu.
 
 ---
 
 ## 8. Rancangan modul tweak
+
+> **Semua modul di bagian ini sudah dibuat di `0.9.0`.** Daftar persis apa yang
+> diterapkan ada di [docs/TWEAKS.md](docs/TWEAKS.md), yang dibuat otomatis dari YAML.
+> Subbagian di bawah adalah rancangan awalnya dan alasan di baliknya. Yang berbeda dari
+> rancangan:
+>
+> - Tugas terjadwal dinonaktifkan lewat skrip, bukan aksi `!scheduledTask` (lihat 2.4).
+> - Layanan Xbox dan geolokasi (`lfsvc`) tidak disentuh.
+> - Policy `AllowGameDVR` tidak dipakai, supaya perekaman tetap bisa dinyalakan pengguna.
+> - Menu klik kanan klasik dan tombol taskbar tidak diubah: sebagian nilai itu dilindungi
+>   Windows dan penulisan dari luar ditolak.
+> - Pembersihan komponen (`DISM /StartComponentCleanup`) tidak dijalankan.
+> - "Matikan Defender" di Toolbox mematikan pemindaian lewat policy; layanan Defender
+>   tidak dicabut.
+> - Hapus Edge berstatus eksperimental dan default mati.
 
 Kolom **Risiko** menilai kemungkinan merusak fungsi: R = rendah, S = sedang, T = tinggi.
 Kolom **Balik** menandai apakah ada skrip pembalik di TGOS Toolbox.
@@ -387,8 +418,9 @@ validasi gagal bila ada aksi yang akan menghapus salah satunya.
 
 Bersyarat: Xbox app & Game Bar (`remove-xbox`), Copilot & Widgets (`remove-ai-widgets`).
 
-Penghapusan memakai aksi `!appx` bawaan AME. Apakah aplikasi yang dihapus cara ini bisa
-dipasang lagi dari Store masih harus dibuktikan di uji VM; bila tidak, caranya diganti.
+Penghapusan memakai aksi `!appx` bawaan AME, dan terbukti bekerja di Windows 11 pada uji
+otomatis. Apakah aplikasi yang dihapus cara ini bisa dipasang lagi dari Store masih harus
+dibuktikan di uji VM; bila tidak, caranya diganti.
 
 | Risiko | Balik |
 |---|---|
@@ -580,6 +612,8 @@ src/  ──validate.py──▶  7z (password malte, format 7z)  ──▶  rel
                                                       release/TGOS-vX.Y.Z.7z
 ```
 
+0. Setiap push dijalankan `.github/workflows/test.yml`: validasi, uji diri, lalu playbook
+   dijalankan lewat mesin AME di Windows (lihat [docs/TESTING.md](docs/TESTING.md)).
 1. `tools/validate.py` — memeriksa `playbook.conf` (XML valid, field wajib, UUID bukan
    kosong, format versi), setiap YAML (tag aksi dikenal, nama properti dikenal, opsi yang
    dirujuk memang ada di `playbook.conf`, file yang dirujuk `!task` ada).
@@ -593,6 +627,11 @@ ketik nama properti baru ketahuan saat Wizard gagal di tengah jalan.
 ---
 
 ## 11. Rencana pengujian di VMware
+
+> Pengujian sekarang berlapis tiga (uji bentuk, mesin AME di GitHub Actions, VM). Alur
+> yang berlaku dan catatan hasilnya ada di [docs/TESTING.md](docs/TESTING.md). Matriks
+> opsi di 11.3 kini dijalankan otomatis di lapis kedua; uji VM cukup sekali dengan opsi
+> bawaan. Subbagian di bawah tetap berlaku untuk persiapan VM.
 
 ### 11.1 Persiapan VM
 
@@ -671,14 +710,14 @@ menunggu hardware asli.
 
 | Fase | Versi | Isi | Selesai bila |
 |---|---|---|---|
-| 0. Kerangka | `0.0.1`–`0.0.2` | `playbook.conf`, cek kompatibilitas, pencatat info instalasi, branding, skrip build & validasi. | **Lolos** di AME Beta, 14 Nov 2026 ([docs/TESTING.md](docs/TESTING.md)). Uji tolak di edisi bukan Pro masih terutang. |
-| 1a. Aplikasi & privasi | `0.1.0` | Hapus aplikasi bawaan, privasi lewat registry, restore point, potret sistem. **Sudah dibuat; menunggu uji VM.** | Uji A dan B lolos checklist di 26H2 |
-| 1b. Layanan & tugas | `0.1.1` | Layanan dan tugas terjadwal, disusun dari potret sistem nyata hasil uji `0.1.0` | Run A lolos checklist di 26H2 |
-| 2. Performa | `0.2.0` | Modul performa + opsi daya | Run B lolos checklist |
-| 3. Opsi keamanan & Toolbox | `0.3.0` | VBS, mitigasi, update; TGOS Toolbox termasuk pengubah Defender | Run C lolos, semua pasangan skrip Toolbox terbukti jalan |
-| 4. Komponen & tampilan | `0.4.0` | Edge, OneDrive, antarmuka, branding | Checklist lolos di 24H2, 25H2, 26H2 |
+| 0. Kerangka | `0.0.1`–`0.0.2` | `playbook.conf`, cek kompatibilitas, pencatat info instalasi, branding, skrip build & validasi | **Lolos** di AME Beta, 14 Nov 2026 |
+| 1–4. Semua modul | `0.9.0` | Aplikasi bawaan, privasi, layanan, tugas terjadwal, performa, opsi keamanan, komponen, tampilan, TGOS Toolbox, pemeriksaan diri, uji otomatis. **Sudah dibuat; uji mesin AME di CI lolos.** | Satu uji di VM Windows 11 Pro 26H2 lolos |
 | 5. Beta hardware asli | `0.9.x` | Benchmark, uji anti-cheat, uji 22H2/23H2, keputusan [8.5](#85-kandidat-yang-butuh-bukti-benchmark-dulu) | Data benchmark tercatat, tidak ada bug kritis |
 | 6. Rilis | `1.0.0` | Dokumentasi pengguna, paket distribusi | Disetujui pemilik proyek |
+
+Fase 1 sampai 4 semula direncanakan bertahap. Atas keputusan pemilik semuanya digabung ke
+satu rilis, dan pengujian berulangnya dipindah ke uji otomatis
+([docs/TESTING.md](docs/TESTING.md)) supaya uji di VM cukup sekali.
 
 Fase 0 sengaja kecil: tujuannya memastikan rantai build → Wizard → eksekusi bekerja
 sebelum ada satu pun tweak yang ditambahkan.
@@ -693,7 +732,7 @@ sebelum ada satu pun tweak yang ditambahkan.
 | Menghapus terlalu banyak sampai fitur penting rusak | Tinggi | Daftar "tidak pernah disentuh" di [8.3](#83-layanan-30-servicesyml), matikan bukan hapus, checklist fungsi |
 | Anti-cheat menolak jalan | Tinggi | Tidak menyentuh Secure Boot/TPM, uji game populer di fase beta, dokumentasikan kombinasi opsi yang aman |
 | Pengguna terkena malware setelah Defender mati | Tinggi | Defender aktif secara default; skrip Toolbox menampilkan peringatan dan menyediakan pengaktif kembali |
-| Defender aktif memblokir AME Wizard saat instalasi | Sedang | Diuji sejak Fase 0; cadangannya requirement `DefenderToggled` |
+| Defender aktif memblokir AME Wizard saat instalasi | Rendah | Tidak terjadi di uji Fase 0 maupun uji otomatis Windows 11; cadangannya requirement `DefenderToggled` |
 | Salah ketik YAML baru ketahuan saat instalasi | Sedang | `tools/validate.py` wajib lolos sebelum build |
 | Versi AME Wizard baru mengubah format | Sedang | Catat versi Wizard yang dipakai uji di `docs/TESTING.md` |
 | Build Windows baru belum diuji | Sedang | `SupportedBuilds` eksplisit; build baru ditambah hanya setelah lolos uji |
@@ -729,8 +768,12 @@ Sudah diputuskan:
 
 Masih terbuka:
 
-1. **Browser** — bila Edge dihapus, apakah Wizard menawarkan pemasangan browser lain?
-2. **Wallpaper** — file asli beresolusi tinggi (lihat [8.8](#88-antarmuka-80-interfaceyml)).
+1. **Potret VM** — `TGOS-snapshot-before.json` dari snapshot bersih pemilik, untuk
+   mencocokkan daftar layanan dan tugas terjadwal dengan Windows 11 Pro 26H2 yang nyata.
+2. **Browser** — bila Edge dihapus, apakah Wizard menawarkan pemasangan browser lain?
+   Saat ini tidak; pengguna memasang sendiri lewat Store atau `winget`.
+3. **Wallpaper** — file asli beresolusi tinggi (lihat [8.8](#88-antarmuka-80-interfaceyml)).
+   Yang terpasang sekarang adalah file 2000x1125 yang dikirim, apa adanya.
 
 ---
 

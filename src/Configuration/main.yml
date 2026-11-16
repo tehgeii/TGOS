@@ -14,7 +14,21 @@ actions:
   - !writeStatus: { status: 'Applying privacy settings' }
   - !task: { path: 'Tasks\20-privacy.yml' }
 
-  # Modul 30 sampai 80 ditambahkan di versi berikutnya. Lihat PLAN.md bagian 6.
+  - !writeStatus: { status: 'Disabling unneeded services' }
+  - !task: { path: 'Tasks\30-services.yml' }
+  - !task: { path: 'Tasks\40-scheduled-tasks.yml' }
 
+  - !writeStatus: { status: 'Applying performance settings' }
+  - !task: { path: 'Tasks\50-performance.yml' }
+  - !task: { path: 'Tasks\60-security-options.yml' }
+
+  - !writeStatus: { status: 'Removing optional components' }
+  - !task: { path: 'Tasks\70-components.yml' }
+
+  - !writeStatus: { status: 'Applying the TGOS look' }
+  - !task: { path: 'Tasks\80-interface.yml' }
+
+  # Harus selalu yang terakhir: memasang Toolbox, mencatat instalasi, lalu memeriksa
+  # hasil semua modul di atas.
   - !writeStatus: { status: 'Finishing up' }
   - !task: { path: 'Tasks\90-finalize.yml' }

@@ -1,0 +1,24 @@
+---
+title: Interface
+description: Tampilan TGOS dan pengaturan Explorer.
+actions:
+  # Sengaja tidak menyentuh tombol taskbar (Search, Task View, Widgets): sebagian nilai
+  # itu dilindungi Windows dan penulisan dari luar ditolak. Widgets sudah dimatikan
+  # lewat policy di modul privasi.
+
+  # --- Mode gelap ------------------------------------------------------------------
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', value: 'AppsUseLightTheme', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', value: 'SystemUsesLightTheme', data: '0', type: REG_DWORD }
+
+  # --- File Explorer ---------------------------------------------------------------
+  # Explorer membuka "This PC", bukan Home.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'LaunchTo', data: '1', type: REG_DWORD }
+  # Ekstensi file ditampilkan (membantu membedakan .exe dari dokumen).
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'HideFileExt', data: '0', type: REG_DWORD }
+
+  # --- Wallpaper TGO ---------------------------------------------------------------
+  # File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS.
+  # 10 = Fill.
+  - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'WallPaper', data: 'C:\Windows\Web\Wallpaper\TGOS\TGOS.png', type: REG_SZ }
+  - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'WallpaperStyle', data: '10', type: REG_SZ }
+  - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'TileWallpaper', data: '0', type: REG_SZ }

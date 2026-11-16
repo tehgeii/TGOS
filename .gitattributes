@@ -18,3 +18,5 @@
 *.ico  binary
 *.exe  binary
 *.webp binary
+*.txt  text eol=crlf
+*.json text eol=lf

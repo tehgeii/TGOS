@@ -26,6 +26,9 @@ CONF = "src/playbook.conf"
 INFO_SCRIPT = "src/Executables/Scripts/Write-InstallInfo.ps1"
 APPX = "src/Configuration/Tasks/10-debloat-appx.yml"
 PRIVACY = "src/Configuration/Tasks/20-privacy.yml"
+SERVICES = "src/Configuration/Tasks/30-services.yml"
+TASK_LIST = "src/Executables/TGOS/scheduled-tasks.txt"
+EXPECTED_STATE = "src/Executables/TGOS Toolbox/Support/expected-state.json"
 ICON = "src/playbook.png"
 
 # PNG 1x1 yang valid: dipakai untuk menguji pemeriksaan ukuran ikon.
@@ -111,6 +114,33 @@ MUTATIONS = [
      "value: 'Enabled', data: '0' }", "'type' wajib"),
     ("filter build salah bentuk", PRIVACY, "builds: ['>=26100'] }", "builds: ['24H2'] }",
      "harus teks seperti"),
+    # --- Layanan dan tugas terjadwal ---
+    ("layanan yang dilindungi", SERVICES, "actions:",
+     "actions:\n  - !service: { name: 'AudioSrv', operation: change, startup: 4 }",
+     "layanan yang dilindungi"),
+    ("layanan dilindungi, beda huruf besar", SERVICES, "actions:",
+     "actions:\n  - !service: { name: 'wuauserv', operation: change, startup: 4 }",
+     "layanan yang dilindungi"),
+    ("layanan dihapus", SERVICES, "name: 'DiagTrack', operation: change, startup: 4",
+     "name: 'DiagTrack', operation: delete", "hanya memakai 'operation: change'"),
+    ("startup layanan di luar batas", SERVICES, "name: 'DiagTrack', operation: change, startup: 4",
+     "name: 'DiagTrack', operation: change, startup: 0", "bernilai 2, 3, atau 4"),
+    ("layanan dengan wildcard", SERVICES, "name: 'DiagTrack'", "name: 'Diag*'",
+     "tidak boleh memakai wildcard"),
+    ("aksi scheduledTask dipakai", SERVICES, "actions:",
+     "actions:\n  - !scheduledTask: { path: '\\Microsoft\\X', operation: disable }",
+     "tidak dipakai di TGOS"),
+    ("jalur tugas salah bentuk", TASK_LIST, "\\Microsoft\\Windows\\Maps\\MapsUpdateTask",
+     "Microsoft\\Windows\\Maps\\MapsUpdateTask", "bukan jalur tugas"),
+    ("tugas ditulis dua kali", TASK_LIST, "\\Microsoft\\Windows\\Maps\\MapsUpdateTask",
+     "\\Microsoft\\Windows\\Maps\\MapsToastTask", "ditulis lebih dari sekali"),
+    # --- Catatan instalasi ---
+    ("opsi tidak dicatat", FINALIZE, '-AppendOption "remove-edge"', '-AppendOption "remove-edg"',
+     "opsi 'remove-edge' tidak dicatat"),
+    ("modul tidak cocok dengan main.yml", FINALIZE, "preflight,debloat-appx,", "preflight,debloat,",
+     "tidak sama dengan modul"),
+    ("kunci options dipakai", PRIVACY, "option: 'remove-ai-widgets' }",
+     "options: ['remove-ai-widgets'] }", "options: tidak dipakai"),
     # --- Halaman opsi ---
     ("IsChecked bukan boolean", CONF, 'IsChecked="false"', 'IsChecked="no"',
      "IsChecked harus 'true' atau 'false'"),
@@ -129,6 +159,7 @@ BINARY_MUTATIONS = [
     ("ikon hilang", ICON, None, "ikon playbook tidak ditemukan"),
     ("ikon bukan PNG", ICON, b"GIF89a bukan png, cuma teks pengisi", "bukan file PNG"),
     ("ikon salah ukuran", ICON, TINY_PNG, "harus 256x256"),
+    ("file pendukung hilang", EXPECTED_STATE, None, "file pendukung tidak ditemukan"),
 ]
 
 # (edisi, build, arsitektur, kode keluar yang diharapkan)
@@ -249,19 +280,23 @@ def test_compatibility() -> int:
     return failures
 
 
-def test_tweaks_doc() -> int:
-    result = subprocess.run(
-        [sys.executable, str(ROOT / "tools" / "make-tweaks-doc.py"), "--check"],
-        capture_output=True, text=True, encoding="utf-8", errors="replace")
-    if result.returncode != 0:
-        print(f"GAGAL  docs/TWEAKS.md: {result.stdout.strip()}")
-        return 1
-    print("lolos  docs/TWEAKS.md sesuai dengan playbook")
-    return 0
+def test_generated_files() -> int:
+    """File yang dibuat dari YAML tidak boleh usang."""
+    failures = 0
+    for script in ("make-tweaks-doc.py", "make-expected-state.py"):
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / script), "--check"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if result.returncode != 0:
+            print(f"GAGAL  {script}: {(result.stdout + result.stderr).strip()}")
+            failures += 1
+        else:
+            print(f"lolos  {result.stdout.strip()}")
+    return failures
 
 
 def main() -> int:
-    failures = test_validator() + test_compatibility() + test_tweaks_doc()
+    failures = test_validator() + test_compatibility() + test_generated_files()
     if failures:
         print(f"\nUji diri GAGAL: {failures} kegagalan")
         return 1

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Membandingkan dua potret sistem buatan tools/Get-SystemSnapshot.ps1.
+"""Membandingkan dua potret sistem buatan Get-SystemSnapshot.ps1 (ada di TGOS Toolbox).
 
 Pemakaian:
     python tools/compare-snapshots.py TGOS-snapshot-before.json TGOS-snapshot-after.json
@@ -37,11 +37,18 @@ def load_validator():
 
 def as_list(value) -> list:
     """PowerShell menulis daftar berisi satu elemen sebagai objek, dan daftar kosong sebagai null."""
-    if value is None:
+    if value is None or value == {}:
         return []
     if isinstance(value, list):
         return value
     return [value]
+
+
+def text_of(value) -> str:
+    """Baris teks dari potret; versi lama skrip menulisnya sebagai objek {"value": ...}."""
+    if isinstance(value, dict):
+        value = value.get("value", "")
+    return value if isinstance(value, str) else ""
 
 
 def load_snapshot(path: Path) -> dict:
@@ -148,9 +155,9 @@ def main() -> int:
     problems = 0
 
     # Opsi yang dipilih saat instalasi tercatat di install-info.txt.
-    selected = {line.split(":", 1)[1].strip()
-                for line in as_list(after.get("tgosInstallInfo"))
-                if isinstance(line, str) and line.startswith("Option selected")}
+    info_lines = [text_of(line) for line in as_list(after.get("tgosInstallInfo"))]
+    selected = {line.split(":", 1)[1].strip() for line in info_lines
+                if line.startswith("Option selected")}
 
     still_present = []
     skipped = []
@@ -173,8 +180,14 @@ def main() -> int:
         for family, option in skipped:
             print(f"    . {family}  (opsi '{option}')")
 
+    # Paket yang dilindungi boleh hilang hanya bila opsi yang memang menghapusnya dipilih.
+    allowed_by_option = {
+        "remove-edge": ("Microsoft.MicrosoftEdge.Stable", "Microsoft.MicrosoftEdgeDevToolsClient"),
+    }
+    allowed = {name for option, names in allowed_by_option.items() if option in selected for name in names}
     protected_lost = [family for family in removed
-                      if any(matches(name + "_*", family) for name in validator.PROTECTED_APPX)]
+                      if any(matches(name + "_*", family)
+                             for name in validator.PROTECTED_APPX if name not in allowed)]
     if protected_lost:
         print("\n  BAHAYA: paket yang dilindungi ikut hilang:")
         for family in protected_lost:
@@ -228,10 +241,9 @@ def main() -> int:
                   if point not in as_list(before.get("restorePoints"))]
     print(f"Restore point baru: {', '.join(new_points) if new_points else 'tidak ada'}")
 
-    info = as_list(after.get("tgosInstallInfo"))
-    if info:
+    if any(info_lines):
         print("\ninstall-info.txt:")
-        for line in info:
+        for line in info_lines:
             print(f"    {line}")
 
     print(f"\nSelesai: {problems} hal perlu diperiksa" if problems else "\nSelesai: tidak ada masalah terdeteksi")
