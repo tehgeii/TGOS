@@ -639,7 +639,7 @@ def validate_executables(report: Report) -> None:
         report.error(rel(folder), "folder tidak ditemukan")
         return
     # Skrip di tools/ juga dijalankan Windows PowerShell 5.1 di mesin pengguna.
-    candidates = sorted(folder.rglob("*")) + sorted((ROOT / "tools").glob("*.ps1"))
+    candidates = sorted(folder.rglob("*")) + sorted((ROOT / "tools").rglob("*.ps1"))
     for path in candidates:
         if not path.is_file() or path.suffix.lower() not in ASCII_ONLY_SUFFIXES:
             continue
