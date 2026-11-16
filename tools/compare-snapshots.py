@@ -173,8 +173,14 @@ def main() -> int:
         for family, option in skipped:
             print(f"    . {family}  (opsi '{option}')")
 
+    # Paket yang dilindungi boleh hilang hanya bila opsi yang memang menghapusnya dipilih.
+    allowed_by_option = {
+        "remove-edge": ("Microsoft.MicrosoftEdge.Stable", "Microsoft.MicrosoftEdgeDevToolsClient"),
+    }
+    allowed = {name for option, names in allowed_by_option.items() if option in selected for name in names}
     protected_lost = [family for family in removed
-                      if any(matches(name + "_*", family) for name in validator.PROTECTED_APPX)]
+                      if any(matches(name + "_*", family)
+                             for name in validator.PROTECTED_APPX if name not in allowed)]
     if protected_lost:
         print("\n  BAHAYA: paket yang dilindungi ikut hilang:")
         for family in protected_lost:

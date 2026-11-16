@@ -177,12 +177,15 @@ function Invoke-Playbook {
     if (Test-Path -LiteralPath $stdout) { $output = Get-Content -LiteralPath $stdout -Raw }
     if ($null -eq $output) { $output = '' }
 
-    # Log mesin AME dipindah ke artifact supaya uji berikutnya tidak tercampur.
-    $logs = Join-Path $CliDirectory 'Logs'
+    # Log mesin AME (Output.txt dan folder Logs di folder kerjanya) dipindah ke artifact
+    # supaya uji berikutnya tidak tercampur.
     $logTarget = Join-Path $artifacts ('{0}-logs' -f $Name)
-    if (Test-Path -LiteralPath $logs) {
-        Copy-Item -LiteralPath $logs -Destination $logTarget -Recurse -Force
-        Remove-Item -LiteralPath $logs -Recurse -Force
+    New-Item -ItemType Directory -Path $logTarget -Force | Out-Null
+    foreach ($item in @('Output.txt', 'Logs')) {
+        $source = Join-Path $CliDirectory $item
+        if (Test-Path -LiteralPath $source) {
+            Move-Item -LiteralPath $source -Destination $logTarget -Force
+        }
     }
 
     Write-Host ('   engine exit code {0}, {1}s, timed out: {2}' -f $process.ExitCode, $seconds, $timedOut)
@@ -203,7 +206,7 @@ function Show-EngineProblems {
     if (Test-Path -LiteralPath $Run.Logs) {
         Get-ChildItem -LiteralPath $Run.Logs -Recurse -File | ForEach-Object {
             Write-Host ('   {0}: lines mentioning errors' -f $_.Name)
-            Show-Excerpt -Path $_.FullName -Limit 12 -Match '[Ee]rror|[Ee]xception|[Ff]ail|REJECTED|halt'
+            Show-Excerpt -Path $_.FullName -Limit 14 -Match '[Ee]rror|[Ee]xception|[Ff]ail|REJECTED|halt|WARNING'
         }
     }
 }
@@ -317,6 +320,25 @@ $content = Get-Content -LiteralPath $compatibility -Raw
 $null = Assert-That ($content.Contains($original) -and $content.Contains($originalArch)) 'pass: the edition and architecture checks were found for patching'
 Set-Content -LiteralPath $compatibility -Value $content.Replace($original, $patched).Replace($originalArch, $patchedArch) -Encoding ASCII
 
+# Image runner sudah menonaktifkan sebagian tugas telemetri. Supaya penonaktifan oleh
+# TGOS benar-benar teruji, tugas di daftar yang ada diaktifkan dulu.
+$enabledTasks = @()
+$taskList = Join-Path $playbook 'Executables\TGOS\scheduled-tasks.txt'
+foreach ($entry in (Get-Content -LiteralPath $taskList | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') })) {
+    $separator = $entry.LastIndexOf('\')
+    $task = Get-ScheduledTask -TaskPath $entry.Substring(0, $separator + 1) -TaskName $entry.Substring($separator + 1) -ErrorAction SilentlyContinue
+    if ($task) {
+        try {
+            $task | Enable-ScheduledTask -ErrorAction Stop | Out-Null
+            $enabledTasks += $task
+        }
+        catch {
+            Write-Host ('   could not enable {0} for the test: {1}' -f $entry, (Format-LogLine $_.Exception.Message))
+        }
+    }
+}
+Write-Host ('   {0} listed task(s) enabled before the run' -f $enabledTasks.Count)
+
 $pass = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbookPass -OptionList $optionList -Name 'pass'
 $ok = Assert-That (-not $pass.TimedOut) 'pass: the engine did not hang'
 $ok = (Assert-That ($pass.Output -notmatch 'YAML Error|Fatal Playbook Error') 'pass: no YAML or fatal error') -and $ok
@@ -326,23 +348,30 @@ if (-not $ok) { Show-EngineProblems $pass }
 
 $summary = Get-EngineLogSummary $pass
 Write-Host ('   engine log files: {0}' -f ($summary.Files -join '; '))
-if ($summary.Files.Count -eq 0) {
-    # Lokasi log mesin AME tidak terdokumentasi; cari file yang baru ditulis.
-    $since = (Get-Date).AddMinutes(-10)
-    $roots = @($cliDirectory, $playbookPass, (Join-Path $env:ProgramData 'AME'))
-    foreach ($root in $roots) {
-        if (-not (Test-Path -LiteralPath $root)) { continue }
-        Get-ChildItem -LiteralPath $root -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.LastWriteTime -gt $since -and $_.Extension -in '.txt', '.log', '.json' } |
-            Select-Object -First 8 |
-            ForEach-Object { Write-Host ('   recent file: {0} ({1} bytes)' -f (Format-LogLine $_.FullName), $_.Length) }
-    }
-}
 Write-Host ('   engine log: {0} error line(s), {1} warning line(s)' -f $summary.Errors, $summary.Warnings)
 $summary.Samples | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
 
+# Baris yang ditulis skrip TGOS sendiri: hasil tiap skrip, termasuk yang tidak fatal.
+$engineOutput = Join-Path $pass.Logs 'Output.txt'
+if (Test-Path -LiteralPath $engineOutput) {
+    Write-Host '   TGOS script results in the engine log:'
+    Get-Content -LiteralPath $engineOutput |
+        Where-Object { $_ -match 'TGOS: (?!recorded option)|PASSED:|REJECTED:|SUMMARY:' -or $_ -match 'WARNING: ' } |
+        ForEach-Object { ($_ -replace '^.*?(TGOS: |PASSED:|REJECTED:|SUMMARY:|WARNING: )', '$1') } |
+        Select-Object -First 30 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+}
+
 Write-Host '   install-info.txt:'
 Show-Excerpt -Path $installInfo -Limit 20
+
+if ($enabledTasks.Count -gt 0) {
+    $stillEnabled = @($enabledTasks | Where-Object {
+            $task = Get-ScheduledTask -TaskPath $_.TaskPath -TaskName $_.TaskName -ErrorAction SilentlyContinue
+            $task -and [string]$task.State -ne 'Disabled'
+        })
+    $null = Assert-That ($stillEnabled.Count -eq 0) ('pass: all {0} task(s) enabled before the run are now Disabled' -f $enabledTasks.Count)
+    $stillEnabled | ForEach-Object { Write-Host ('   still enabled: {0}{1}' -f $_.TaskPath, $_.TaskName) }
+}
 
 # =======================================================================================
 Write-Section 'Self-verification'
@@ -397,6 +426,13 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
             $exit = $LASTEXITCODE
             if ($exit -eq 3) {
                 Write-Host ('  skip  toolbox: {0} {1} is not supported on this runner' -f $case.Feature, $state)
+                continue
+            }
+            if ($case.Feature -eq 'Defender' -and $state -eq 'Off' -and $exit -eq 2) {
+                # Perilaku yang dirancang di Windows 11: selama Tamper Protection aktif,
+                # skrip menolak, menjelaskan caranya, dan tidak mengubah apa pun.
+                $untouched = ($null -eq (Get-Value -Path $case.Path -Name $case.Name))
+                $null = Assert-That ($untouched -and $output -match 'Tamper Protection') 'toolbox: Defender Off is refused while Tamper Protection is on, and changes nothing'
                 continue
             }
             $actual = Get-Value -Path $case.Path -Name $case.Name
