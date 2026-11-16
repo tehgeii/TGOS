@@ -43,6 +43,12 @@ actions:
   # aplikasi Store tidak mengirim notifikasi saat tertutup.
   - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy', value: 'LetAppsRunInBackground', data: '2', type: REG_DWORD }
 
+  # --- Microsoft Edge di latar belakang --------------------------------------------
+  # Edge tidak dimuat lebih dulu saat login (Startup Boost) dan tidak tetap berjalan
+  # setelah jendelanya ditutup. Edge tetap bisa dipakai seperti biasa.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Edge', value: 'StartupBoostEnabled', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Edge', value: 'BackgroundModeEnabled', data: '0', type: REG_DWORD }
+
   # --- Efek visual -----------------------------------------------------------------
   # Transparansi dan animasi dimatikan untuk meringankan compositor.
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', value: 'EnableTransparency', data: '0', type: REG_DWORD }

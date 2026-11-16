@@ -4,7 +4,7 @@
 > `src/Configuration/Tasks/`. Jangan diedit langsung: ubah YAML-nya (termasuk komentar
 > di atas tiap aksi), lalu jalankan skrip itu lagi.
 
-Versi playbook: `0.9.0`
+Versi playbook: `0.9.1`
 
 Kolom **Syarat** kosong berarti tweak selalu diterapkan. `opsi: nama` berarti hanya bila
 opsi itu dicentang di AME Wizard; `build: ...` berarti hanya di build Windows tersebut.
@@ -100,10 +100,10 @@ dipasang lagi dari Store (lihat [TESTING.md](TESTING.md)).
 
 | Aplikasi | Paket | Syarat | Keterangan |
 |---|---|---|---|
-| Copilot | `Microsoft.Copilot*` | opsi: `remove-ai-widgets` |  |
-| Copilot provider | `Microsoft.Windows.Ai.Copilot.Provider*` | opsi: `remove-ai-widgets` |  |
-| Widgets (Windows Web Experience Pack) | `MicrosoftWindows.Client.WebExperience*` | opsi: `remove-ai-widgets` |  |
-| Widgets Platform Runtime | `Microsoft.WidgetsPlatformRuntime*` | opsi: `remove-ai-widgets` |  |
+| Copilot | `Microsoft.Copilot*` | opsi: `remove-ai-widgets` | Proses Widgets dihentikan dulu. Tanpa ini filenya masih terkunci saat paketnya dihapus, dan sisa file tertinggal di disk. |
+| Copilot provider | `Microsoft.Windows.Ai.Copilot.Provider*` | opsi: `remove-ai-widgets` | Proses Widgets dihentikan dulu. Tanpa ini filenya masih terkunci saat paketnya dihapus, dan sisa file tertinggal di disk. |
+| Widgets (Windows Web Experience Pack) | `MicrosoftWindows.Client.WebExperience*` | opsi: `remove-ai-widgets` | Proses Widgets dihentikan dulu. Tanpa ini filenya masih terkunci saat paketnya dihapus, dan sisa file tertinggal di disk. |
+| Widgets Platform Runtime | `Microsoft.WidgetsPlatformRuntime*` | opsi: `remove-ai-widgets` | Proses Widgets dihentikan dulu. Tanpa ini filenya masih terkunci saat paketnya dihapus, dan sisa file tertinggal di disk. |
 
 ### Opsi: Xbox app dan Game Bar
 
@@ -226,6 +226,8 @@ Bukan penghapusan: hanya mengosongkan cache `*Client.CBS*`, `*StartMenuExperienc
 | `diagnosticshub.standardcollector.service` | Disabled |  | Pengumpul data untuk Diagnostics Hub (alat profiling pengembang). |
 | `WerSvc` | Disabled |  | Windows Error Reporting: mengirim laporan crash ke Microsoft. |
 | `wisvc` | Disabled |  | Windows Insider Service: hanya dipakai bila ikut program Insider. |
+| `InventorySvc` | Disabled |  | Inventory and Compatibility Appraisal: menginventaris aplikasi dan perangkat untuk telemetri kompatibilitas. Berjalan otomatis di 24H2 ke atas. |
+| `whesvc` | Disabled |  | Windows Health and Optimized Experiences: pengumpul data kesehatan perangkat. Berjalan otomatis di 24H2 ke atas. |
 
 ### Aktivitas latar yang tidak perlu
 
@@ -247,6 +249,12 @@ Bukan penghapusan: hanya mengosongkan cache `*Client.CBS*`, `*StartMenuExperienc
 | `WalletService` | Disabled |  | Dompet dan pembayaran NFC. |
 | `SEMgrSvc` | Disabled |  | Dompet dan pembayaran NFC. |
 | `WMPNetworkSvc` | Disabled |  | Berbagi pustaka Windows Media Player ke jaringan. |
+
+### Opsi: Copilot dan Widgets
+
+| Layanan | Startup menjadi | Syarat | Keterangan |
+|---|---|---|---|
+| `WSAIFabricSvc` | Manual | opsi: `remove-ai-widgets` | Windows AI Fabric: runtime fitur AI. Dijadikan Manual (bukan Disabled) supaya hanya jalan bila ada yang memintanya. |
 
 ### Opsi: Windows Search
 
@@ -273,9 +281,21 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 | `\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip` | Telemetri dan Customer Experience Improvement Program | Mengirim data pemakaian (CEIP). |
 | `\Microsoft\Windows\Autochk\Proxy` | Telemetri dan Customer Experience Improvement Program | Mengirim data pemakaian (CEIP). |
 | `\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector` | Telemetri dan Customer Experience Improvement Program | Mengirim data diagnostik disk. |
+| `\Microsoft\Windows\Flighting\FeatureConfig\BootstrapUsageDataReporting` | Telemetri dan Customer Experience Improvement Program | Pelaporan data pemakaian fitur Windows (ada mulai 24H2). |
+| `\Microsoft\Windows\Flighting\FeatureConfig\GovernedFeatureUsageProcessing` | Telemetri dan Customer Experience Improvement Program | Pelaporan data pemakaian fitur Windows (ada mulai 24H2). |
+| `\Microsoft\Windows\Flighting\FeatureConfig\UsageDataFlushing` | Telemetri dan Customer Experience Improvement Program | Pelaporan data pemakaian fitur Windows (ada mulai 24H2). |
+| `\Microsoft\Windows\Flighting\FeatureConfig\UsageDataReceiver` | Telemetri dan Customer Experience Improvement Program | Pelaporan data pemakaian fitur Windows (ada mulai 24H2). |
+| `\Microsoft\Windows\Flighting\FeatureConfig\UsageDataReporting` | Telemetri dan Customer Experience Improvement Program | Pelaporan data pemakaian fitur Windows (ada mulai 24H2). |
+| `\Microsoft\Windows\UsageAndQualityInsights\UsageAndQualityInsights-MaintenanceTask` | Telemetri dan Customer Experience Improvement Program | Pelaporan data pemakaian fitur Windows (ada mulai 24H2). |
+| `\Microsoft\Windows\Sustainability\SustainabilityTelemetry` | Telemetri dan Customer Experience Improvement Program | Pelaporan data pemakaian fitur Windows (ada mulai 24H2). |
+| `\Microsoft\Windows\DiskFootprint\Diagnostics` | Telemetri dan Customer Experience Improvement Program | Mengukur ukuran folder untuk laporan diagnostik. |
 | `\Microsoft\Windows\Feedback\Siuf\DmClient` | Umpan balik |  |
 | `\Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload` | Umpan balik |  |
+| `\Microsoft\Windows\PerformanceTrace\ShowFeedbackToast` | Umpan balik | Pop-up yang meminta umpan balik performa. |
 | `\Microsoft\Windows\Windows Error Reporting\QueueReporting` | Pelaporan error |  |
+| `\Microsoft\Windows\Shell\FamilySafetyMonitor` | Fitur yang sudah dimatikan | Kontrol orang tua (layanannya WpcMonSvc sudah dimatikan). |
+| `\Microsoft\Windows\Shell\FamilySafetyRefreshTask` | Fitur yang sudah dimatikan | Kontrol orang tua (layanannya WpcMonSvc sudah dimatikan). |
+| `\Microsoft\Windows\RetailDemo\CleanupOfflineContent` | Fitur yang sudah dimatikan | Mode demo toko. |
 | `\Microsoft\Windows\Maps\MapsUpdateTask` | Maps (aplikasinya sudah dihapus) |  |
 | `\Microsoft\Windows\Maps\MapsToastTask` | Maps (aplikasinya sudah dihapus) |  |
 
@@ -329,6 +349,13 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 | Kunci | Nilai | Data | Syarat | Keterangan |
 |---|---|---|---|---|
 | `HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy` | `LetAppsRunInBackground` | `2` |  | Aplikasi Store tidak berjalan di latar belakang (2 = paksa tolak). Efek samping: aplikasi Store tidak mengirim notifikasi saat tertutup. |
+
+### Microsoft Edge di latar belakang
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKLM\SOFTWARE\Policies\Microsoft\Edge` | `StartupBoostEnabled` | `0` |  | Edge tidak dimuat lebih dulu saat login (Startup Boost) dan tidak tetap berjalan setelah jendelanya ditutup. Edge tetap bisa dipakai seperti biasa. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Edge` | `BackgroundModeEnabled` | `0` |  | Edge tidak dimuat lebih dulu saat login (Startup Boost) dan tidak tetap berjalan setelah jendelanya ditutup. Edge tetap bisa dipakai seperti biasa. |
 
 ### Efek visual
 
@@ -407,7 +434,7 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 
 | Skrip | Syarat | Keterangan |
 |---|---|---|
-| `Scripts\Remove-OneDrive.ps1` | opsi: `remove-onedrive` | OneDrive terpasang per pengguna, jadi uninstaller resminya dijalankan sebagai pengguna yang sedang login. Tidak fatal: hasilnya diperiksa di laporan verifikasi. |
+| `Scripts\Remove-OneDrive.ps1` | opsi: `remove-onedrive` | OneDrive terpasang per pengguna, jadi uninstaller resminya dijalankan sebagai pengguna yang sedang login, dengan token yang sudah ter-elevasi: uninstaller itu meminta hak admin, dan tanpa elevasi Windows menampilkan prompt UAC di tengah instalasi. Tidak fatal: hasilnya diperiksa di laporan verifikasi. |
 
 ### Opsi: Microsoft Edge (eksperimental)
 
@@ -417,11 +444,20 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 
 | Skrip | Syarat | Keterangan |
 |---|---|---|
-| `Scripts\Remove-Edge.ps1` | opsi: `remove-edge` | Memakai uninstaller milik Edge sendiri. WebView2 Runtime TIDAK dihapus karena banyak launcher dan aplikasi bergantung padanya. Microsoft bisa memblokir cara ini atau memasang Edge kembali lewat update; hasilnya diperiksa di laporan verifikasi. Tidak fatal. |
+| `Scripts\Remove-Edge.ps1` | opsi: `remove-edge` | Memakai uninstaller milik Edge sendiri. WebView2 Runtime TIDAK dihapus karena banyak launcher dan aplikasi bergantung padanya. Di Windows 11 Pro 26H2 Microsoft menolak uninstall biasa (kode 93), jadi skrip mencoba dua cara tambahan; tetap bisa gagal, dan update Windows bisa memasang Edge kembali. Hasilnya diperiksa di laporan verifikasi. Tidak fatal. |
 
 
 ## Tampilan (`80-interface.yml`)
 
+
+### Taskbar
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer` | `StartLayoutFile` | `%ProgramData%\TGOS\TaskbarLayout.xml` |  | Pin taskbar ditetapkan lewat policy "Start Layout" resmi Windows, dari file yang disalin Install-Toolbox.ps1: File Explorer, Edge, Microsoft Store. Pin bawaan lain diganti, termasuk pin Copilot yang tertinggal setelah aplikasinya dihapus. Pin yang dibuat pengguna tidak disentuh, dan aplikasi yang tidak terpasang dilewati. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer` | `LockedStartLayout` | `1` |  | Pin taskbar ditetapkan lewat policy "Start Layout" resmi Windows, dari file yang disalin Install-Toolbox.ps1: File Explorer, Edge, Microsoft Store. Pin bawaan lain diganti, termasuk pin Copilot yang tertinggal setelah aplikasinya dihapus. Pin yang dibuat pengguna tidak disentuh, dan aplikasi yang tidak terpasang dilewati. |
+| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search` | `SearchboxTaskbarMode` | `1` |  | Pencarian tampil sebagai ikon saja (0 = sembunyi, 1 = ikon, 2 = kotak). |
+| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | `ShowTaskViewButton` | `0` |  | Tombol Task View disembunyikan (Win+Tab tetap jalan). |
 
 ### Mode gelap
 
@@ -441,9 +477,10 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 
 | Kunci | Nilai | Data | Syarat | Keterangan |
 |---|---|---|---|---|
-| `HKCU\Control Panel\Desktop` | `WallPaper` | `C:\Windows\Web\Wallpaper\TGOS\TGOS.png` |  | File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS. 10 = Fill. |
-| `HKCU\Control Panel\Desktop` | `WallpaperStyle` | `10` |  | File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS. 10 = Fill. |
-| `HKCU\Control Panel\Desktop` | `TileWallpaper` | `0` |  | File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS. 10 = Fill. |
+| `HKCU\Control Panel\Desktop` | `WallPaper` | `C:\Windows\Web\Wallpaper\TGOS\TGOS.png` |  | File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS. 10 = Fill. JPEGImportQuality 100 mencegah Windows mengompres ulang wallpaper, yang membuat gradasi gelapnya bergaris. |
+| `HKCU\Control Panel\Desktop` | `WallpaperStyle` | `10` |  | File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS. 10 = Fill. JPEGImportQuality 100 mencegah Windows mengompres ulang wallpaper, yang membuat gradasi gelapnya bergaris. |
+| `HKCU\Control Panel\Desktop` | `TileWallpaper` | `0` |  | File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS. 10 = Fill. JPEGImportQuality 100 mencegah Windows mengompres ulang wallpaper, yang membuat gradasi gelapnya bergaris. |
+| `HKCU\Control Panel\Desktop` | `JPEGImportQuality` | `100` |  | File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS. 10 = Fill. JPEGImportQuality 100 mencegah Windows mengompres ulang wallpaper, yang membuat gradasi gelapnya bergaris. |
 
 
 ## Penyelesaian (`90-finalize.yml`)

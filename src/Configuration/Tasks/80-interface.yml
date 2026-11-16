@@ -2,9 +2,20 @@
 title: Interface
 description: Tampilan TGOS dan pengaturan Explorer.
 actions:
-  # Sengaja tidak menyentuh tombol taskbar (Search, Task View, Widgets): sebagian nilai
-  # itu dilindungi Windows dan penulisan dari luar ditolak. Widgets sudah dimatikan
-  # lewat policy di modul privasi.
+  # Tombol Widgets tidak ditulis di sini: nilainya (TaskbarDa) dilindungi Windows, dan
+  # Widgets sudah dimatikan lewat policy di modul privasi.
+
+  # --- Taskbar ---------------------------------------------------------------------
+  # Pin taskbar ditetapkan lewat policy "Start Layout" resmi Windows, dari file yang
+  # disalin Install-Toolbox.ps1: File Explorer, Edge, Microsoft Store. Pin bawaan lain
+  # diganti, termasuk pin Copilot yang tertinggal setelah aplikasinya dihapus. Pin yang
+  # dibuat pengguna tidak disentuh, dan aplikasi yang tidak terpasang dilewati.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer', value: 'StartLayoutFile', data: '%ProgramData%\TGOS\TaskbarLayout.xml', type: REG_EXPAND_SZ }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer', value: 'LockedStartLayout', data: '1', type: REG_DWORD }
+  # Pencarian tampil sebagai ikon saja (0 = sembunyi, 1 = ikon, 2 = kotak).
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search', value: 'SearchboxTaskbarMode', data: '1', type: REG_DWORD }
+  # Tombol Task View disembunyikan (Win+Tab tetap jalan).
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'ShowTaskViewButton', data: '0', type: REG_DWORD }
 
   # --- Mode gelap ------------------------------------------------------------------
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', value: 'AppsUseLightTheme', data: '0', type: REG_DWORD }
@@ -18,7 +29,9 @@ actions:
 
   # --- Wallpaper TGO ---------------------------------------------------------------
   # File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS.
-  # 10 = Fill.
+  # 10 = Fill. JPEGImportQuality 100 mencegah Windows mengompres ulang wallpaper, yang
+  # membuat gradasi gelapnya bergaris.
   - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'WallPaper', data: 'C:\Windows\Web\Wallpaper\TGOS\TGOS.png', type: REG_SZ }
   - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'WallpaperStyle', data: '10', type: REG_SZ }
   - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'TileWallpaper', data: '0', type: REG_SZ }
+  - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'JPEGImportQuality', data: '100', type: REG_DWORD }

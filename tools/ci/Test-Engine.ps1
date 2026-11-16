@@ -214,24 +214,29 @@ function Show-EngineProblems {
 function Get-EngineLogSummary {
     # Hitungan baris bermasalah di log mesin AME, juga ketika uji hijau.
     param($Run)
+    # Baris yang sama (selain jamnya) dikelompokkan, supaya satu pesan yang berulang
+    # tidak menutupi pesan lain.
     $errors = 0
     $warnings = 0
-    $samples = @()
+    $groups = New-Object System.Collections.Specialized.OrderedDictionary
     $files = @()
     if (Test-Path -LiteralPath $Run.Logs) {
         foreach ($file in (Get-ChildItem -LiteralPath $Run.Logs -Recurse -File)) {
             $files += ('{0} ({1} bytes)' -f $file.Name, $file.Length)
             foreach ($line in (Get-Content -LiteralPath $file.FullName)) {
-                if ($line -match '\[Error\]|\bERROR:|Exception') {
-                    $errors++
-                    if ($samples.Count -lt 8) { $samples += $line }
-                }
-                elseif ($line -match '\[Warning\]|\bWARNING:') {
-                    $warnings++
-                    if ($samples.Count -lt 8) { $samples += $line }
-                }
+                if ($line -match '\[Error\]|\bERROR:|Exception') { $errors++ }
+                elseif ($line -match '\[Warning\]|\bWARNING:') { $warnings++ }
+                else { continue }
+                $key = $line -replace '\d{2}:\d{2}:\d{2}', '..:..:..'
+                if ($groups.Contains($key)) { $groups[$key] = $groups[$key] + 1 }
+                else { $groups.Add($key, 1) }
             }
         }
+    }
+    $samples = @()
+    foreach ($key in $groups.Keys) {
+        if ($samples.Count -ge 10) { break }
+        $samples += ('x{0}  {1}' -f $groups[$key], $key)
     }
     return [pscustomobject]@{ Errors = $errors; Warnings = $warnings; Samples = $samples; Files = $files }
 }
@@ -352,13 +357,15 @@ Write-Host ('   engine log: {0} error line(s), {1} warning line(s)' -f $summary.
 $summary.Samples | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
 
 # Baris yang ditulis skrip TGOS sendiri: hasil tiap skrip, termasuk yang tidak fatal.
+# Baris per-tugas terjadwal dilewati (ringkasannya tetap tampil), supaya hasil skrip
+# sesudahnya (OneDrive, Edge, Toolbox) tidak terdorong keluar dari batas baris.
 $engineOutput = Join-Path $pass.Logs 'Output.txt'
 if (Test-Path -LiteralPath $engineOutput) {
     Write-Host '   TGOS script results in the engine log:'
     Get-Content -LiteralPath $engineOutput |
-        Where-Object { $_ -match 'TGOS: (?!recorded option)|PASSED:|REJECTED:|SUMMARY:' -or $_ -match 'WARNING: ' } |
+        Where-Object { $_ -match 'TGOS: (?!recorded option|task disabled:|task not present)|PASSED:|REJECTED:|SUMMARY:' -or $_ -match 'WARNING: ' } |
         ForEach-Object { ($_ -replace '^.*?(TGOS: |PASSED:|REJECTED:|SUMMARY:|WARNING: )', '$1') } |
-        Select-Object -First 30 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+        Select-Object -First 40 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
 }
 
 Write-Host '   install-info.txt:'

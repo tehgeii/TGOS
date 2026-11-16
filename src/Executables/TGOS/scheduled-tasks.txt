@@ -15,12 +15,32 @@
 # Mengirim data diagnostik disk.
 \Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector
 
+# Pelaporan data pemakaian fitur Windows (ada mulai 24H2).
+\Microsoft\Windows\Flighting\FeatureConfig\BootstrapUsageDataReporting
+\Microsoft\Windows\Flighting\FeatureConfig\GovernedFeatureUsageProcessing
+\Microsoft\Windows\Flighting\FeatureConfig\UsageDataFlushing
+\Microsoft\Windows\Flighting\FeatureConfig\UsageDataReceiver
+\Microsoft\Windows\Flighting\FeatureConfig\UsageDataReporting
+\Microsoft\Windows\UsageAndQualityInsights\UsageAndQualityInsights-MaintenanceTask
+\Microsoft\Windows\Sustainability\SustainabilityTelemetry
+# Mengukur ukuran folder untuk laporan diagnostik.
+\Microsoft\Windows\DiskFootprint\Diagnostics
+
 # --- Umpan balik ---
 \Microsoft\Windows\Feedback\Siuf\DmClient
 \Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload
+# Pop-up yang meminta umpan balik performa.
+\Microsoft\Windows\PerformanceTrace\ShowFeedbackToast
 
 # --- Pelaporan error ---
 \Microsoft\Windows\Windows Error Reporting\QueueReporting
+
+# --- Fitur yang sudah dimatikan ---
+# Kontrol orang tua (layanannya WpcMonSvc sudah dimatikan).
+\Microsoft\Windows\Shell\FamilySafetyMonitor
+\Microsoft\Windows\Shell\FamilySafetyRefreshTask
+# Mode demo toko.
+\Microsoft\Windows\RetailDemo\CleanupOfflineContent
 
 # --- Maps (aplikasinya sudah dihapus) ---
 \Microsoft\Windows\Maps\MapsUpdateTask

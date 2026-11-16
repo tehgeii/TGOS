@@ -314,6 +314,14 @@ function Test-ScriptResults {
         Add-Result 'FAIL' 'wallpaper' $wallpaper 'missing' 'Install-Toolbox.ps1'
     }
 
+    $layout = Join-Path $dataDirectory 'TaskbarLayout.xml'
+    if (Test-Path -LiteralPath $layout) {
+        Add-Result 'PASS' 'taskbar' $layout 'present' 'Install-Toolbox.ps1'
+    }
+    else {
+        Add-Result 'FAIL' 'taskbar' $layout 'missing; the taskbar pin policy points to it' 'Install-Toolbox.ps1'
+    }
+
     $restoreLine = @($installInfo | Where-Object { $_ -match '^Restore point\s*:' }) | Select-Object -First 1
     if ($restoreLine -and $restoreLine -match ':\s*created') {
         Add-Result 'PASS' 'restore point' 'Before TGOS' 'created' 'New-RestorePoint.ps1'

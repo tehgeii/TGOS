@@ -4,11 +4,13 @@ description: Menghapus OneDrive dan Microsoft Edge. Hanya bila opsinya dipilih.
 actions:
   # --- Opsi: OneDrive --------------------------------------------------------------
   # OneDrive terpasang per pengguna, jadi uninstaller resminya dijalankan sebagai
-  # pengguna yang sedang login. Tidak fatal: hasilnya diperiksa di laporan verifikasi.
+  # pengguna yang sedang login, dengan token yang sudah ter-elevasi: uninstaller itu
+  # meminta hak admin, dan tanpa elevasi Windows menampilkan prompt UAC di tengah
+  # instalasi. Tidak fatal: hasilnya diperiksa di laporan verifikasi.
   - !run:
     exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
     args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Remove-OneDrive.ps1"'
-    runas: currentUser
+    runas: currentUserElevated
     exeDir: true
     wait: true
     weight: 10
@@ -22,9 +24,10 @@ actions:
 
   # --- Opsi: Microsoft Edge (eksperimental) ----------------------------------------
   # Memakai uninstaller milik Edge sendiri. WebView2 Runtime TIDAK dihapus karena
-  # banyak launcher dan aplikasi bergantung padanya. Microsoft bisa memblokir cara ini
-  # atau memasang Edge kembali lewat update; hasilnya diperiksa di laporan verifikasi.
-  # Tidak fatal.
+  # banyak launcher dan aplikasi bergantung padanya. Di Windows 11 Pro 26H2 Microsoft
+  # menolak uninstall biasa (kode 93), jadi skrip mencoba dua cara tambahan; tetap bisa
+  # gagal, dan update Windows bisa memasang Edge kembali. Hasilnya diperiksa di laporan
+  # verifikasi. Tidak fatal.
   - !run:
     exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
     args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Remove-Edge.ps1"'

@@ -6,8 +6,10 @@
     1. Menyalin folder "TGOS Toolbox" dari playbook ke <drive sistem>\TGOS Toolbox.
     2. Membuat pintasan "TGOS Toolbox" di Desktop semua pengguna.
     3. Menyalin wallpaper ke %SystemRoot%\Web\Wallpaper\TGOS\TGOS.png.
+    4. Menyalin layout taskbar ke %ProgramData%\TGOS\TaskbarLayout.xml. File itu
+       ditunjuk policy "Start Layout" yang dipasang modul antarmuka.
 
-    Kode keluar 1 hanya bila Toolbox gagal disalin. Pintasan dan wallpaper tidak fatal.
+    Kode keluar 1 hanya bila Toolbox gagal disalin. Langkah lain tidak fatal.
 
     Parameter hanya dipakai untuk pengujian.
 
@@ -18,7 +20,8 @@ param(
     [string]$SourceRoot,
     [string]$ToolboxDestination,
     [string]$WallpaperDestination,
-    [string]$ShortcutDirectory
+    [string]$ShortcutDirectory,
+    [string]$DataDirectory
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,6 +38,9 @@ if (-not $WallpaperDestination) {
 }
 if (-not $ShortcutDirectory) {
     $ShortcutDirectory = Join-Path $env:PUBLIC 'Desktop'
+}
+if (-not $DataDirectory) {
+    $DataDirectory = Join-Path $env:ProgramData 'TGOS'
 }
 
 try {
@@ -78,6 +84,18 @@ try {
 }
 catch {
     Write-Output ("WARNING: could not copy the wallpaper: {0}" -f (($_.Exception.Message -replace '\s+', ' ').Trim()))
+}
+
+try {
+    $layoutSource = Join-Path $SourceRoot 'TGOS\TaskbarLayout.xml'
+    if (-not (Test-Path -LiteralPath $DataDirectory)) {
+        New-Item -ItemType Directory -Path $DataDirectory -Force | Out-Null
+    }
+    Copy-Item -LiteralPath $layoutSource -Destination (Join-Path $DataDirectory 'TaskbarLayout.xml') -Force
+    Write-Output ("TGOS: taskbar layout copied to {0}" -f $DataDirectory)
+}
+catch {
+    Write-Output ("WARNING: could not copy the taskbar layout: {0}" -f (($_.Exception.Message -replace '\s+', ' ').Trim()))
 }
 
 exit 0
