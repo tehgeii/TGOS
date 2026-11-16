@@ -3,7 +3,38 @@
 Semua perubahan penting pada TGOS dicatat di sini. Nomor versi mengikuti roadmap di
 [PLAN.md](PLAN.md#12-roadmap).
 
-## 0.1.0 — tweak pertama: aplikasi bawaan dan privasi (belum diuji di AME Wizard)
+## 0.9.0 — semua modul, TGOS Toolbox, dan uji otomatis
+
+Rilis pertama yang berisi semua modul rencana. Diuji lewat mesin AME yang asli di GitHub
+Actions (Windows Server 2025); uji di Windows 11 Pro menunggu VM pemilik.
+
+- **Layanan:** 16 layanan telemetri dan fitur yang tidak dipakai dimatikan (tidak ada yang
+  dihapus); Windows Search lewat opsi.
+- **Tugas terjadwal:** 13 tugas telemetri, CEIP, feedback, dan Maps dinonaktifkan lewat
+  skrip yang melewati tugas yang tidak ada.
+- **Performa:** Game DVR latar mati, Game Mode, HAGS, akselerasi mouse mati, penjadwal
+  multimedia, timer global, aplikasi latar, efek visual; opsi power plan Ultimate
+  Performance dan hibernasi.
+- **Opsi keamanan:** VBS, mitigasi CPU, update otomatis. Defender tidak disentuh playbook.
+- **Komponen:** OneDrive (uninstaller resmi); Edge sebagai opsi eksperimental, default
+  mati, WebView2 dipertahankan.
+- **Tampilan:** mode gelap, Explorer, wallpaper TGO.
+- **TGOS Toolbox** di `C:\TGOS Toolbox` dengan pintasan Desktop: pasangan *Turn OFF /
+  Turn ON* untuk Defender, VBS, mitigasi, update otomatis, indexing, hibernasi; dan
+  *Collect TGOS Report* yang membuat satu `TGOS-report.zip`.
+- **Pemeriksaan diri:** `expected-state.json` dibuat dari YAML; `Test-TgosResult.ps1`
+  mencocokkan sistem dengannya dan menulis `verify-report.txt`.
+- **Uji otomatis:** `.github/workflows/test.yml` menjalankan playbook lewat runner
+  command-line AME di setiap push, termasuk uji tolak edisi bukan Pro.
+- Validator: daftar layanan yang dilindungi; `!service` hanya `change`; `!scheduledTask`
+  dan `options:` dilarang; setiap opsi harus tercatat di `install-info.txt`.
+- `Get-SystemSnapshot.ps1` pindah ke TGOS Toolbox.
+
+Menyimpang dari rencana awal: menu klik kanan klasik, tombol taskbar, dan pembersihan
+DISM tidak dikerjakan; layanan Xbox dan geolokasi tidak disentuh; policy `AllowGameDVR`
+tidak dipakai supaya perekaman tetap bisa dinyalakan pengguna.
+
+## 0.1.0 — aplikasi bawaan dan privasi (hanya diuji lewat mesin AME di CI)
 
 Versi pertama yang mengubah Windows. Layanan, tugas terjadwal, Defender, dan Windows
 Update belum disentuh.

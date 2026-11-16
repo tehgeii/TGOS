@@ -241,7 +241,7 @@ Write-Host ('   {0} {1} build {2}.{3}, PowerShell {4}' -f $runnerEdition, $cv.Di
 
 # =======================================================================================
 Write-Section 'Build'
-$buildOutput = & (Join-Path $repoRoot 'tools\build.ps1') 2>&1 | Out-String
+$buildOutput = & (Join-Path $repoRoot 'tools\build.ps1') 6>&1 | Out-String
 $apbx = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'release') -Filter '*.apbx' -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not (Assert-That ($null -ne $apbx) 'build.ps1 produced an .apbx (Windows PowerShell 5.1)')) {
     $buildOutput -split "`r?`n" | Select-Object -Last 15 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
@@ -281,7 +281,7 @@ Write-Host ('   version {0}, SHA256 {1}' -f $cliExe.VersionInfo.FileVersion, (Ge
 # =======================================================================================
 $toolboxSupport = Join-Path $playbook 'Executables\TGOS Toolbox\Support'
 $snapshotScript = Join-Path $toolboxSupport 'Get-SystemSnapshot.ps1'
-& $snapshotScript -Label before -OutputDirectory $artifacts 3>$null | Out-Null
+& $snapshotScript -Label before -OutputDirectory $artifacts 3>$null 6>$null | Out-Null
 
 $installInfo = Join-Path $env:ProgramData 'TGOS\install-info.txt'
 $extraOptions = @($Options -split '\s+' | Where-Object { $_ })
@@ -323,6 +323,18 @@ if (-not $ok) { Show-EngineProblems $pass }
 
 $summary = Get-EngineLogSummary $pass
 Write-Host ('   engine log files: {0}' -f ($summary.Files -join '; '))
+if ($summary.Files.Count -eq 0) {
+    # Lokasi log mesin AME tidak terdokumentasi; cari file yang baru ditulis.
+    $since = (Get-Date).AddMinutes(-10)
+    $roots = @($cliDirectory, $playbookPass, (Join-Path $env:ProgramData 'AME'))
+    foreach ($root in $roots) {
+        if (-not (Test-Path -LiteralPath $root)) { continue }
+        Get-ChildItem -LiteralPath $root -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -gt $since -and $_.Extension -in '.txt', '.log', '.json' } |
+            Select-Object -First 8 |
+            ForEach-Object { Write-Host ('   recent file: {0} ({1} bytes)' -f (Format-LogLine $_.FullName), $_.Length) }
+    }
+}
 Write-Host ('   engine log: {0} error line(s), {1} warning line(s)' -f $summary.Errors, $summary.Warnings)
 $summary.Samples | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
 
@@ -375,8 +387,15 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
 
     foreach ($case in $cases) {
         foreach ($state in @('Off', 'On')) {
-            $output = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $featureScript -Feature $case.Feature -State $state 2>&1 | Out-String
+            # Lewat cmd: di Windows PowerShell 5.1, stderr proses anak yang dialihkan
+            # menjadi error yang menghentikan skrip ini.
+            $command = 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -Feature {1} -State {2} 2>&1' -f $featureScript, $case.Feature, $state
+            $output = & cmd.exe /c $command | Out-String
             $exit = $LASTEXITCODE
+            if ($exit -eq 3) {
+                Write-Host ('  skip  toolbox: {0} {1} is not supported on this runner' -f $case.Feature, $state)
+                continue
+            }
             $actual = Get-Value -Path $case.Path -Name $case.Name
             $expected = $case[$state]
             if ($null -eq $expected) { $same = ($null -eq $actual) } else { $same = ($actual -eq $expected) }
@@ -395,7 +414,8 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
 Write-Section 'Report collector'
 $collectScript = Join-Path $installedSupport 'Collect-TgosReport.ps1'
 if (Assert-That (Test-Path -LiteralPath $collectScript) 'collect: Collect-TgosReport.ps1 is installed') {
-    $collectOutput = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $collectScript -OutputDirectory $artifacts -Label after 2>&1 | Out-String
+    $command = 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -OutputDirectory "{1}" -Label after 2>&1' -f $collectScript, $artifacts
+    $collectOutput = & cmd.exe /c $command | Out-String
     $zip = Join-Path $artifacts 'TGOS-report.zip'
     if (Assert-That (Test-Path -LiteralPath $zip) 'collect: TGOS-report.zip was created') {
         Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -415,7 +435,8 @@ $python = Get-Command python -CommandType Application -ErrorAction SilentlyConti
 $after = Get-ChildItem -LiteralPath (Join-Path $artifacts 'report') -Filter 'TGOS-snapshot-*.json' -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($python -and $after) {
     Write-Section 'Before / after'
-    $compare = & $python.Source (Join-Path $repoRoot 'tools\compare-snapshots.py') (Join-Path $artifacts 'TGOS-snapshot-before.json') $after.FullName 2>&1 | Out-String
+    $command = '"{0}" "{1}" "{2}" "{3}" 2>&1' -f $python.Source, (Join-Path $repoRoot 'tools\compare-snapshots.py'), (Join-Path $artifacts 'TGOS-snapshot-before.json'), $after.FullName
+    $compare = & cmd.exe /c ('"{0}"' -f $command) | Out-String
     $compareExit = $LASTEXITCODE
     Set-Content -LiteralPath (Join-Path $artifacts 'compare.txt') -Value $compare -Encoding ASCII
     $compare -split "`r?`n" | Where-Object { $_ -match 'Proses|RAM terpakai|Layanan berjalan|Paket AppX:|^Layanan:|^Tugas terjadwal:|Defender|BAHAYA|^\s+!|Selesai' } |

@@ -16,7 +16,8 @@
     Harus dijalankan sebagai Administrator. Sebagian besar perubahan baru berlaku
     setelah restart.
 
-    Kode keluar: 0 berhasil, 1 gagal, 2 butuh tindakan pengguna (Tamper Protection).
+    Kode keluar: 0 berhasil, 1 gagal, 2 butuh tindakan pengguna (Tamper Protection),
+    3 fitur tidak didukung di PC ini (tidak ada yang diubah).
 
     File ini harus tetap ASCII murni dan kompatibel dengan Windows PowerShell 5.1.
 #>
@@ -156,13 +157,21 @@ try {
         }
         'Hibernation' {
             $power = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'
+            if ($State -eq 'Off') { $switch = 'off' } else { $switch = 'on' }
+            # Lewat cmd supaya pesan error powercfg tertangkap sebagai teks biasa.
+            $output = (& cmd.exe /c ('powercfg.exe /hibernate {0} 2>&1' -f $switch) | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0) {
+                # Umum di mesin virtual dan sebagian desktop: firmware tidak mendukung hibernasi.
+                Write-Host ('Hibernation cannot be turned {0} on this PC: {1}' -f $switch, ($output -replace '\s+', ' '))
+                Write-Host 'Hibernasi tidak didukung di PC ini; tidak ada yang diubah.'
+                Write-Log ('Hibernation {0}: not supported: {1}' -f $State, ($output -replace '\s+', ' '))
+                exit 3
+            }
             if ($State -eq 'Off') {
-                & powercfg.exe /hibernate off
                 Set-Dword -Path $power -Name 'HiberbootEnabled' -Value 0
                 Write-Host 'Hibernation and Fast Startup are now OFF.'
             }
             else {
-                & powercfg.exe /hibernate on
                 Set-Dword -Path $power -Name 'HiberbootEnabled' -Value 1
                 Write-Host 'Hibernation and Fast Startup are now ON.'
             }
