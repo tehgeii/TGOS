@@ -8,7 +8,7 @@ pilihan sadar pengguna, bukan sesuatu yang terjadi diam-diam.
 | | |
 |---|---|
 | Status dokumen | Draf v4 — semua modul sudah dibuat; uji otomatis lewat mesin AME sudah jalan |
-| Versi playbook saat ini | `0.9.0` — semua modul + TGOS Toolbox; lolos uji mesin AME di CI, menunggu uji VM Windows 11 Pro |
+| Versi playbook saat ini | `0.9.0` — semua modul + TGOS Toolbox; lolos uji mesin AME di Windows Server 2025 dan Windows 11 Enterprise 25H2; menunggu uji VM Windows 11 Pro |
 | Target OS | Windows 11 **Pro**, 22H2 sampai 26H2 |
 | Cara pasang | File `.apbx` dibuka di AME Wizard |
 
@@ -154,7 +154,12 @@ saat memakainya (versi 0.8.4):
 Yang terbukti saat runner itu menjalankan TGOS `0.9.0` di Windows 11 (Enterprise 25H2,
 build 26200) pada uji otomatis:
 
-- Aksi `!appx` benar-benar menghapus aplikasi bawaan (106 paket menjadi 87).
+- Aksi `!appx` benar-benar menghapus aplikasi bawaan (106 paket menjadi 87 dengan opsi
+  bawaan, 83 dengan semua opsi).
+- OneDrive terhapus lewat uninstaller resminya yang dijalankan sebagai pengguna aktif.
+- Edge terhapus lewat uninstaller-nya sendiri, WebView2 tetap ada. Opsinya tetap
+  berlabel eksperimental karena Microsoft bisa menolaknya di build atau wilayah lain.
+- Toolbox menolak mematikan Defender selama Tamper Protection aktif.
 - Restore point bisa dibuat dari skrip yang berjalan sebagai TrustedInstaller.
 - Defender dengan proteksi real-time aktif tidak menghalangi playbook, dan tetap aktif
   sesudahnya. Requirement `DefenderToggled` tidak diperlukan.
@@ -706,7 +711,7 @@ menunggu hardware asli.
 | Fase | Versi | Isi | Selesai bila |
 |---|---|---|---|
 | 0. Kerangka | `0.0.1`–`0.0.2` | `playbook.conf`, cek kompatibilitas, pencatat info instalasi, branding, skrip build & validasi | **Lolos** di AME Beta, 14 Nov 2026 |
-| 1–4. Semua modul | `0.9.0` | Aplikasi bawaan, privasi, layanan, tugas terjadwal, performa, opsi keamanan, komponen, tampilan, TGOS Toolbox, pemeriksaan diri, uji otomatis. **Sudah dibuat.** | Uji mesin AME di CI hijau; satu uji di VM Windows 11 Pro 26H2 lolos |
+| 1–4. Semua modul | `0.9.0` | Aplikasi bawaan, privasi, layanan, tugas terjadwal, performa, opsi keamanan, komponen, tampilan, TGOS Toolbox, pemeriksaan diri, uji otomatis. **Sudah dibuat; uji mesin AME di CI lolos.** | Satu uji di VM Windows 11 Pro 26H2 lolos |
 | 5. Beta hardware asli | `0.9.x` | Benchmark, uji anti-cheat, uji 22H2/23H2, keputusan [8.5](#85-kandidat-yang-butuh-bukti-benchmark-dulu) | Data benchmark tercatat, tidak ada bug kritis |
 | 6. Rilis | `1.0.0` | Dokumentasi pengguna, paket distribusi | Disetujui pemilik proyek |
 

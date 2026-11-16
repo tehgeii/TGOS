@@ -129,6 +129,31 @@ terpotong setelah sekitar 5 baris, jadi sejak itu deskripsi dipendekkan.
 
 | Lapis | Tanggal | Hasil | Catatan |
 |---|---|---|---|
-| 1. Uji bentuk | | | |
-| 2. Mesin AME | | | |
-| 3. VM pemilik | | | |
+| 1. Uji bentuk | 16 Nov 2026 | Lolos | 68 pemeriksaan di `tools/selftest.py` |
+| 2. Mesin AME | 16 Nov 2026 | Lolos di kelima job | Rincian di bawah |
+| 3. VM pemilik | | Belum | Menunggu uji di Windows 11 Pro 26H2 |
+
+Lapis 2, runner command-line AME versi 0.8.4:
+
+| Runner | Opsi | Mesin AME | Pemeriksaan diri | Pemeriksaan CI |
+|---|---|---|---|---|
+| Windows Server 2025, build 26100, x64 | bawaan | selesai tanpa error | 126 PASS, 0 FAIL, 1 WARN, 19 SKIP | 34 dari 34 |
+| Windows Server 2025, build 26100, x64 | semua | selesai tanpa error | 135 PASS, 0 FAIL, 1 WARN, 11 SKIP | 34 dari 34 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan | selesai tanpa error | 131 PASS, 0 FAIL, 0 WARN, 15 SKIP | 34 dari 34 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua | selesai tanpa error | 140 PASS, 0 FAIL, 0 WARN, 7 SKIP | 34 dari 34 |
+
+Satu-satunya `WARN` adalah restore point di Windows Server, yang memang tidak mendukungnya.
+`SKIP` berasal dari opsi yang tidak dipilih, layanan atau tugas yang tidak ada di build
+runner, dan aksi khusus build di bawah 26100.
+
+Yang terlihat di log mesin AME pada Windows 11 dengan semua opsi:
+
+- Uji tolak: playbook berhenti di langkah pertama (runner Enterprise ARM64, bukan Pro x64).
+- Restore point "Before TGOS 0.9.0" terbuat.
+- Paket AppX: 106 menjadi 83; tidak ada paket yang dilindungi ikut hilang kecuali Edge,
+  yang memang dipilih.
+- Tugas terjadwal: 11 dinonaktifkan, 2 tidak ada di build itu, 0 gagal.
+- OneDrive terhapus lewat uninstaller resminya; Edge terhapus, WebView2 dipertahankan.
+- Power plan "TGOS Ultimate Performance" aktif; hibernasi mati.
+- Proteksi real-time Defender aktif sebelum dan sesudah.
+- Toolbox: *Defender OFF* ditolak karena Tamper Protection aktif, tanpa mengubah apa pun.

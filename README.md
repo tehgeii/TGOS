@@ -4,8 +4,9 @@ Playbook AME Wizard yang mengubah Windows 11 Pro menjadi OS gaming yang sangat r
 dengan prioritas performa.
 
 > **Status: `0.9.0`, tahap uji.** Semua modul sudah ada dan lolos uji otomatis lewat
-> mesin AME di Windows Server. Belum diuji di Windows 11 Pro. Pakai hanya di mesin
-> virtual, jangan di komputer utama.
+> mesin AME di Windows Server 2025 dan Windows 11 Enterprise 25H2. Belum diuji di target
+> sebenarnya (Windows 11 Pro x64 lewat AME Wizard). Pakai hanya di mesin virtual, jangan
+> di komputer utama.
 
 ## Target
 

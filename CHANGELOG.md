@@ -5,8 +5,10 @@ Semua perubahan penting pada TGOS dicatat di sini. Nomor versi mengikuti roadmap
 
 ## 0.9.0 — semua modul, TGOS Toolbox, dan uji otomatis
 
-Rilis pertama yang berisi semua modul rencana. Diuji lewat mesin AME yang asli di GitHub
-Actions (Windows Server 2025); uji di Windows 11 Pro menunggu VM pemilik.
+Rilis pertama yang berisi semua modul rencana. Lolos uji lewat mesin AME yang asli di
+GitHub Actions, di Windows Server 2025 dan Windows 11 Enterprise 25H2, dengan opsi bawaan
+maupun semua opsi (rincian di `docs/TESTING.md`). Uji di Windows 11 Pro x64 lewat AME
+Wizard menunggu VM pemilik.
 
 - **Layanan:** 16 layanan telemetri dan fitur yang tidak dipakai dimatikan (tidak ada yang
   dihapus); Windows Search lewat opsi.
