@@ -44,6 +44,13 @@ def as_list(value) -> list:
     return [value]
 
 
+def text_of(value) -> str:
+    """Baris teks dari potret; versi lama skrip menulisnya sebagai objek {"value": ...}."""
+    if isinstance(value, dict):
+        value = value.get("value", "")
+    return value if isinstance(value, str) else ""
+
+
 def load_snapshot(path: Path) -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
@@ -148,9 +155,9 @@ def main() -> int:
     problems = 0
 
     # Opsi yang dipilih saat instalasi tercatat di install-info.txt.
-    selected = {line.split(":", 1)[1].strip()
-                for line in as_list(after.get("tgosInstallInfo"))
-                if isinstance(line, str) and line.startswith("Option selected")}
+    info_lines = [text_of(line) for line in as_list(after.get("tgosInstallInfo"))]
+    selected = {line.split(":", 1)[1].strip() for line in info_lines
+                if line.startswith("Option selected")}
 
     still_present = []
     skipped = []
@@ -234,10 +241,9 @@ def main() -> int:
                   if point not in as_list(before.get("restorePoints"))]
     print(f"Restore point baru: {', '.join(new_points) if new_points else 'tidak ada'}")
 
-    info = as_list(after.get("tgosInstallInfo"))
-    if info:
+    if any(info_lines):
         print("\ninstall-info.txt:")
-        for line in info:
+        for line in info_lines:
             print(f"    {line}")
 
     print(f"\nSelesai: {problems} hal perlu diperiksa" if problems else "\nSelesai: tidak ada masalah terdeteksi")

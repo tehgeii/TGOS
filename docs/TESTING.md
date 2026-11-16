@@ -6,7 +6,7 @@ uji di VM cukup sekali per rilis.
 | Lapis | Di mana | Yang dibuktikan | Yang TIDAK dibuktikan |
 |---|---|---|---|
 | 1. Uji bentuk | Linux, `python tools/selftest.py` | YAML dan `playbook.conf` sesuai format AME; aturan pengaman TGOS dipatuhi; file turunan tidak usang | Apa pun yang terjadi di Windows |
-| 2. Mesin AME | GitHub Actions, Windows Server 2025 | Mesin AME yang asli menerima dan menjalankan playbook tanpa error; setiap tweak benar-benar tertulis di sistem; Toolbox bolak-balik | Perilaku khusus Windows 11 Pro |
+| 2. Mesin AME | GitHub Actions: Windows Server 2025 (x64) dan Windows 11 Enterprise 25H2 (ARM64) | Mesin AME yang asli menjalankan playbook tanpa error; setiap tweak benar-benar ada di sistem; aplikasi bawaan terhapus; restore point terbuat; Toolbox bolak-balik | Edisi Pro, build 26300, x64 asli, tampilan, pasang ulang dari Store |
 | 3. VM pemilik | VMware, Windows 11 Pro 26H2 | Hasil sebenarnya di sistem target | — |
 
 ## Lapis 1 — uji bentuk
@@ -25,29 +25,37 @@ python tools/selftest.py
 ## Lapis 2 — mesin AME di GitHub Actions
 
 Workflow `.github/workflows/test.yml` jalan otomatis di setiap push. Job `engine`
-menjalankan `tools/ci/Test-Engine.ps1` di dua susunan opsi (bawaan, dan semua opsi
-dicentang):
+menjalankan `tools/ci/Test-Engine.ps1` di tiga susunan: Windows Server dengan opsi
+bawaan, Windows Server dengan semua opsi dicentang, dan Windows 11 dengan opsi bawaan:
 
 1. `tools/build.ps1` dijalankan di Windows PowerShell 5.1, lalu `.apbx` hasilnya
    diekstrak. Yang diuji adalah arsip yang sama dengan yang dikirim ke pengguna.
 2. **Uji tolak.** Playbook apa adanya dijalankan lewat runner command-line AME
-   (`TrustedUninstaller.CLI.exe`). Karena edisi runner bukan Pro, playbook harus berhenti
-   di langkah pertama tanpa mengubah apa pun.
-3. **Uji lolos.** Salinan sementara playbook dengan edisi runner diizinkan harus selesai
-   dengan "Playbook completed successfully."
+   (`TrustedUninstaller.CLI.exe`). Karena runner bukan Windows Pro x64, playbook harus
+   berhenti di langkah pertama tanpa mengubah apa pun.
+3. **Uji lolos.** Salinan sementara playbook dengan edisi dan arsitektur runner
+   diizinkan harus selesai dengan "Playbook completed successfully." Tugas terjadwal di
+   daftar diaktifkan dulu, supaya penonaktifannya benar-benar teruji.
 4. **Pemeriksaan diri.** `Test-TgosResult.ps1` tidak boleh melaporkan `FAIL`.
 5. **Toolbox.** Tiap fitur dimatikan lalu dinyalakan lagi, dan nilai registrinya dicek.
+   Di Windows 11, *Defender OFF* harus **ditolak** selama Tamper Protection aktif.
 6. **Pengumpul laporan** harus menghasilkan `TGOS-report.zip` yang lengkap.
 
-Batas lapis ini, karena runner adalah Windows Server:
+Yang dibuktikan runner Windows 11 dan tidak bisa dibuktikan Windows Server: aplikasi
+bawaan benar-benar terhapus lewat aksi `!appx`, restore point bisa dibuat dari dalam
+playbook, Defender tidak mengganggu dan tetap aktif sesudahnya, dan tidak ada nilai
+registry yang ditolak Windows.
 
-- Hampir semua aplikasi bawaan Windows 11 tidak ada di Server, jadi penghapusannya
-  sebagian besar tidak teruji.
-- Restore point tidak didukung di Server.
-- Tamper Protection tidak berlaku sama, jadi mematikan Defender lewat Toolbox di
-  Windows 11 tidak terbukti di sini.
-- Tampilan (Start, taskbar, wallpaper) tidak diperiksa.
-- Build runner 26100, bukan 26300.
+Batas lapis ini:
+
+- Runner Windows 11 adalah edisi **Enterprise**, build **26200**, **ARM64**. Target TGOS
+  adalah Pro, sampai build 26300, x64. Isi bawaan Pro bisa berbeda (mis. OneDrive).
+- Pengukuran proses dan RAM di CI tidak berarti: diambil tanpa restart, saat skrip uji
+  masih berjalan.
+- Tidak ada yang melihat layar: Start, taskbar, wallpaper tidak dinilai.
+- Pasang ulang aplikasi dari Store tidak dicoba.
+- Mematikan Defender setelah Tamper Protection dimatikan manual tidak dicoba di Windows 11
+  (di Windows Server, yang tanpa Tamper Protection, jalur itu lolos).
 
 ## Lapis 3 — uji di VM
 

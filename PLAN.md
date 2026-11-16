@@ -149,6 +149,16 @@ saat memakainya (versi 0.8.4):
   jadi layanan yang tidak ada di sebuah build dilewati dengan aman.
 - `!scheduledTask` dengan `operation: disable` **gagal bila tugasnya tidak ada**. Karena
   daftar tugas berbeda antar-build, TGOS menonaktifkan tugas lewat skrip sendiri.
+- Log mesin ditulis ke `Output.txt` di folder kerjanya.
+
+Yang terbukti saat runner itu menjalankan TGOS `0.9.0` di Windows 11 (Enterprise 25H2,
+build 26200) pada uji otomatis:
+
+- Aksi `!appx` benar-benar menghapus aplikasi bawaan (106 paket menjadi 87).
+- Restore point bisa dibuat dari skrip yang berjalan sebagai TrustedInstaller.
+- Defender dengan proteksi real-time aktif tidak menghalangi playbook, dan tetap aktif
+  sesudahnya. Requirement `DefenderToggled` tidak diperlukan.
+- Tidak ada penulisan registry TGOS yang ditolak Windows.
 
 ---
 
@@ -318,7 +328,7 @@ penyebab masalah.
 
 | Requirement | Dipakai? | Alasan |
 |---|---|---|
-| `DefenderToggled` | Tidak | Keputusan pemilik: Defender tetap aktif selama instalasi. Terbukti di uji Fase 0: AME Beta menjalankan playbook tanpa meminta Defender dimatikan. Tetap diamati di `0.1.0` karena sekarang playbook benar-benar mengubah sistem; bila Defender memblokir, requirement ini terpaksa dipakai. |
+| `DefenderToggled` | Tidak | Keputusan pemilik: Defender tetap aktif selama instalasi. Terbukti dua kali: AME Beta menjalankan kerangka Fase 0 tanpa meminta Defender dimatikan, dan uji otomatis di Windows 11 menjalankan `0.9.0` penuh dengan proteksi real-time aktif. |
 | `NoAntivirus` | Ya (mulai `0.1.0`) | Antivirus pihak ketiga mengganggu modifikasi sistem. |
 | `NoPendingUpdates` | Ya (mulai `0.1.0`) | Update yang menggantung bisa menimpa perubahan atau merusak servicing. |
 | `PluggedIn` | Ya (sudah di Fase 0) | Mencegah laptop mati di tengah proses. |
@@ -403,8 +413,9 @@ validasi gagal bila ada aksi yang akan menghapus salah satunya.
 
 Bersyarat: Xbox app & Game Bar (`remove-xbox`), Copilot & Widgets (`remove-ai-widgets`).
 
-Penghapusan memakai aksi `!appx` bawaan AME. Apakah aplikasi yang dihapus cara ini bisa
-dipasang lagi dari Store masih harus dibuktikan di uji VM; bila tidak, caranya diganti.
+Penghapusan memakai aksi `!appx` bawaan AME, dan terbukti bekerja di Windows 11 pada uji
+otomatis. Apakah aplikasi yang dihapus cara ini bisa dipasang lagi dari Store masih harus
+dibuktikan di uji VM; bila tidak, caranya diganti.
 
 | Risiko | Balik |
 |---|---|
@@ -716,7 +727,7 @@ sebelum ada satu pun tweak yang ditambahkan.
 | Menghapus terlalu banyak sampai fitur penting rusak | Tinggi | Daftar "tidak pernah disentuh" di [8.3](#83-layanan-30-servicesyml), matikan bukan hapus, checklist fungsi |
 | Anti-cheat menolak jalan | Tinggi | Tidak menyentuh Secure Boot/TPM, uji game populer di fase beta, dokumentasikan kombinasi opsi yang aman |
 | Pengguna terkena malware setelah Defender mati | Tinggi | Defender aktif secara default; skrip Toolbox menampilkan peringatan dan menyediakan pengaktif kembali |
-| Defender aktif memblokir AME Wizard saat instalasi | Sedang | Diuji sejak Fase 0; cadangannya requirement `DefenderToggled` |
+| Defender aktif memblokir AME Wizard saat instalasi | Rendah | Tidak terjadi di uji Fase 0 maupun uji otomatis Windows 11; cadangannya requirement `DefenderToggled` |
 | Salah ketik YAML baru ketahuan saat instalasi | Sedang | `tools/validate.py` wajib lolos sebelum build |
 | Versi AME Wizard baru mengubah format | Sedang | Catat versi Wizard yang dipakai uji di `docs/TESTING.md` |
 | Build Windows baru belum diuji | Sedang | `SupportedBuilds` eksplisit; build baru ditambah hanya setelah lolos uji |

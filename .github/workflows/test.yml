@@ -57,10 +57,15 @@ jobs:
             set: all
             options: 'mitigations-disable'
             experimental: false
-          - name: windows-11-arm
+          - name: windows-11
             os: windows-11-arm
             set: default
             options: ''
+            experimental: true
+          - name: windows-11-all-options
+            os: windows-11-arm
+            set: all
+            options: 'mitigations-disable'
             experimental: true
     defaults:
       run:

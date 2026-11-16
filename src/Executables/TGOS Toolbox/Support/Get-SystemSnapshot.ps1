@@ -180,7 +180,9 @@ $defender = Invoke-Section 'defender' {
 $tgos = Invoke-Section 'tgos' {
     $infoFile = Join-Path $env:ProgramData 'TGOS\install-info.txt'
     if (Test-Path -LiteralPath $infoFile) {
-        @(Get-Content -LiteralPath $infoFile)
+        # Baris dari Get-Content membawa properti tambahan yang ikut tertulis ke JSON di
+        # Windows PowerShell 5.1; jadikan teks biasa.
+        @(Get-Content -LiteralPath $infoFile | ForEach-Object { '' + $_ })
     }
     else {
         @()

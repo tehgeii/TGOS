@@ -56,9 +56,9 @@ pengguna lewat TGOS Toolbox sesudahnya.
 | Nilai `HKCU` selain Policies | Sebagian besar punya tombol di Settings. Atau hapus nilainya supaya Windows memakai bawaan. |
 | Semua perubahan registry sekaligus | Pulihkan restore point "Before TGOS <versi>" lewat *Create a restore point* > *System Restore*. Restore point **tidak** mengembalikan aplikasi yang dihapus. |
 
-Catatan: apakah aplikasi yang dihapus bisa dipasang lagi dari Store, dan apakah restore
-point berhasil dibuat dari dalam playbook, masih harus dibuktikan di uji VM
-(lihat [TESTING.md](TESTING.md)).
+Catatan: restore point terbukti terbuat dari dalam playbook pada uji otomatis di
+Windows 11. Yang masih harus dibuktikan di uji VM adalah apakah aplikasi yang dihapus bisa
+dipasang lagi dari Store (lihat [TESTING.md](TESTING.md)).
 """
 
 
