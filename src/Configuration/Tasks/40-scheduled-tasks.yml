@@ -1,0 +1,18 @@
+---
+title: Scheduled tasks
+description: Menonaktifkan tugas terjadwal telemetri dan pemeliharaan yang tidak perlu.
+actions:
+  # Tugas terjadwal dinonaktifkan lewat skrip, bukan aksi !scheduledTask bawaan AME:
+  # aksi itu gagal bila tugasnya tidak ada, padahal daftar tugas berbeda antar-build.
+  # Skrip membaca daftar di Executables\TGOS\scheduled-tasks.txt, melewati tugas yang
+  # tidak ada, dan tidak pernah menghapus tugas (hanya Disable, bisa di-Enable lagi di
+  # Task Scheduler).
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Disable-ScheduledTasks.ps1"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 10
+    showOutput: true
+    showError: true

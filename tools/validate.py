@@ -166,6 +166,34 @@ PROTECTED_APPX = [
     # Browser: baru disentuh di Fase 4 lewat opsi tersendiri
     "Microsoft.MicrosoftEdge.Stable", "Microsoft.MicrosoftEdgeDevToolsClient",
 ]
+# Layanan yang tidak boleh disentuh !service. Mematikan salah satunya merusak fungsi
+# dasar (audio, jaringan, firewall, update, Store, masuk akun) atau perangkat yang umum
+# dipakai gamer (Bluetooth, controller, printer). Defender hanya diubah lewat Toolbox.
+PROTECTED_SERVICES = [
+    # Inti sistem
+    "RpcSs", "RpcEptMapper", "DcomLaunch", "LSM", "SamSs", "EventLog", "Schedule",
+    "ProfSvc", "Power", "PlugPlay", "BrokerInfrastructure", "SystemEventsBroker",
+    "CoreMessagingRegistrar", "UserManager", "TrustedInstaller", "Winmgmt", "CryptSvc",
+    "gpsvc", "Themes", "ShellHWDetection", "StateRepository", "TimeBrokerSvc",
+    # Audio
+    "AudioSrv", "AudioEndpointBuilder", "Audiosrv",
+    # Jaringan
+    "Dhcp", "Dnscache", "nsi", "NlaSvc", "netprofm", "Netman", "LanmanWorkstation",
+    "LanmanServer", "WlanSvc", "Wcmsvc", "iphlpsvc", "WinHttpAutoProxySvc",
+    # Firewall dan keamanan
+    "BFE", "mpssvc", "WinDefend", "WdNisSvc", "SecurityHealthService", "wscsvc", "Sense",
+    "KeyIso", "VaultSvc",
+    # Update, Store, lisensi
+    "wuauserv", "BITS", "UsoSvc", "WaaSMedicSvc", "DoSvc", "AppXSvc", "ClipSVC",
+    "LicenseManager", "InstallService", "TokenBroker", "wlidsvc", "msiserver",
+    # Perangkat
+    "bthserv", "BTAGService", "BthAvctpSvc", "XboxGipSvc", "hidserv", "Spooler",
+    "WbioSrvc", "StorSvc", "DeviceAssociationService", "DeviceInstall",
+    # Gaming
+    "GamingServices", "GamingServicesNet", "XblAuthManager", "XblGameSave", "XboxNetApiSvc",
+]
+ALLOWED_SERVICE_STARTUP = (2, 3, 4)  # Automatic, Manual, Disabled
+
 # Akhiran contoh untuk menguji pola terhadap nama keluarga paket (nama_idpenerbit).
 _FAMILY_SUFFIX = "_8wekyb3d8bbwe"
 MIN_APPX_PREFIX = 8  # panjang minimum awalan nama sebelum wildcard
@@ -173,7 +201,10 @@ MIN_APPX_PREFIX = 8  # panjang minimum awalan nama sebelum wildcard
 # Aturan TGOS: aksi yang default-nya menghapus harus menulis `operation` eksplisit.
 EXPLICIT_OPERATION = {"service", "scheduledTask", "registryKey"}
 
-SCRIPT_REF = re.compile(r'-File\s+"?\.\\([^"\s]+)"?', re.IGNORECASE)
+# Jalur skrip setelah -File: dalam tanda kutip (boleh berspasi) atau tanpa tanda kutip.
+SCRIPT_REF = re.compile(r'-File\s+(?:"\.\\([^"]+)"|\.\\(\S+))', re.IGNORECASE)
+MODULES_REF = re.compile(r'-Modules\s+"([^"]*)"')
+APPEND_OPTION_REF = re.compile(r'-AppendOption\s+"([^"]*)"')
 VERSION_RE = re.compile(r"^\d+(\.\d+){0,2}( .*)?$")
 BUILD_FILTER_RE = re.compile(r"^!?(>=|<=|>|<)?\d+(\.\d+)?$")
 ASCII_ONLY_SUFFIXES = {".ps1", ".psm1", ".cmd", ".bat"}
@@ -191,6 +222,10 @@ class Report:
         self.warnings: list[str] = []
         # (path, value, filter) -> lokasi pertama; untuk mendeteksi nilai registry kembar
         self.registry_seen: dict[tuple, str] = {}
+        # (lokasi, args, option) setiap aksi !run; untuk pemeriksaan lintas file
+        self.runs: list[tuple[str, str, object]] = []
+        # nama modul dari main.yml, mis. "debloat-appx" untuk Tasks\10-debloat-appx.yml
+        self.modules: list[str] = []
 
     def error(self, where: str, message: str) -> None:
         self.errors.append(f"{where}: {message}")
@@ -526,9 +561,30 @@ def validate_action(report: Report, where: str, action: Action, options: set[str
             else:
                 report.registry_seen[key] = where
 
-    if tag == "service" and isinstance(operation, str) and operation.lower() == "change":
-        if body.get("startup") not in (0, 1, 2, 3, 4):
-            report.error(where, "!service: operasi change butuh 'startup' bernilai 0 sampai 4")
+    if tag == "service":
+        name = body.get("name")
+        if isinstance(operation, str) and operation.lower() != "change":
+            report.error(where, f"!service: TGOS hanya memakai 'operation: change'; "
+                                f"'{operation}' tidak diizinkan (layanan tidak dihapus atau dihentikan)")
+        if isinstance(operation, str) and operation.lower() == "change":
+            if body.get("startup") not in ALLOWED_SERVICE_STARTUP:
+                report.error(where, "!service: operasi change butuh 'startup' bernilai 2, 3, atau 4")
+        if isinstance(name, str):
+            if "*" in name:
+                report.error(where, f"!service: nama '{name}' tidak boleh memakai wildcard")
+            elif name.lower() in {item.lower() for item in PROTECTED_SERVICES}:
+                report.error(where, f"!service: '{name}' adalah layanan yang dilindungi dan tidak boleh disentuh")
+
+    if tag == "scheduledTask":
+        report.error(where, "!scheduledTask: tidak dipakai di TGOS karena gagal bila tugasnya tidak ada; "
+                            "tambahkan jalurnya ke Executables/TGOS/scheduled-tasks.txt")
+
+    if "options" in body:
+        report.error(where, "options: tidak dipakai di TGOS (aturan AME untuk daftar opsi membingungkan); "
+                            "pakai 'option' dengan satu nama atau 'a&b'")
+
+    if tag == "run" and isinstance(body.get("args"), str):
+        report.runs.append((where, body["args"], body.get("option")))
 
     if tag == "appx" and "type" in body:
         check_enum(report, where, "type", body["type"], APPX_TYPES)
@@ -553,9 +609,10 @@ def validate_action(report: Report, where: str, action: Action, options: set[str
 
     if tag == "run" and body.get("exeDir") is True and isinstance(body.get("args"), str):
         for match in SCRIPT_REF.finditer(body["args"]):
-            target = SRC / "Executables" / Path(*PureWindowsPath(match.group(1)).parts)
+            script = match.group(1) or match.group(2)
+            target = SRC / "Executables" / Path(*PureWindowsPath(script).parts)
             if not target.is_file():
-                report.error(where, f"!run: skrip '{match.group(1)}' tidak ada di src/Executables")
+                report.error(where, f"!run: skrip '{script}' tidak ada di src/Executables")
 
 
 def validate_yaml(report: Report, options: set[str]) -> None:
@@ -620,6 +677,9 @@ def validate_yaml(report: Report, options: set[str]) -> None:
                     if not child.is_file():
                         report.error(where, f"!task: file '{target}' tidak ditemukan")
                     else:
+                        if path == entry:
+                            # "Tasks\\10-debloat-appx.yml" -> "debloat-appx"
+                            report.modules.append(re.sub(r"^\d+-", "", child.stem))
                         walk(child, stack + (path,))
 
     walk(entry, ())
@@ -627,6 +687,85 @@ def validate_yaml(report: Report, options: set[str]) -> None:
     for path in sorted(config.rglob("*.yml")):
         if path not in visited:
             report.warn(rel(path), "tidak dipanggil dari main.yml")
+
+    validate_install_record(report, options)
+
+
+def validate_install_record(report: Report, options: set[str]) -> None:
+    """install-info.txt harus mencatat semua modul dan setiap opsi yang dipilih.
+
+    Test-TgosResult.ps1 membaca catatan itu untuk tahu tweak mana yang seharusnya
+    diterapkan; opsi yang tidak tercatat membuat pemeriksaannya salah.
+    """
+    where = "src/Configuration/Tasks/90-finalize.yml"
+
+    recorded_modules = None
+    for location, args, _ in report.runs:
+        match = MODULES_REF.search(args)
+        if match:
+            recorded_modules = [item for item in match.group(1).split(",") if item]
+            where = location
+    expected_modules = [name for name in report.modules if name != "finalize"]
+    if recorded_modules is None:
+        report.error(where, "tidak ada aksi yang memanggil Write-InstallInfo.ps1 dengan -Modules")
+    elif recorded_modules != expected_modules:
+        report.error(where, f"-Modules \"{','.join(recorded_modules)}\" tidak sama dengan modul di "
+                            f"main.yml: {','.join(expected_modules)}")
+
+    appended: dict[str, object] = {}
+    for location, args, option in report.runs:
+        match = APPEND_OPTION_REF.search(args)
+        if match:
+            name = match.group(1)
+            if option != name:
+                report.error(location, f"-AppendOption \"{name}\" harus memakai filter option: '{name}', "
+                                       f"bukan {option!r}")
+            appended[name] = option
+    for name in sorted(options - set(appended)):
+        report.error(where, f"opsi '{name}' tidak dicatat: tambahkan aksi -AppendOption \"{name}\"")
+    for name in sorted(set(appended) - options):
+        report.error(where, f"-AppendOption \"{name}\" merujuk opsi yang tidak ada di playbook.conf")
+
+
+# --------------------------------------------------------------------------- #
+# Berkas pendukung
+# --------------------------------------------------------------------------- #
+
+REQUIRED_SUPPORT_FILES = [
+    "TGOS/scheduled-tasks.txt",
+    "TGOS/TGOS.png",
+    "TGOS Toolbox/README.txt",
+    "TGOS Toolbox/Support/Set-TgosFeature.ps1",
+    "TGOS Toolbox/Support/Test-TgosResult.ps1",
+    "TGOS Toolbox/Support/Collect-TgosReport.ps1",
+    "TGOS Toolbox/Support/Get-SystemSnapshot.ps1",
+    "TGOS Toolbox/Support/expected-state.json",
+]
+TASK_PATH_RE = re.compile(r"^\\(?:[^\\]+\\)+[^\\]+$")
+
+
+def validate_support_files(report: Report) -> None:
+    folder = SRC / "Executables"
+    for relative in REQUIRED_SUPPORT_FILES:
+        if not (folder / relative).is_file():
+            report.error(f"src/Executables/{relative}", "file pendukung tidak ditemukan")
+
+    task_list = folder / "TGOS" / "scheduled-tasks.txt"
+    if not task_list.is_file():
+        return
+    where = rel(task_list)
+    seen: set[str] = set()
+    for number, raw in enumerate(task_list.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if not TASK_PATH_RE.match(line):
+            report.error(f"{where}:{number}", f"'{line}' bukan jalur tugas (harus seperti \\Folder\\Nama)")
+        if line.lower() in seen:
+            report.error(f"{where}:{number}", f"tugas '{line}' ditulis lebih dari sekali")
+        seen.add(line.lower())
+    if not seen:
+        report.error(where, "daftar tugas kosong")
 
 
 # --------------------------------------------------------------------------- #
@@ -692,6 +831,7 @@ def main() -> int:
 
     validate_yaml(report, options)
     validate_executables(report)
+    validate_support_files(report)
     validate_icon(report)
 
     for message in report.warnings:

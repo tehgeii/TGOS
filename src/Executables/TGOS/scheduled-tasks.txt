@@ -1,0 +1,27 @@
+# Tugas terjadwal yang dinonaktifkan TGOS. Satu jalur per baris.
+# Baris kosong dan baris yang diawali # diabaikan. Tugas yang tidak ada dilewati.
+# Dibaca oleh Scripts\Disable-ScheduledTasks.ps1 dan tools/make-expected-state.py.
+
+# --- Telemetri dan Customer Experience Improvement Program ---
+# Mengumpulkan data kompatibilitas aplikasi dan mengirimnya ke Microsoft.
+\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser
+\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser Exp
+\Microsoft\Windows\Application Experience\ProgramDataUpdater
+\Microsoft\Windows\Application Experience\StartupAppTask
+# Mengirim data pemakaian (CEIP).
+\Microsoft\Windows\Customer Experience Improvement Program\Consolidator
+\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip
+\Microsoft\Windows\Autochk\Proxy
+# Mengirim data diagnostik disk.
+\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector
+
+# --- Umpan balik ---
+\Microsoft\Windows\Feedback\Siuf\DmClient
+\Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload
+
+# --- Pelaporan error ---
+\Microsoft\Windows\Windows Error Reporting\QueueReporting
+
+# --- Maps (aplikasinya sudah dihapus) ---
+\Microsoft\Windows\Maps\MapsUpdateTask
+\Microsoft\Windows\Maps\MapsToastTask

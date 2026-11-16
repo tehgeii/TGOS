@@ -50,7 +50,7 @@ jobs:
             options: ''
           - name: all-options
             set: all
-            options: ''
+            options: 'mitigations-disable'
     defaults:
       run:
         shell: powershell

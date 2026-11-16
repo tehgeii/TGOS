@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Membandingkan dua potret sistem buatan tools/Get-SystemSnapshot.ps1.
+"""Membandingkan dua potret sistem buatan Get-SystemSnapshot.ps1 (ada di TGOS Toolbox).
 
 Pemakaian:
     python tools/compare-snapshots.py TGOS-snapshot-before.json TGOS-snapshot-after.json

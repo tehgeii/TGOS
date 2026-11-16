@@ -12,10 +12,12 @@
          runner bukan Pro. Tidak boleh ada perubahan sistem.
       4. Uji lolos: salinan sementara playbook dengan edisi runner diizinkan harus
          selesai tanpa error.
-      5. Potret sistem sebelum dan sesudah, lalu dibandingkan.
+      5. Pemeriksaan diri (Test-TgosResult.ps1) tidak boleh menemukan FAIL.
+      6. Tiap fitur TGOS Toolbox dimatikan lalu dinyalakan lagi, dan nilainya dicek.
 
-    Semua yang penting dicetak ke log job, karena log itulah yang dibaca saat memeriksa
-    hasil. Kode keluar bukan 0 berarti ada pemeriksaan yang gagal.
+    Log job sengaja dibuat RINGKAS (hasil tiap pemeriksaan dan cuplikan bila gagal),
+    karena log itu dibaca lewat API yang menolak keluaran besar. Log lengkap mesin AME,
+    potret sistem, dan laporan ada di artifact job.
 
     JANGAN jalankan skrip ini di komputer sendiri: skrip ini benar-benar menerapkan
     playbook ke sistem tempat ia dijalankan.
@@ -53,60 +55,51 @@ $artifacts = Join-Path $WorkDirectory 'artifacts'
 New-Item -ItemType Directory -Path $artifacts -Force | Out-Null
 
 $script:failures = @()
+$script:passed = 0
+
+# --- Keluaran ringkas ----------------------------------------------------------------
+
+function Format-LogLine {
+    # Hanya ASCII yang bisa dicetak, dan dipotong, supaya log job tetap kecil dan aman.
+    param([string]$Line)
+    if ($null -eq $Line) { return '' }
+    $clean = [regex]::Replace($Line, '[^\x20-\x7E]', '?')
+    if ($clean.Length -gt 220) { $clean = $clean.Substring(0, 220) + ' ...' }
+    return $clean
+}
 
 function Write-Section {
     param([string]$Title)
-    Write-Host ''
-    Write-Host ('=' * 78)
     Write-Host ('== {0}' -f $Title)
-    Write-Host ('=' * 78)
 }
 
-function Add-Failure {
-    param([string]$Message)
-    $script:failures += $Message
-    Write-Host ('::error::{0}' -f $Message)
+function Show-Excerpt {
+    # Mencetak paling banyak $Limit baris (yang cocok dengan $Match bila diberikan).
+    param([string]$Path, [int]$Limit = 15, [string]$Match)
+    if (-not (Test-Path -LiteralPath $Path)) {
+        Write-Host ('   (not found: {0})' -f (Split-Path -Leaf $Path))
+        return
+    }
+    $lines = @(Get-Content -LiteralPath $Path)
+    if ($Match) { $lines = @($lines | Where-Object { $_ -match $Match }) }
+    $lines | Select-Object -Last $Limit | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
 }
 
 function Assert-That {
     param([bool]$Condition, [string]$Message)
     if ($Condition) {
+        $script:passed++
         Write-Host ('  ok    {0}' -f $Message)
     }
     else {
-        Add-Failure $Message
+        $script:failures += $Message
+        Write-Host ('  FAIL  {0}' -f $Message)
+        Write-Host ('::error::{0}' -f $Message)
     }
+    return $Condition
 }
 
-function Format-LogLine {
-    <#
-    Log job dibaca lewat API yang gagal bila ada karakter kontrol atau baris sangat
-    panjang, jadi setiap baris dijadikan ASCII yang bisa dicetak dan dipotong.
-    #>
-    param([string]$Line)
-    if ($null -eq $Line) { return '' }
-    $clean = [regex]::Replace($Line, '[^\x20-\x7E]', '?')
-    if ($clean.Length -gt 300) { $clean = $clean.Substring(0, 300) + ' ...' }
-    return $clean
-}
-
-function Show-File {
-    param([string]$Path, [int]$Tail = 200, [string]$Match)
-    if (Test-Path -LiteralPath $Path) {
-        $lines = @(Get-Content -LiteralPath $Path)
-        if ($Match) {
-            $lines = @($lines | Where-Object { $_ -match $Match })
-            Write-Host ('--- {0} ({1} lines matching /{2}/, last {3})' -f $Path, $lines.Count, $Match, $Tail)
-        }
-        else {
-            Write-Host ('--- {0} ({1} lines, last {2})' -f $Path, $lines.Count, $Tail)
-        }
-        $lines | Select-Object -Last $Tail | ForEach-Object { Write-Host (Format-LogLine $_) }
-    }
-    else {
-        Write-Host ('--- {0}: not found' -f $Path)
-    }
-}
+# --- Opsi ------------------------------------------------------------------------------
 
 function Get-PlaybookOptions {
     <#
@@ -148,11 +141,9 @@ function Get-PlaybookOptions {
     return ($selected | Select-Object -Unique)
 }
 
+# --- Mesin AME -------------------------------------------------------------------------
+
 function Invoke-Playbook {
-    <#
-    Menjalankan runner AME terhadap satu folder playbook. Mengembalikan objek berisi
-    kode keluar, keluaran, dan tanda waktu habis.
-    #>
     param(
         [string]$CliDirectory,
         [string]$PlaybookDirectory,
@@ -164,15 +155,11 @@ function Invoke-Playbook {
     $stdout = Join-Path $artifacts ('{0}-stdout.txt' -f $Name)
     $stderr = Join-Path $artifacts ('{0}-stderr.txt' -f $Name)
 
-    $argumentList = '"{0}"' -f $PlaybookDirectory
-    if ($OptionList) {
-        $argumentList = '{0} {1}' -f $argumentList, $OptionList
-    }
-    Write-Host ('Running: TrustedUninstaller.CLI.exe {0}' -f $argumentList)
+    $argumentList = '"{0}" {1}' -f $PlaybookDirectory, $OptionList
 
     # Jendela tersembunyi sendiri, bukan konsol job: proses anak mesin AME menulis
-    # langsung ke konsol (termasuk baris progres tanpa akhir baris), dan itu membuat log
-    # job tidak bisa dibaca lewat API.
+    # langsung ke konsol, dan itu membanjiri log job.
+    $started = Get-Date
     $process = Start-Process -FilePath $exe -ArgumentList $argumentList -WorkingDirectory $CliDirectory `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr -WindowStyle Hidden -PassThru
     # Tanpa ini ExitCode kosong di Windows PowerShell 5.1 saat keluaran dialihkan.
@@ -181,159 +168,266 @@ function Invoke-Playbook {
     $timedOut = $false
     if (-not $process.WaitForExit($TimeoutMinutes * 60 * 1000)) {
         $timedOut = $true
-        Write-Host ('Timed out after {0} minutes; killing the process tree.' -f $TimeoutMinutes)
         & taskkill.exe /PID $process.Id /T /F | Out-Null
     }
     $process.WaitForExit()
+    $seconds = [int]((Get-Date) - $started).TotalSeconds
 
     $output = ''
     if (Test-Path -LiteralPath $stdout) { $output = Get-Content -LiteralPath $stdout -Raw }
     if ($null -eq $output) { $output = '' }
 
-    Show-File -Path $stdout -Tail 60
-    Show-File -Path $stderr -Tail 30
+    # Log mesin AME dipindah ke artifact supaya uji berikutnya tidak tercampur.
+    $logs = Join-Path $CliDirectory 'Logs'
+    $logTarget = Join-Path $artifacts ('{0}-logs' -f $Name)
+    if (Test-Path -LiteralPath $logs) {
+        Copy-Item -LiteralPath $logs -Destination $logTarget -Recurse -Force
+        Remove-Item -LiteralPath $logs -Recurse -Force
+    }
 
+    Write-Host ('   engine exit code {0}, {1}s, timed out: {2}' -f $process.ExitCode, $seconds, $timedOut)
     return [pscustomobject]@{
         ExitCode = $process.ExitCode
         Output   = $output
         TimedOut = $timedOut
+        Stdout   = $stdout
+        Logs     = $logTarget
     }
 }
 
-function Save-EngineLogs {
-    param([string]$CliDirectory, [string]$Name)
-    $logs = Join-Path $CliDirectory 'Logs'
-    if (Test-Path -LiteralPath $logs) {
-        $target = Join-Path $artifacts ('{0}-logs' -f $Name)
-        Copy-Item -LiteralPath $logs -Destination $target -Recurse -Force
-        Get-ChildItem -LiteralPath $target -Recurse -File | ForEach-Object {
-            Write-Host ('log file: {0} ({1} bytes)' -f $_.Name, $_.Length)
+function Show-EngineProblems {
+    # Cuplikan untuk mencari penyebab saat sebuah uji gagal.
+    param($Run)
+    Write-Host '   last lines of engine output:'
+    Show-Excerpt -Path $Run.Stdout -Limit 12
+    if (Test-Path -LiteralPath $Run.Logs) {
+        Get-ChildItem -LiteralPath $Run.Logs -Recurse -File | ForEach-Object {
+            Write-Host ('   {0}: lines mentioning errors' -f $_.Name)
+            Show-Excerpt -Path $_.FullName -Limit 12 -Match '[Ee]rror|[Ee]xception|[Ff]ail|REJECTED|halt'
         }
-        # Log lengkap ada di artifact. Di log job hanya baris yang penting, supaya ringkas.
-        Get-ChildItem -LiteralPath $target -Recurse -File | ForEach-Object {
-            Show-File -Path $_.FullName -Tail 80 -Match 'TGOS|PASSED|REJECTED|WARNING|[Ee]rror|[Ff]ail|[Ee]xception|halt|Halt'
-        }
-        # Log dikosongkan supaya uji berikutnya tidak tercampur.
-        Remove-Item -LiteralPath $logs -Recurse -Force
-    }
-    else {
-        Write-Host ('No Logs folder in {0}' -f $CliDirectory)
     }
 }
 
-# ---------------------------------------------------------------------------------
+function Get-EngineLogSummary {
+    # Hitungan baris bermasalah di log mesin AME, juga ketika uji hijau.
+    param($Run)
+    $errors = 0
+    $warnings = 0
+    $samples = @()
+    $files = @()
+    if (Test-Path -LiteralPath $Run.Logs) {
+        foreach ($file in (Get-ChildItem -LiteralPath $Run.Logs -Recurse -File)) {
+            $files += ('{0} ({1} bytes)' -f $file.Name, $file.Length)
+            foreach ($line in (Get-Content -LiteralPath $file.FullName)) {
+                if ($line -match '\[Error\]|\bERROR:|Exception') {
+                    $errors++
+                    if ($samples.Count -lt 8) { $samples += $line }
+                }
+                elseif ($line -match '\[Warning\]|\bWARNING:') {
+                    $warnings++
+                    if ($samples.Count -lt 8) { $samples += $line }
+                }
+            }
+        }
+    }
+    return [pscustomobject]@{ Errors = $errors; Warnings = $warnings; Samples = $samples; Files = $files }
+}
+
+# =======================================================================================
 Write-Section 'System'
 $cv = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 $runnerEdition = [string]$cv.EditionID
-Write-Host ('Edition : {0}' -f $runnerEdition)
-Write-Host ('Version : {0}' -f $cv.DisplayVersion)
-Write-Host ('Build   : {0}.{1}' -f $cv.CurrentBuildNumber, $cv.UBR)
-Write-Host ('PowerShell {0}' -f $PSVersionTable.PSVersion)
-Write-Host ('Option set: {0}; extra options: "{1}"' -f $OptionSet, $Options)
+Write-Host ('   {0} {1} build {2}.{3}, PowerShell {4}' -f $runnerEdition, $cv.DisplayVersion, $cv.CurrentBuildNumber, $cv.UBR, $PSVersionTable.PSVersion)
 
-# ---------------------------------------------------------------------------------
-Write-Section 'Build .apbx'
-& (Join-Path $repoRoot 'tools\build.ps1')
-$apbx = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'release') -Filter '*.apbx' | Select-Object -First 1
-Assert-That ($null -ne $apbx) 'build.ps1 produced an .apbx'
-if ($null -eq $apbx) { throw 'No .apbx to test.' }
+# =======================================================================================
+Write-Section 'Build'
+$buildOutput = & (Join-Path $repoRoot 'tools\build.ps1') 2>&1 | Out-String
+$apbx = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'release') -Filter '*.apbx' -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not (Assert-That ($null -ne $apbx) 'build.ps1 produced an .apbx (Windows PowerShell 5.1)')) {
+    $buildOutput -split "`r?`n" | Select-Object -Last 15 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+    throw 'No .apbx to test.'
+}
+Write-Host ('   {0}, {1} bytes' -f $apbx.Name, $apbx.Length)
 
 $sevenZip = Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($sevenZip) { $sevenZip = $sevenZip.Source } else { $sevenZip = Join-Path $env:ProgramFiles '7-Zip\7z.exe' }
 
 $playbook = Join-Path $WorkDirectory 'playbook'
 & $sevenZip x ('-o' + $playbook) '-pmalte' '-y' '-bso0' '-bsp0' $apbx.FullName
-Assert-That ($LASTEXITCODE -eq 0) 'the .apbx extracts with the AME password'
-Assert-That (Test-Path -LiteralPath (Join-Path $playbook 'playbook.conf')) 'playbook.conf is at the archive root'
+$null = Assert-That ($LASTEXITCODE -eq 0) 'the .apbx extracts with the AME password'
+$null = Assert-That (Test-Path -LiteralPath (Join-Path $playbook 'playbook.conf')) 'playbook.conf is at the archive root'
 
-# ---------------------------------------------------------------------------------
-Write-Section 'Download AME CLI'
+# =======================================================================================
+Write-Section 'AME CLI'
 try {
     Add-MpPreference -ExclusionPath $WorkDirectory -ErrorAction Stop
-    Write-Host ('Defender exclusion added for {0}' -f $WorkDirectory)
 }
 catch {
-    Write-Host ('Could not add a Defender exclusion: {0}' -f $_.Exception.Message)
+    Write-Host ('   no Defender exclusion: {0}' -f (Format-LogLine $_.Exception.Message))
 }
 
 $cliZip = Join-Path $WorkDirectory 'CLI-Standalone.zip'
 $cliUrl = 'https://github.com/Ameliorated-LLC/trusted-uninstaller-cli/releases/latest/download/CLI-Standalone.zip'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 Invoke-WebRequest -Uri $cliUrl -OutFile $cliZip -UseBasicParsing
-Write-Host ('Downloaded {0} bytes, SHA256 {1}' -f (Get-Item -LiteralPath $cliZip).Length, (Get-FileHash -LiteralPath $cliZip -Algorithm SHA256).Hash)
 
 $cliRoot = Join-Path $WorkDirectory 'cli'
 Expand-Archive -LiteralPath $cliZip -DestinationPath $cliRoot -Force
 $cliExe = Get-ChildItem -LiteralPath $cliRoot -Recurse -Filter 'TrustedUninstaller.CLI.exe' | Select-Object -First 1
-Assert-That ($null -ne $cliExe) 'TrustedUninstaller.CLI.exe is in the download'
-if ($null -eq $cliExe) { throw 'AME CLI not found in the downloaded archive.' }
+if (-not (Assert-That ($null -ne $cliExe) 'TrustedUninstaller.CLI.exe downloaded')) { throw 'AME CLI not found.' }
 $cliDirectory = $cliExe.Directory.FullName
-Write-Host ('CLI directory: {0}' -f $cliDirectory)
-Get-ChildItem -LiteralPath $cliDirectory | ForEach-Object { Write-Host ('  {0,12}  {1}' -f $_.Length, $_.Name) }
-Write-Host ('CLI file version: {0}' -f $cliExe.VersionInfo.FileVersion)
+Write-Host ('   version {0}, SHA256 {1}' -f $cliExe.VersionInfo.FileVersion, (Get-FileHash -LiteralPath $cliZip -Algorithm SHA256).Hash)
 
-# ---------------------------------------------------------------------------------
-Write-Section 'Snapshot before'
-& (Join-Path $repoRoot 'tools\Get-SystemSnapshot.ps1') -Label before -OutputDirectory $artifacts
+# =======================================================================================
+$toolboxSupport = Join-Path $playbook 'Executables\TGOS Toolbox\Support'
+$snapshotScript = Join-Path $toolboxSupport 'Get-SystemSnapshot.ps1'
+& $snapshotScript -Label before -OutputDirectory $artifacts 3>$null | Out-Null
 
 $installInfo = Join-Path $env:ProgramData 'TGOS\install-info.txt'
-
 $extraOptions = @($Options -split '\s+' | Where-Object { $_ })
 $optionList = (Get-PlaybookOptions -ConfPath (Join-Path $playbook 'playbook.conf') -Set $OptionSet -Extra $extraOptions) -join ' '
-Write-Host ('Options passed to the engine: {0}' -f $optionList)
+Write-Section ('Options ({0}): {1}' -f $OptionSet, $optionList)
 
-# ---------------------------------------------------------------------------------
-Write-Section ('Reject test: unmodified playbook on edition {0}' -f $runnerEdition)
+# =======================================================================================
+Write-Section ('Reject test (edition {0} is not Pro)' -f $runnerEdition)
 if ($runnerEdition -eq 'Professional') {
-    Write-Host 'Runner is Windows Pro; the reject test does not apply.'
+    Write-Host '   runner is Windows Pro; the reject test does not apply'
 }
 else {
     $reject = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbook -OptionList $optionList -Name 'reject'
-    Save-EngineLogs -CliDirectory $cliDirectory -Name 'reject'
-    Assert-That (-not $reject.TimedOut) 'reject test: the engine did not hang'
-    Assert-That (-not (Test-Path -LiteralPath $installInfo)) 'reject test: install-info.txt was NOT written (playbook halted before finalize)'
-    Assert-That ($reject.Output -notmatch 'Playbook completed successfully') 'reject test: the engine did not report success'
-    Assert-That ($reject.Output -notmatch 'YAML Error') 'reject test: the engine accepted the YAML'
+    $ok = Assert-That (-not $reject.TimedOut) 'reject: the engine did not hang'
+    $ok = (Assert-That ($reject.Output -notmatch 'YAML Error') 'reject: the engine accepted the YAML') -and $ok
+    $ok = (Assert-That ($reject.Output -notmatch 'Playbook completed successfully') 'reject: the engine did not report success') -and $ok
+    $ok = (Assert-That (-not (Test-Path -LiteralPath $installInfo)) 'reject: install-info.txt was NOT written (halted before any module)') -and $ok
+    $ok = (Assert-That (-not (Test-Path -LiteralPath (Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox'))) 'reject: the Toolbox was NOT installed') -and $ok
+    if (-not $ok) { Show-EngineProblems $reject }
 }
 
-# ---------------------------------------------------------------------------------
-Write-Section 'Pass test: playbook with the runner edition allowed'
+# =======================================================================================
+Write-Section 'Pass test (runner edition allowed)'
 $playbookPass = Join-Path $WorkDirectory 'playbook-pass'
 Copy-Item -LiteralPath $playbook -Destination $playbookPass -Recurse -Force
 $compatibility = Join-Path $playbookPass 'Executables\Scripts\Test-Compatibility.ps1'
 $original = "`$AllowedEditions = @('Professional')"
 $patched = "`$AllowedEditions = @('Professional', '{0}')" -f $runnerEdition
 $content = Get-Content -LiteralPath $compatibility -Raw
-Assert-That ($content.Contains($original)) 'pass test: the edition list was found for patching'
+$null = Assert-That ($content.Contains($original)) 'pass: the edition list was found for patching'
 Set-Content -LiteralPath $compatibility -Value $content.Replace($original, $patched) -Encoding ASCII
 
 $pass = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbookPass -OptionList $optionList -Name 'pass'
-Save-EngineLogs -CliDirectory $cliDirectory -Name 'pass'
-Assert-That (-not $pass.TimedOut) 'pass test: the engine did not hang'
-Assert-That ($pass.Output -match 'Playbook completed successfully') 'pass test: the engine reported "Playbook completed successfully."'
-Assert-That ($pass.Output -notmatch 'YAML Error|Fatal Playbook Error') 'pass test: no YAML or fatal error'
-Assert-That (Test-Path -LiteralPath $installInfo) 'pass test: install-info.txt was written'
-Show-File -Path $installInfo -Tail 40
-Show-File -Path (Join-Path $env:ProgramData 'TGOS\restore-point.txt') -Tail 5
+$ok = Assert-That (-not $pass.TimedOut) 'pass: the engine did not hang'
+$ok = (Assert-That ($pass.Output -notmatch 'YAML Error|Fatal Playbook Error') 'pass: no YAML or fatal error') -and $ok
+$ok = (Assert-That ($pass.Output -match 'Playbook completed successfully') 'pass: the engine reported "Playbook completed successfully."') -and $ok
+$ok = (Assert-That (Test-Path -LiteralPath $installInfo) 'pass: install-info.txt was written') -and $ok
+if (-not $ok) { Show-EngineProblems $pass }
 
-# ---------------------------------------------------------------------------------
-Write-Section 'Snapshot after'
-& (Join-Path $repoRoot 'tools\Get-SystemSnapshot.ps1') -Label after -OutputDirectory $artifacts
+$summary = Get-EngineLogSummary $pass
+Write-Host ('   engine log files: {0}' -f ($summary.Files -join '; '))
+Write-Host ('   engine log: {0} error line(s), {1} warning line(s)' -f $summary.Errors, $summary.Warnings)
+$summary.Samples | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
 
-$python = Get-Command python -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($python) {
-    Write-Section 'Compare snapshots'
-    & $python.Source (Join-Path $repoRoot 'tools\compare-snapshots.py') `
-        (Join-Path $artifacts 'TGOS-snapshot-before.json') (Join-Path $artifacts 'TGOS-snapshot-after.json')
-    Assert-That ($LASTEXITCODE -eq 0) 'compare-snapshots.py found nothing to investigate'
+Write-Host '   install-info.txt:'
+Show-Excerpt -Path $installInfo -Limit 20
+
+# =======================================================================================
+Write-Section 'Self-verification'
+$installedSupport = Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox\Support'
+$verifyScript = Join-Path $installedSupport 'Test-TgosResult.ps1'
+$verifyReport = Join-Path $artifacts 'verify-report.txt'
+if (Assert-That (Test-Path -LiteralPath $verifyScript) 'verify: Test-TgosResult.ps1 is installed with the Toolbox') {
+    & $verifyScript -ReportPath $verifyReport | Out-Null
+    $reportLines = @()
+    if (Test-Path -LiteralPath $verifyReport) { $reportLines = @(Get-Content -LiteralPath $verifyReport) }
+    $summaryLine = @($reportLines | Where-Object { $_ -match '^SUMMARY:' }) | Select-Object -Last 1
+    Write-Host ('   {0}' -f $summaryLine)
+    $failed = @($reportLines | Where-Object { $_ -match '^FAIL' })
+    $null = Assert-That ($summaryLine -and $failed.Count -eq 0) 'verify: no FAIL in the verification report'
+    $reportLines | Where-Object { $_ -match '^(FAIL|WARN)' } | Select-Object -First 25 |
+        ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+    # SKIP dihitung per alasan, supaya terlihat apa yang tidak teruji di runner ini.
+    $reportLines | Where-Object { $_ -match '^SKIP' } |
+        ForEach-Object { if ($_ -match '->\s+(.+?)\s+\[') { $Matches[1] -replace "'[^']*'", "'...'" -replace '\d{5}', 'N' } } |
+        Group-Object | Sort-Object Count -Descending | Select-Object -First 8 |
+        ForEach-Object { Write-Host ('   skip x{0}: {1}' -f $_.Count, (Format-LogLine $_.Name)) }
 }
 
-# ---------------------------------------------------------------------------------
+# =======================================================================================
+Write-Section 'Toolbox round trips'
+$featureScript = Join-Path $installedSupport 'Set-TgosFeature.ps1'
+if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeature.ps1 is installed') {
+    # Tiap fitur: nilai registry yang harus terlihat setelah Off, dan setelah On.
+    # $null berarti nilainya harus tidak ada.
+    $cases = @(
+        @{ Feature = 'Vbs'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard'; Name = 'EnableVirtualizationBasedSecurity'; Off = 0; On = 1 },
+        @{ Feature = 'Mitigations'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'; Name = 'FeatureSettingsOverride'; Off = 3; On = $null },
+        @{ Feature = 'AutoUpdate'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'; Name = 'NoAutoUpdate'; Off = 1; On = $null },
+        @{ Feature = 'Indexing'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\WSearch'; Name = 'Start'; Off = 4; On = 2 },
+        @{ Feature = 'Hibernation'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'; Name = 'HiberbootEnabled'; Off = 0; On = 1 },
+        @{ Feature = 'Defender'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection'; Name = 'DisableRealtimeMonitoring'; Off = 1; On = $null }
+    )
+
+    function Get-Value {
+        param([string]$Path, [string]$Name)
+        $item = Get-ItemProperty -LiteralPath $Path -Name $Name -ErrorAction SilentlyContinue
+        if ($null -eq $item) { return $null }
+        return $item.$Name
+    }
+
+    foreach ($case in $cases) {
+        foreach ($state in @('Off', 'On')) {
+            $output = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $featureScript -Feature $case.Feature -State $state 2>&1 | Out-String
+            $exit = $LASTEXITCODE
+            $actual = Get-Value -Path $case.Path -Name $case.Name
+            $expected = $case[$state]
+            if ($null -eq $expected) { $same = ($null -eq $actual) } else { $same = ($actual -eq $expected) }
+            if ($null -eq $expected) { $expectedText = '(absent)' } else { $expectedText = [string]$expected }
+            $label = 'toolbox: {0} {1} -> exit 0 and {2} = {3}' -f $case.Feature, $state, $case.Name, $expectedText
+            if (-not (Assert-That ($exit -eq 0 -and $same) $label)) {
+                if ($null -eq $actual) { $actualText = '(absent)' } else { $actualText = [string]$actual }
+                Write-Host ('   exit {0}, actual value: {1}' -f $exit, $actualText)
+                $output -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 4 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+            }
+        }
+    }
+}
+
+# =======================================================================================
+Write-Section 'Report collector'
+$collectScript = Join-Path $installedSupport 'Collect-TgosReport.ps1'
+if (Assert-That (Test-Path -LiteralPath $collectScript) 'collect: Collect-TgosReport.ps1 is installed') {
+    $collectOutput = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $collectScript -OutputDirectory $artifacts -Label after 2>&1 | Out-String
+    $zip = Join-Path $artifacts 'TGOS-report.zip'
+    if (Assert-That (Test-Path -LiteralPath $zip) 'collect: TGOS-report.zip was created') {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+        try { $entries = @($archive.Entries | ForEach-Object { $_.FullName }) } finally { $archive.Dispose() }
+        $null = Assert-That ($entries -contains 'verify-report.txt') 'collect: the zip contains verify-report.txt'
+        $null = Assert-That (@($entries | Where-Object { $_ -like 'TGOS-snapshot-*.json' }).Count -eq 1) 'collect: the zip contains the system snapshot'
+        Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $artifacts 'report') -Force
+    }
+    else {
+        $collectOutput -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 6 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+    }
+}
+
+# =======================================================================================
+$python = Get-Command python -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+$after = Get-ChildItem -LiteralPath (Join-Path $artifacts 'report') -Filter 'TGOS-snapshot-*.json' -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($python -and $after) {
+    Write-Section 'Before / after'
+    $compare = & $python.Source (Join-Path $repoRoot 'tools\compare-snapshots.py') (Join-Path $artifacts 'TGOS-snapshot-before.json') $after.FullName 2>&1 | Out-String
+    $compareExit = $LASTEXITCODE
+    Set-Content -LiteralPath (Join-Path $artifacts 'compare.txt') -Value $compare -Encoding ASCII
+    $compare -split "`r?`n" | Where-Object { $_ -match 'Proses|RAM terpakai|Layanan berjalan|Paket AppX:|^Layanan:|^Tugas terjadwal:|Defender|BAHAYA|^\s+!|Selesai' } |
+        Select-Object -First 20 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+    $null = Assert-That ($compareExit -eq 0) 'compare: nothing to investigate between the snapshots'
+}
+
+# =======================================================================================
 Write-Section 'Result'
+Write-Host ('CI SUMMARY: {0} passed, {1} failed' -f $script:passed, $script:failures.Count)
 if ($script:failures.Count -gt 0) {
-    Write-Host ('{0} check(s) failed:' -f $script:failures.Count)
     $script:failures | ForEach-Object { Write-Host ('  - {0}' -f $_) }
     exit 1
 }
-Write-Host 'All checks passed.'
 exit 0

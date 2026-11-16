@@ -1,0 +1,89 @@
+---
+title: Performance
+description: Pengaturan performa dan latensi untuk gaming.
+actions:
+  # Hanya tweak yang efeknya terdokumentasi. Kandidat lain yang belum terbukti ada di
+  # PLAN.md bagian 8.5 dan tidak diterapkan di sini.
+
+  # --- Perekaman game di latar belakang --------------------------------------------
+  # Game DVR merekam terus-menerus di latar; mematikannya menghilangkan overhead itu.
+  # Bisa dinyalakan lagi di Settings > Gaming > Captures.
+  - !registryValue: { path: 'HKCU\System\GameConfigStore', value: 'GameDVR_Enabled', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR', value: 'AppCaptureEnabled', data: '0', type: REG_DWORD }
+
+  # --- Game Mode -------------------------------------------------------------------
+  # Menahan Windows Update dan notifikasi saat game berjalan, dan memprioritaskan game.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\GameBar', value: 'AutoGameModeEnabled', data: '1', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\GameBar', value: 'AllowAutoGameMode', data: '1', type: REG_DWORD }
+
+  # --- Penjadwalan GPU -------------------------------------------------------------
+  # Hardware-accelerated GPU scheduling. Diabaikan Windows bila GPU atau driver tidak
+  # mendukung. Menjadi syarat frame generation di GPU modern.
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers', value: 'HwSchMode', data: '2', type: REG_DWORD }
+
+  # --- Mouse -----------------------------------------------------------------------
+  # Mematikan "Enhance pointer precision" (akselerasi) supaya gerakan mouse 1:1.
+  - !registryValue: { path: 'HKCU\Control Panel\Mouse', value: 'MouseSpeed', data: '0', type: REG_SZ }
+  - !registryValue: { path: 'HKCU\Control Panel\Mouse', value: 'MouseThreshold1', data: '0', type: REG_SZ }
+  - !registryValue: { path: 'HKCU\Control Panel\Mouse', value: 'MouseThreshold2', data: '0', type: REG_SZ }
+
+  # --- Penjadwal multimedia --------------------------------------------------------
+  # Porsi CPU yang dicadangkan untuk tugas latar saat ada multimedia: 20% -> 10%.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile', value: 'SystemResponsiveness', data: '10', type: REG_DWORD }
+  # Mematikan pembatasan paket jaringan saat audio/video diputar (4294967295 = 0xFFFFFFFF).
+  - !registryValue: { path: 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile', value: 'NetworkThrottlingIndex', data: '4294967295', type: REG_DWORD }
+
+  # --- Timer -----------------------------------------------------------------------
+  # Windows 11 membuat resolusi timer berlaku per proses; nilai ini mengembalikan
+  # perilaku global yang diandalkan sebagian game dan limiter FPS.
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel', value: 'GlobalTimerResolutionRequests', data: '1', type: REG_DWORD }
+
+  # --- Aplikasi latar --------------------------------------------------------------
+  # Aplikasi Store tidak berjalan di latar belakang (2 = paksa tolak). Efek samping:
+  # aplikasi Store tidak mengirim notifikasi saat tertutup.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy', value: 'LetAppsRunInBackground', data: '2', type: REG_DWORD }
+
+  # --- Efek visual -----------------------------------------------------------------
+  # Transparansi dan animasi dimatikan untuk meringankan compositor.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', value: 'EnableTransparency', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\Control Panel\Desktop\WindowMetrics', value: 'MinAnimate', data: '0', type: REG_SZ }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'TaskbarAnimations', data: '0', type: REG_DWORD }
+
+  # --- Startup ---------------------------------------------------------------------
+  # Menghilangkan jeda sebelum aplikasi startup dijalankan setelah login.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Serialize', value: 'StartupDelayInMSec', data: '0', type: REG_DWORD }
+
+  # --- Sistem file -----------------------------------------------------------------
+  # NTFS tidak memperbarui waktu akses terakhir setiap file dibaca (2147483649 =
+  # 0x80000001, "dimatikan oleh pengguna"), mengurangi penulisan disk.
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\FileSystem', value: 'NtfsDisableLastAccessUpdate', data: '2147483649', type: REG_DWORD }
+
+  # --- Opsi: hibernasi dan Fast Startup --------------------------------------------
+  # Fast Startup membuat shutdown menjadi hibernasi parsial; mematikannya memberi boot
+  # bersih. Hibernasi dimatikan dan hiberfil.sys dihapus oleh skrip di bawah.
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power', value: 'HiberbootEnabled', data: '0', type: REG_DWORD, option: 'disable-hibernation' }
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Set-PowerPlan.ps1" -DisableHibernation'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 5
+    showOutput: true
+    showError: true
+    option: 'disable-hibernation'
+
+  # --- Opsi: penghematan daya ------------------------------------------------------
+  # Windows tidak memperlambat proses latar demi hemat daya.
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling', value: 'PowerThrottlingOff', data: '1', type: REG_DWORD, option: 'disable-power-saving' }
+  # Mengaktifkan power plan Ultimate Performance dan mematikan USB selective suspend.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Set-PowerPlan.ps1" -UltimatePerformance'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 5
+    showOutput: true
+    showError: true
+    option: 'disable-power-saving'

@@ -1,0 +1,1298 @@
+{
+ "schema": 1,
+ "version": "0.9.0",
+ "checks": [
+  {
+   "type": "appx",
+   "name": "Microsoft.BingNews*",
+   "source": "10-debloat-appx.yml:14",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.BingWeather*",
+   "source": "10-debloat-appx.yml:15",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.BingSearch*",
+   "source": "10-debloat-appx.yml:16",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.MicrosoftSolitaireCollection*",
+   "source": "10-debloat-appx.yml:19",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.ZuneVideo*",
+   "source": "10-debloat-appx.yml:22",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.GetHelp*",
+   "source": "10-debloat-appx.yml:25",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.Getstarted*",
+   "source": "10-debloat-appx.yml:26",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.WindowsFeedbackHub*",
+   "source": "10-debloat-appx.yml:27",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "MicrosoftCorporationII.QuickAssist*",
+   "source": "10-debloat-appx.yml:28",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.MicrosoftOfficeHub*",
+   "source": "10-debloat-appx.yml:31",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.OutlookForWindows*",
+   "source": "10-debloat-appx.yml:32",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "microsoft.windowscommunicationsapps*",
+   "source": "10-debloat-appx.yml:33",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.People*",
+   "source": "10-debloat-appx.yml:34",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.Todos*",
+   "source": "10-debloat-appx.yml:35",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.PowerAutomateDesktop*",
+   "source": "10-debloat-appx.yml:36",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.Windows.DevHome*",
+   "source": "10-debloat-appx.yml:37",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "MicrosoftTeams_*",
+   "source": "10-debloat-appx.yml:38",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "MSTeams_*",
+   "source": "10-debloat-appx.yml:39",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Clipchamp.Clipchamp*",
+   "source": "10-debloat-appx.yml:40",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.WindowsMaps*",
+   "source": "10-debloat-appx.yml:43",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.YourPhone*",
+   "source": "10-debloat-appx.yml:44",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.WindowsSoundRecorder*",
+   "source": "10-debloat-appx.yml:45",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.WindowsAlarms*",
+   "source": "10-debloat-appx.yml:46",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.MicrosoftStickyNotes*",
+   "source": "10-debloat-appx.yml:47",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "MicrosoftCorporationII.MicrosoftFamily*",
+   "source": "10-debloat-appx.yml:48",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.549981C3F5F10*",
+   "source": "10-debloat-appx.yml:49",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.Copilot*",
+   "source": "10-debloat-appx.yml:52",
+   "option": "remove-ai-widgets",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.Windows.Ai.Copilot.Provider*",
+   "source": "10-debloat-appx.yml:53",
+   "option": "remove-ai-widgets",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "MicrosoftWindows.Client.WebExperience*",
+   "source": "10-debloat-appx.yml:54",
+   "option": "remove-ai-widgets",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.WidgetsPlatformRuntime*",
+   "source": "10-debloat-appx.yml:55",
+   "option": "remove-ai-widgets",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.GamingApp*",
+   "source": "10-debloat-appx.yml:61",
+   "option": "remove-xbox",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.XboxGamingOverlay*",
+   "source": "10-debloat-appx.yml:62",
+   "option": "remove-xbox",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.XboxGameOverlay*",
+   "source": "10-debloat-appx.yml:63",
+   "option": "remove-xbox",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.XboxSpeechToTextOverlay*",
+   "source": "10-debloat-appx.yml:64",
+   "option": "remove-xbox",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.Xbox.TCUI*",
+   "source": "10-debloat-appx.yml:65",
+   "option": "remove-xbox",
+   "builds": null
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+   "value": "AllowTelemetry",
+   "source": "20-privacy.yml:15",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\DataCollection",
+   "value": "AllowTelemetry",
+   "source": "20-privacy.yml:16",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+   "value": "DoNotShowFeedbackNotifications",
+   "source": "20-privacy.yml:18",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Siuf\\Rules",
+   "value": "NumberOfSIUFInPeriod",
+   "source": "20-privacy.yml:19",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Privacy",
+   "value": "TailoredExperiencesWithDiagnosticDataEnabled",
+   "source": "20-privacy.yml:21",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AdvertisingInfo",
+   "value": "Enabled",
+   "source": "20-privacy.yml:24",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\AdvertisingInfo",
+   "value": "DisabledByGroupPolicy",
+   "source": "20-privacy.yml:25",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+   "value": "SilentInstalledAppsEnabled",
+   "source": "20-privacy.yml:30",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+   "value": "PreInstalledAppsEnabled",
+   "source": "20-privacy.yml:31",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+   "value": "OemPreInstalledAppsEnabled",
+   "source": "20-privacy.yml:32",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+   "value": "SystemPaneSuggestionsEnabled",
+   "source": "20-privacy.yml:36",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+   "value": "SubscribedContent-338388Enabled",
+   "source": "20-privacy.yml:37",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+   "value": "SoftLandingEnabled",
+   "source": "20-privacy.yml:39",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+   "value": "SubscribedContent-338389Enabled",
+   "source": "20-privacy.yml:40",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+   "value": "SubscribedContent-310093Enabled",
+   "source": "20-privacy.yml:42",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+   "value": "SubscribedContent-338393Enabled",
+   "source": "20-privacy.yml:44",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+   "value": "SubscribedContent-353694Enabled",
+   "source": "20-privacy.yml:45",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+   "value": "SubscribedContent-353696Enabled",
+   "source": "20-privacy.yml:46",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+   "value": "RotatingLockScreenOverlayEnabled",
+   "source": "20-privacy.yml:48",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+   "value": "Start_IrisRecommendations",
+   "source": "20-privacy.yml:50",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+   "value": "Start_AccountNotifications",
+   "source": "20-privacy.yml:52",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+   "value": "ShowSyncProviderNotifications",
+   "source": "20-privacy.yml:54",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\UserProfileEngagement",
+   "value": "ScoobeSystemSettingEnabled",
+   "source": "20-privacy.yml:56",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+   "value": "EnableActivityFeed",
+   "source": "20-privacy.yml:59",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+   "value": "PublishUserActivities",
+   "source": "20-privacy.yml:60",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+   "value": "UploadUserActivities",
+   "source": "20-privacy.yml:61",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer",
+   "value": "DisableSearchBoxSuggestions",
+   "source": "20-privacy.yml:66",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search",
+   "value": "BingSearchEnabled",
+   "source": "20-privacy.yml:67",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\SearchSettings",
+   "value": "IsDynamicSearchBoxEnabled",
+   "source": "20-privacy.yml:69",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\InputPersonalization",
+   "value": "RestrictImplicitInkCollection",
+   "source": "20-privacy.yml:72",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\InputPersonalization",
+   "value": "RestrictImplicitTextCollection",
+   "source": "20-privacy.yml:73",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\InputPersonalization\\TrainedDataStore",
+   "value": "HarvestContacts",
+   "source": "20-privacy.yml:74",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Input\\TIPC",
+   "value": "Enabled",
+   "source": "20-privacy.yml:75",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting",
+   "value": "Disabled",
+   "source": "20-privacy.yml:79",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
+   "value": "DODownloadMode",
+   "source": "20-privacy.yml:81",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+   "value": "DisableAIDataAnalysis",
+   "source": "20-privacy.yml:85",
+   "option": null,
+   "builds": [
+    ">=26100"
+   ],
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+   "value": "AllowRecallEnablement",
+   "source": "20-privacy.yml:86",
+   "option": null,
+   "builds": [
+    ">=26100"
+   ],
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Dsh",
+   "value": "AllowNewsAndInterests",
+   "source": "20-privacy.yml:91",
+   "option": "remove-ai-widgets",
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsCopilot",
+   "value": "TurnOffWindowsCopilot",
+   "source": "20-privacy.yml:94",
+   "option": "remove-ai-widgets",
+   "builds": [
+    "<26100"
+   ],
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+   "value": "ShowCopilotButton",
+   "source": "20-privacy.yml:95",
+   "option": "remove-ai-widgets",
+   "builds": [
+    "<26100"
+   ],
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "service",
+   "name": "DiagTrack",
+   "startup": 4,
+   "source": "30-services.yml:16",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "dmwappushservice",
+   "startup": 4,
+   "source": "30-services.yml:18",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "diagnosticshub.standardcollector.service",
+   "startup": 4,
+   "source": "30-services.yml:20",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "WerSvc",
+   "startup": 4,
+   "source": "30-services.yml:22",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "wisvc",
+   "startup": 4,
+   "source": "30-services.yml:24",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "SysMain",
+   "startup": 4,
+   "source": "30-services.yml:29",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "MapsBroker",
+   "startup": 4,
+   "source": "30-services.yml:31",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "RetailDemo",
+   "startup": 4,
+   "source": "30-services.yml:33",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "WpcMonSvc",
+   "startup": 4,
+   "source": "30-services.yml:35",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "TrkWks",
+   "startup": 4,
+   "source": "30-services.yml:37",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "Fax",
+   "startup": 4,
+   "source": "30-services.yml:40",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "RemoteRegistry",
+   "startup": 4,
+   "source": "30-services.yml:42",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "AJRouter",
+   "startup": 4,
+   "source": "30-services.yml:44",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "WalletService",
+   "startup": 4,
+   "source": "30-services.yml:46",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "SEMgrSvc",
+   "startup": 4,
+   "source": "30-services.yml:47",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "WMPNetworkSvc",
+   "startup": 4,
+   "source": "30-services.yml:49",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "WSearch",
+   "startup": 4,
+   "source": "30-services.yml:54",
+   "option": "disable-indexing",
+   "builds": null
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\System\\GameConfigStore",
+   "value": "GameDVR_Enabled",
+   "source": "50-performance.yml:11",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\GameDVR",
+   "value": "AppCaptureEnabled",
+   "source": "50-performance.yml:12",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\GameBar",
+   "value": "AutoGameModeEnabled",
+   "source": "50-performance.yml:16",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\GameBar",
+   "value": "AllowAutoGameMode",
+   "source": "50-performance.yml:17",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+   "value": "HwSchMode",
+   "source": "50-performance.yml:22",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "2",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\Control Panel\\Mouse",
+   "value": "MouseSpeed",
+   "source": "50-performance.yml:26",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\Control Panel\\Mouse",
+   "value": "MouseThreshold1",
+   "source": "50-performance.yml:27",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\Control Panel\\Mouse",
+   "value": "MouseThreshold2",
+   "source": "50-performance.yml:28",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
+   "value": "SystemResponsiveness",
+   "source": "50-performance.yml:32",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "10",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
+   "value": "NetworkThrottlingIndex",
+   "source": "50-performance.yml:34",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "4294967295",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\kernel",
+   "value": "GlobalTimerResolutionRequests",
+   "source": "50-performance.yml:39",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy",
+   "value": "LetAppsRunInBackground",
+   "source": "50-performance.yml:44",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "2",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+   "value": "EnableTransparency",
+   "source": "50-performance.yml:48",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\Control Panel\\Desktop\\WindowMetrics",
+   "value": "MinAnimate",
+   "source": "50-performance.yml:49",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+   "value": "TaskbarAnimations",
+   "source": "50-performance.yml:50",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize",
+   "value": "StartupDelayInMSec",
+   "source": "50-performance.yml:54",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem",
+   "value": "NtfsDisableLastAccessUpdate",
+   "source": "50-performance.yml:59",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "2147483649",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power",
+   "value": "HiberbootEnabled",
+   "source": "50-performance.yml:64",
+   "option": "disable-hibernation",
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling",
+   "value": "PowerThrottlingOff",
+   "source": "50-performance.yml:78",
+   "option": "disable-power-saving",
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard",
+   "value": "EnableVirtualizationBasedSecurity",
+   "source": "60-security-options.yml:13",
+   "option": "disable-vbs",
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity",
+   "value": "Enabled",
+   "source": "60-security-options.yml:14",
+   "option": "disable-vbs",
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management",
+   "value": "FeatureSettingsOverride",
+   "source": "60-security-options.yml:19",
+   "option": "mitigations-disable",
+   "builds": null,
+   "absent": false,
+   "data": "3",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management",
+   "value": "FeatureSettingsOverrideMask",
+   "source": "60-security-options.yml:20",
+   "option": "mitigations-disable",
+   "builds": null,
+   "absent": false,
+   "data": "3",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU",
+   "value": "NoAutoUpdate",
+   "source": "60-security-options.yml:25",
+   "option": "updates-manual",
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\OneDrive",
+   "value": "DisableFileSyncNGSC",
+   "source": "70-components.yml:19",
+   "option": "remove-onedrive",
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+   "value": "OneDriveSetup",
+   "source": "70-components.yml:21",
+   "option": "remove-onedrive",
+   "builds": null,
+   "absent": true
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\EdgeUpdate",
+   "value": "Install{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}",
+   "source": "70-components.yml:39",
+   "option": "remove-edge",
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+   "value": "AppsUseLightTheme",
+   "source": "80-interface.yml:10",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+   "value": "SystemUsesLightTheme",
+   "source": "80-interface.yml:11",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+   "value": "LaunchTo",
+   "source": "80-interface.yml:15",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+   "value": "HideFileExt",
+   "source": "80-interface.yml:17",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\Control Panel\\Desktop",
+   "value": "WallPaper",
+   "source": "80-interface.yml:22",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "C:\\Windows\\Web\\Wallpaper\\TGOS\\TGOS.png",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\Control Panel\\Desktop",
+   "value": "WallpaperStyle",
+   "source": "80-interface.yml:23",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "10",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\Control Panel\\Desktop",
+   "value": "TileWallpaper",
+   "source": "80-interface.yml:24",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser Exp",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\Application Experience\\ProgramDataUpdater",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\Application Experience\\StartupAppTask",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\Customer Experience Improvement Program\\Consolidator",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\Customer Experience Improvement Program\\UsbCeip",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\Autochk\\Proxy",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\DiskDiagnostic\\Microsoft-Windows-DiskDiagnosticDataCollector",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\Feedback\\Siuf\\DmClient",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\Feedback\\Siuf\\DmClientOnScenarioDownload",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\Windows Error Reporting\\QueueReporting",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\Maps\\MapsUpdateTask",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "task",
+   "path": "\\Microsoft\\Windows\\Maps\\MapsToastTask",
+   "source": "scheduled-tasks.txt",
+   "option": null,
+   "builds": null
+  }
+ ]
+}

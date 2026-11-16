@@ -37,19 +37,23 @@ Versi playbook: `{version}`
 Kolom **Syarat** kosong berarti tweak selalu diterapkan. `opsi: nama` berarti hanya bila
 opsi itu dicentang di AME Wizard; `build: ...` berarti hanya di build Windows tersebut.
 
-## Yang tidak disentuh versi ini
+## Yang tidak pernah disentuh
 
-Layanan Windows, tugas terjadwal, Windows Defender, Windows Update, Microsoft Edge,
-OneDrive, pengaturan performa, dan tampilan. Semua itu dijadwalkan di versi berikutnya
-(lihat [PLAN.md](../PLAN.md#12-roadmap)).
+Windows Firewall, UAC, Secure Boot, TPM, layanan audio, jaringan, Windows Update, Store,
+Bluetooth, dan printer. Windows Defender tidak disentuh saat instalasi; hanya bisa diubah
+pengguna lewat TGOS Toolbox sesudahnya.
 
 ## Cara mengembalikan
 
 | Jenis | Cara |
 |---|---|
 | Aplikasi yang dihapus | Pasang lagi dari Microsoft Store (cari namanya), atau `winget install <nama>`. |
+| Defender, VBS, mitigasi CPU, update otomatis, indexing, hibernasi | File *Turn ON* di **TGOS Toolbox** (pintasan di Desktop). |
+| Layanan | `services.msc` > klik dua kali layanan > ubah *Startup type*. |
+| Tugas terjadwal | Task Scheduler > cari tugasnya > *Enable*. |
+| Power plan | Control Panel > Power Options > pilih skema lain. Skema lama tidak dihapus. |
 | Nilai di `...\\Policies\\...` | Bawaan Windows: nilainya tidak ada. Hapus nilainya di Registry Editor, lalu restart. |
-| Nilai `HKCU` selain Policies | Sebagian besar punya tombol di Settings (Privacy & security, Personalization > Start, System > Notifications). Atau hapus nilainya supaya Windows memakai bawaan. |
+| Nilai `HKCU` selain Policies | Sebagian besar punya tombol di Settings. Atau hapus nilainya supaya Windows memakai bawaan. |
 | Semua perubahan registry sekaligus | Pulihkan restore point "Before TGOS <versi>" lewat *Create a restore point* > *System Restore*. Restore point **tidak** mengembalikan aplikasi yang dihapus. |
 
 Catatan: apakah aplikasi yang dihapus bisa dipasang lagi dari Store, dan apakah restore
@@ -132,46 +136,128 @@ def read_module(path: Path, validator) -> list[tuple[str, list[tuple[object, str
     return sections
 
 
+MODULE_TITLES = {
+    "00-preflight.yml": "Persiapan",
+    "10-debloat-appx.yml": "Aplikasi bawaan",
+    "20-privacy.yml": "Privasi",
+    "30-services.yml": "Layanan",
+    "40-scheduled-tasks.yml": "Tugas terjadwal",
+    "50-performance.yml": "Performa",
+    "60-security-options.yml": "Opsi keamanan",
+    "70-components.yml": "Komponen",
+    "80-interface.yml": "Tampilan",
+    "90-finalize.yml": "Penyelesaian",
+}
+STARTUP_NAMES = {2: "Automatic", 3: "Manual", 4: "Disabled"}
+SCRIPT_RE = re.compile(r'-File\s+"\.\\([^"]+)"')
+# Aksi pencatat (satu baris per opsi) tidak perlu didaftar sebagai tweak.
+RECORD_RE = re.compile(r"-AppendOption")
+
+
+def module_files(validator) -> list[Path]:
+    """File tugas dalam urutan eksekusi main.yml."""
+    main = yaml.load((ROOT / "src" / "Configuration" / "main.yml").read_text(encoding="utf-8"),
+                     Loader=validator.PlaybookLoader)
+    files = []
+    for action in main.get("actions", []):
+        if getattr(action, "tag", None) == "task":
+            files.append(TASKS / Path(action.body["path"].replace("\\", "/")).name)
+    return files
+
+
+def read_task_list() -> list[tuple[str, list[tuple[str, str]]]]:
+    """Mengembalikan [(judul kelompok, [(jalur tugas, keterangan), ...]), ...]."""
+    path = ROOT / "src" / "Executables" / "TGOS" / "scheduled-tasks.txt"
+    groups: list[tuple[str, list]] = []
+    title, items, note = "Umum", [], ""
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        match = SECTION_RE.match(line)
+        if match:
+            if items:
+                groups.append((title, items))
+            title, items, note = match.group(1), [], ""
+        elif line.startswith("#"):
+            note = line.lstrip("#").strip()
+        elif not line:
+            note = ""
+        elif groups or title != "Umum":
+            items.append((line, note))
+    if items:
+        groups.append((title, items))
+    return groups
+
+
+def render_module(path: Path, validator, out: list[str]) -> None:
+    sections = read_module(path, validator)
+    out.append(f"\n\n## {MODULE_TITLES.get(path.name, path.stem)} (`{path.name}`)\n")
+
+    for title, items in sections:
+        removals = [i for i in items if i[0].tag == "appx"
+                    and str(i[0].body.get("operation", "remove")).lower() == "remove"]
+        caches = [i for i in items if i[0].tag == "appx"
+                  and str(i[0].body.get("operation", "remove")).lower() == "clearcache"]
+        values = [i for i in items if i[0].tag == "registryValue"]
+        services = [i for i in items if i[0].tag == "service"]
+        runs = [i for i in items if i[0].tag == "run"
+                and not RECORD_RE.search(str(i[0].body.get("args", "")))]
+        if not (removals or caches or values or services or runs):
+            continue
+        if len(sections) > 1 or title != "Umum":
+            out.append(f"\n### {title}\n")
+
+        if removals:
+            out.append("| Aplikasi | Paket | Syarat | Keterangan |\n|---|---|---|---|")
+            for action, note, label in removals:
+                out.append(f"| {cell(label)} | `{cell(action.body['name'])}` "
+                           f"| {condition(action.body)} | {cell(note)} |")
+        if caches:
+            names = ", ".join(f"`{cell(i[0].body['name'])}`" for i in caches)
+            out.append(f"Bukan penghapusan: hanya mengosongkan cache {names}. {cell(caches[0][1])}")
+        if values:
+            if removals:
+                out.append("")
+            out.append("| Kunci | Nilai | Data | Syarat | Keterangan |\n|---|---|---|---|---|")
+            for action, note, _ in values:
+                body = action.body
+                if str(body.get("operation", "")).lower() == "delete":
+                    data = "*(dihapus)*"
+                else:
+                    data = f"`{cell(body.get('data', ''))}`"
+                out.append(f"| `{cell(body['path'])}` | `{cell(body['value'])}` | {data} "
+                           f"| {condition(body)} | {cell(note)} |")
+        if services:
+            out.append("| Layanan | Startup menjadi | Syarat | Keterangan |\n|---|---|---|---|")
+            for action, note, _ in services:
+                body = action.body
+                startup = STARTUP_NAMES.get(body.get("startup"), body.get("startup"))
+                out.append(f"| `{cell(body['name'])}` | {startup} | {condition(body)} | {cell(note)} |")
+        if runs:
+            if values or services:
+                out.append("")
+            out.append("| Skrip | Syarat | Keterangan |\n|---|---|---|")
+            for action, note, _ in runs:
+                match = SCRIPT_RE.search(str(action.body.get("args", "")))
+                script = match.group(1) if match else str(action.body.get("exe", ""))
+                extra = str(action.body.get("args", ""))[match.end():].strip() if match else ""
+                name = f"`{cell(script)}`" + (f" `{cell(extra)}`" if extra else "")
+                out.append(f"| {name} | {condition(action.body)} | {cell(note)} |")
+
+    if path.name == "40-scheduled-tasks.yml":
+        out.append("\nTugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; "
+                   "tugas yang tidak ada di build tertentu dilewati):\n")
+        out.append("| Tugas | Kelompok | Keterangan |\n|---|---|---|")
+        for title, items in read_task_list():
+            for task, note in items:
+                out.append(f"| `{cell(task)}` | {cell(title)} | {cell(note)} |")
+
+
 def render(validator) -> str:
     report = validator.Report()
     _, version = validator.validate_conf(report)
     out = [HEADER.format(version=version)]
-
-    appx_path = TASKS / "10-debloat-appx.yml"
-    if appx_path.is_file():
-        out.append("\n## Aplikasi bawaan (`10-debloat-appx.yml`)\n")
-        out.append("Nama paket memakai awalan + `*`. Paket yang tidak ada di sistem dilewati.\n")
-        for title, items in read_module(appx_path, validator):
-            removals = [item for item in items if item[0].tag == "appx"
-                        and str(item[0].body.get("operation", "remove")).lower() == "remove"]
-            caches = [item for item in items if item[0].tag == "appx"
-                      and str(item[0].body.get("operation", "remove")).lower() == "clearcache"]
-            if removals:
-                out.append(f"\n### {title}\n")
-                out.append("| Aplikasi | Paket | Syarat | Keterangan |\n|---|---|---|---|")
-                for action, note, label in removals:
-                    out.append(f"| {cell(label)} | `{cell(action.body['name'])}` "
-                               f"| {condition(action.body)} | {cell(note)} |")
-            if caches:
-                out.append(f"\n### {title}\n")
-                names = ", ".join(f"`{cell(item[0].body['name'])}`" for item in caches)
-                out.append(f"Bukan penghapusan: hanya mengosongkan cache {names}. {cell(caches[0][1])}")
-
-    privacy_path = TASKS / "20-privacy.yml"
-    if privacy_path.is_file():
-        out.append("\n\n## Privasi (`20-privacy.yml`)\n")
-        out.append("Semua berupa nilai registry `REG_DWORD`. Nilai `HKCU` diterapkan ke semua pengguna.\n")
-        for title, items in read_module(privacy_path, validator):
-            values = [(item[0], item[1]) for item in items if item[0].tag == "registryValue"]
-            if not values:
-                continue
-            out.append(f"\n### {title}\n")
-            out.append("| Kunci | Nilai | Data | Syarat | Keterangan |\n|---|---|---|---|---|")
-            for action, note in values:
-                body = action.body
-                out.append(f"| `{cell(body['path'])}` | `{cell(body['value'])}` | `{cell(body.get('data', ''))}` "
-                           f"| {condition(body)} | {cell(note)} |")
-
+    for path in module_files(validator):
+        render_module(path, validator, out)
     return "\n".join(out).rstrip() + "\n"
 
 
