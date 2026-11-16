@@ -37,7 +37,7 @@ def load_validator():
 
 def as_list(value) -> list:
     """PowerShell menulis daftar berisi satu elemen sebagai objek, dan daftar kosong sebagai null."""
-    if value is None:
+    if value is None or value == {}:
         return []
     if isinstance(value, list):
         return value

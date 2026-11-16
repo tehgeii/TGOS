@@ -46,9 +46,11 @@ jobs:
       matrix:
         include:
           - name: default
+            set: default
             options: ''
           - name: all-options
-            options: 'remove-ai-widgets remove-xbox'
+            set: all
+            options: ''
     defaults:
       run:
         shell: powershell
@@ -57,7 +59,7 @@ jobs:
       - name: Install Python packages
         run: python -m pip install --quiet pyyaml pillow
       - name: Run playbook through the AME engine
-        run: .\tools\ci\Test-Engine.ps1 -Options '${{ matrix.options }}'
+        run: .\tools\ci\Test-Engine.ps1 -OptionSet ${{ matrix.set }} -Options '${{ matrix.options }}'
       - name: Upload logs and snapshots
         if: always()
         uses: actions/upload-artifact@v4

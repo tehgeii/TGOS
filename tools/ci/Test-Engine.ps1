@@ -22,11 +22,17 @@
 
     File ini harus tetap ASCII murni dan kompatibel dengan Windows PowerShell 5.1.
 
+.PARAMETER OptionSet
+    default = opsi bawaan playbook.conf (kotak yang IsChecked, DefaultOption tiap radio).
+    all     = semua kotak centang dicentang; radio tetap bawaan kecuali ditimpa -Options.
+
 .PARAMETER Options
-    Opsi playbook dipisah spasi. Kosong = opsi bawaan (yang IsChecked di playbook.conf).
+    Opsi tambahan dipisah spasi. Opsi radio di sini menggantikan bawaan halamannya.
 #>
 [CmdletBinding()]
 param(
+    [ValidateSet('default', 'all')]
+    [string]$OptionSet = 'default',
     [string]$Options = '',
     [string]$WorkDirectory,
     [int]$TimeoutMinutes = 25
@@ -72,15 +78,74 @@ function Assert-That {
     }
 }
 
+function Format-LogLine {
+    <#
+    Log job dibaca lewat API yang gagal bila ada karakter kontrol atau baris sangat
+    panjang, jadi setiap baris dijadikan ASCII yang bisa dicetak dan dipotong.
+    #>
+    param([string]$Line)
+    if ($null -eq $Line) { return '' }
+    $clean = [regex]::Replace($Line, '[^\x20-\x7E]', '?')
+    if ($clean.Length -gt 300) { $clean = $clean.Substring(0, 300) + ' ...' }
+    return $clean
+}
+
 function Show-File {
-    param([string]$Path, [int]$Tail = 200)
+    param([string]$Path, [int]$Tail = 200, [string]$Match)
     if (Test-Path -LiteralPath $Path) {
-        Write-Host ('--- {0} (last {1} lines)' -f $Path, $Tail)
-        Get-Content -LiteralPath $Path -Tail $Tail | ForEach-Object { Write-Host $_ }
+        $lines = @(Get-Content -LiteralPath $Path)
+        if ($Match) {
+            $lines = @($lines | Where-Object { $_ -match $Match })
+            Write-Host ('--- {0} ({1} lines matching /{2}/, last {3})' -f $Path, $lines.Count, $Match, $Tail)
+        }
+        else {
+            Write-Host ('--- {0} ({1} lines, last {2})' -f $Path, $lines.Count, $Tail)
+        }
+        $lines | Select-Object -Last $Tail | ForEach-Object { Write-Host (Format-LogLine $_) }
     }
     else {
         Write-Host ('--- {0}: not found' -f $Path)
     }
+}
+
+function Get-PlaybookOptions {
+    <#
+    Menyusun daftar opsi dari playbook.conf. Runner AME 0.8.4 gagal bila tidak ada opsi
+    yang dikirim, jadi daftar selalu dikirim eksplisit.
+    #>
+    param([string]$ConfPath, [string]$Set, [string[]]$Extra)
+
+    $conf = New-Object System.Xml.XmlDocument
+    $conf.Load($ConfPath)
+    $selected = New-Object System.Collections.Generic.List[string]
+
+    foreach ($page in $conf.SelectNodes('/Playbook/FeaturePages/*')) {
+        $names = @($page.SelectNodes('Options/*/Name') | ForEach-Object { $_.InnerText.Trim() })
+        if ($page.Name -eq 'CheckboxPage') {
+            foreach ($option in $page.SelectNodes('Options/CheckboxOption')) {
+                $name = $option.SelectSingleNode('Name').InnerText.Trim()
+                $checked = $option.GetAttribute('IsChecked') -ne 'false'
+                if ($Set -eq 'all' -or $checked -or ($Extra -contains $name)) {
+                    $selected.Add($name)
+                }
+            }
+        }
+        else {
+            $override = @($names | Where-Object { $Extra -contains $_ }) | Select-Object -First 1
+            if ($override) {
+                $selected.Add($override)
+            }
+            elseif ($page.GetAttribute('DefaultOption')) {
+                $selected.Add($page.GetAttribute('DefaultOption'))
+            }
+        }
+    }
+
+    if ($selected.Count -eq 0) {
+        # Nama yang tidak dipakai playbook; hanya supaya daftar tidak kosong.
+        $selected.Add('tgos-ci-no-options')
+    }
+    return ($selected | Select-Object -Unique)
 }
 
 function Invoke-Playbook {
@@ -122,8 +187,8 @@ function Invoke-Playbook {
     if (Test-Path -LiteralPath $stdout) { $output = Get-Content -LiteralPath $stdout -Raw }
     if ($null -eq $output) { $output = '' }
 
-    Show-File -Path $stdout -Tail 120
-    Show-File -Path $stderr -Tail 60
+    Show-File -Path $stdout -Tail 60
+    Show-File -Path $stderr -Tail 30
 
     return [pscustomobject]@{
         ExitCode = $process.ExitCode
@@ -139,7 +204,11 @@ function Save-EngineLogs {
         $target = Join-Path $artifacts ('{0}-logs' -f $Name)
         Copy-Item -LiteralPath $logs -Destination $target -Recurse -Force
         Get-ChildItem -LiteralPath $target -Recurse -File | ForEach-Object {
-            Show-File -Path $_.FullName -Tail 250
+            Write-Host ('log file: {0} ({1} bytes)' -f $_.Name, $_.Length)
+        }
+        # Log lengkap ada di artifact. Di log job hanya baris yang penting, supaya ringkas.
+        Get-ChildItem -LiteralPath $target -Recurse -File | ForEach-Object {
+            Show-File -Path $_.FullName -Tail 80 -Match 'TGOS|PASSED|REJECTED|WARNING|[Ee]rror|[Ff]ail|[Ee]xception|halt|Halt'
         }
         # Log dikosongkan supaya uji berikutnya tidak tercampur.
         Remove-Item -LiteralPath $logs -Recurse -Force
@@ -157,7 +226,7 @@ Write-Host ('Edition : {0}' -f $runnerEdition)
 Write-Host ('Version : {0}' -f $cv.DisplayVersion)
 Write-Host ('Build   : {0}.{1}' -f $cv.CurrentBuildNumber, $cv.UBR)
 Write-Host ('PowerShell {0}' -f $PSVersionTable.PSVersion)
-Write-Host ('Options : "{0}"' -f $Options)
+Write-Host ('Option set: {0}; extra options: "{1}"' -f $OptionSet, $Options)
 
 # ---------------------------------------------------------------------------------
 Write-Section 'Build .apbx'
@@ -206,17 +275,22 @@ Write-Section 'Snapshot before'
 
 $installInfo = Join-Path $env:ProgramData 'TGOS\install-info.txt'
 
+$extraOptions = @($Options -split '\s+' | Where-Object { $_ })
+$optionList = (Get-PlaybookOptions -ConfPath (Join-Path $playbook 'playbook.conf') -Set $OptionSet -Extra $extraOptions) -join ' '
+Write-Host ('Options passed to the engine: {0}' -f $optionList)
+
 # ---------------------------------------------------------------------------------
 Write-Section ('Reject test: unmodified playbook on edition {0}' -f $runnerEdition)
 if ($runnerEdition -eq 'Professional') {
     Write-Host 'Runner is Windows Pro; the reject test does not apply.'
 }
 else {
-    $reject = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbook -OptionList $Options -Name 'reject'
+    $reject = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbook -OptionList $optionList -Name 'reject'
     Save-EngineLogs -CliDirectory $cliDirectory -Name 'reject'
     Assert-That (-not $reject.TimedOut) 'reject test: the engine did not hang'
     Assert-That (-not (Test-Path -LiteralPath $installInfo)) 'reject test: install-info.txt was NOT written (playbook halted before finalize)'
     Assert-That ($reject.Output -notmatch 'Playbook completed successfully') 'reject test: the engine did not report success'
+    Assert-That ($reject.Output -notmatch 'YAML Error') 'reject test: the engine accepted the YAML'
 }
 
 # ---------------------------------------------------------------------------------
@@ -230,7 +304,7 @@ $content = Get-Content -LiteralPath $compatibility -Raw
 Assert-That ($content.Contains($original)) 'pass test: the edition list was found for patching'
 Set-Content -LiteralPath $compatibility -Value $content.Replace($original, $patched) -Encoding ASCII
 
-$pass = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbookPass -OptionList $Options -Name 'pass'
+$pass = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbookPass -OptionList $optionList -Name 'pass'
 Save-EngineLogs -CliDirectory $cliDirectory -Name 'pass'
 Assert-That (-not $pass.TimedOut) 'pass test: the engine did not hang'
 Assert-That ($pass.Output -match 'Playbook completed successfully') 'pass test: the engine reported "Playbook completed successfully."'
