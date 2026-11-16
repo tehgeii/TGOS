@@ -170,8 +170,11 @@ function Invoke-Playbook {
     }
     Write-Host ('Running: TrustedUninstaller.CLI.exe {0}' -f $argumentList)
 
+    # Jendela tersembunyi sendiri, bukan konsol job: proses anak mesin AME menulis
+    # langsung ke konsol (termasuk baris progres tanpa akhir baris), dan itu membuat log
+    # job tidak bisa dibaca lewat API.
     $process = Start-Process -FilePath $exe -ArgumentList $argumentList -WorkingDirectory $CliDirectory `
-        -RedirectStandardOutput $stdout -RedirectStandardError $stderr -NoNewWindow -PassThru
+        -RedirectStandardOutput $stdout -RedirectStandardError $stderr -WindowStyle Hidden -PassThru
     # Tanpa ini ExitCode kosong di Windows PowerShell 5.1 saat keluaran dialihkan.
     $null = $process.Handle
 
