@@ -760,64 +760,105 @@ if ($plannedOptions -contains 'remove-xbox') {
     Get-Content -LiteralPath (Join-Path $env:ProgramData 'TGOS\toolbox.log') -ErrorAction SilentlyContinue | Where-Object { $_ -match 'GameBar' } |
         Select-Object -First 4 | ForEach-Object { Write-Host ('   toolbox.log: {0}' -f (Format-LogLine $_)) }
     if (Test-WindowControl) {
-        # Diagnosa: bagaimana shell Windows sendiri menerjemahkan protokol itu
-        # (AssocQueryString, sama dengan yang dipakai ShellExecute).
-        Add-Type -Namespace TgosCi -Name Assoc -MemberDefinition @'
+        # Diagnosa: bagaimana shell Windows menerjemahkan protokol itu (AssocQueryString),
+        # dari proses uji ini dan dari proses baru (tanpa cache apa pun di proses ini).
+        $assocCode = @'
+Add-Type -Namespace TgosCi -Name Assoc -MemberDefinition @"
 [System.Runtime.InteropServices.DllImport("shlwapi.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
 public static extern int AssocQueryString(int flags, int str, string assoc, string extra, System.Text.StringBuilder output, ref uint size);
+"@
+foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay', 'tgos-no-such-app')) {
+    $size = [uint32]1024
+    $buffer = New-Object System.Text.StringBuilder 1024
+    # 0x1000 = ASSOCF_IS_PROTOCOL, 1 = ASSOCSTR_COMMAND
+    $hr = [TgosCi.Assoc]::AssocQueryString(0x1000, 1, $protocol, [NullString]::Value, $buffer, [ref]$size)
+    if ($hr -ne 0) { '{0}: (0x{1:X8})' -f $protocol, $hr } else { '{0}: {1}' -f $protocol, $buffer.ToString() }
+}
 '@
-        function Get-ProtocolAssoc {
-            param([string]$Protocol, [int]$What)
-            $size = [uint32]1024
-            $buffer = New-Object System.Text.StringBuilder 1024
-            # 0x1000 = ASSOCF_IS_PROTOCOL
-            $hr = [TgosCi.Assoc]::AssocQueryString(0x1000, $What, $Protocol, [NullString]::Value, $buffer, [ref]$size)
-            if ($hr -ne 0) { return ('(0x{0:X8})' -f $hr) }
-            return $buffer.ToString()
+        $assocScript = Join-Path $artifacts 'assoc-check.ps1'
+        Set-Content -LiteralPath $assocScript -Value $assocCode -Encoding ASCII
+        & (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -ExecutionPolicy Bypass -File $assocScript 2>&1 |
+            ForEach-Object { Write-Host ('   shell resolves (fresh process) {0}' -f (Format-LogLine ([string]$_))) }
+
+        # Jendela dicari dengan EnumWindows (semua jendela teratas yang terlihat dan
+        # berjudul), bukan hanya proses baru: dialog yang dibuat Explorer yang sudah
+        # berjalan juga tertangkap.
+        Add-Type -Namespace TgosCi -Name Top -MemberDefinition @'
+public delegate bool EnumProc(System.IntPtr hWnd, System.IntPtr lParam);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool EnumWindows(EnumProc callback, System.IntPtr lParam);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool IsWindowVisible(System.IntPtr hWnd);
+[System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+public static extern int GetWindowText(System.IntPtr hWnd, System.Text.StringBuilder text, int count);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern uint GetWindowThreadProcessId(System.IntPtr hWnd, out uint processId);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool PostMessage(System.IntPtr hWnd, uint msg, System.IntPtr wParam, System.IntPtr lParam);
+public static System.Collections.Generic.List<System.IntPtr> Visible() {
+    var list = new System.Collections.Generic.List<System.IntPtr>();
+    EnumWindows((h, l) => { if (IsWindowVisible(h)) { list.Add(h); } return true; }, System.IntPtr.Zero);
+    return list;
+}
+'@
+        function Get-TitledWindow {
+            $names = @{}
+            Get-Process -ErrorAction SilentlyContinue | ForEach-Object { $names[[uint32]$_.Id] = $_.ProcessName }
+            $result = @{}
+            foreach ($handle in [TgosCi.Top]::Visible()) {
+                $text = New-Object System.Text.StringBuilder 256
+                $null = [TgosCi.Top]::GetWindowText($handle, $text, 256)
+                $title = $text.ToString().Trim()
+                if (-not $title) { continue }
+                $processId = [uint32]0
+                $null = [TgosCi.Top]::GetWindowThreadProcessId($handle, [ref]$processId)
+                $name = '?'
+                if ($names.ContainsKey($processId)) { $name = $names[$processId] }
+                $result[[long]$handle] = '{0} "{1}"' -f $name, $title
+            }
+            return $result
         }
-        # Membuka satu protokol dan mencatat setiap jendela baru: nama, judul, induk, dan
-        # baris perintahnya (memperlihatkan jalur mana yang memunculkan jendela itu).
+        # Membuka satu protokol lewat proses explorer.exe tersendiri (seperti klik
+        # pengguna; dialog modal tidak bisa menahan uji ini) dan mencatat jendela berjudul
+        # yang baru muncul. Jendela itu lalu ditutup.
         function Test-ProtocolPopup {
             param([string]$Uri)
-            $before = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | ForEach-Object { $_.Id })
-            # Dibuka lewat proses explorer.exe tersendiri (seperti klik pengguna), bukan
-            # ShellExecute di proses uji ini: dialog modal tidak bisa menahan uji, dan
-            # jendela apa pun yang muncul terlihat sebagai jendela proses baru.
+            $before = Get-TitledWindow
             try { $null = Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe') -ArgumentList $Uri -PassThru }
             catch { Write-Host ('   {0} could not be started: {1}' -f $Uri, (Format-LogLine $_.Exception.Message)) }
             $seen = @{}
-            for ($attempt = 0; $attempt -lt 12; $attempt++) {
+            for ($attempt = 0; $attempt -lt 14; $attempt++) {
                 Start-Sleep -Milliseconds 500
-                foreach ($process in @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $before -notcontains $_.Id })) {
-                    if ($seen.ContainsKey($process.Id)) { continue }
-                    $parent = '?'
-                    $commandLine = ''
-                    try {
-                        $info = Get-CimInstance -ClassName Win32_Process -Filter ('ProcessId={0}' -f $process.Id) -ErrorAction Stop
-                        $commandLine = [string]$info.CommandLine
-                        $parent = (Get-Process -Id $info.ParentProcessId -ErrorAction Stop).ProcessName
-                    }
-                    catch { }
-                    $seen[$process.Id] = '{0} "{1}" parent {2} | {3}' -f $process.ProcessName, $process.MainWindowTitle, $parent, $commandLine
+                $now = Get-TitledWindow
+                foreach ($handle in @($now.Keys)) {
+                    if (-not $before.ContainsKey($handle) -and -not $seen.ContainsKey($handle)) { $seen[$handle] = $now[$handle] }
                 }
             }
+            foreach ($handle in @($seen.Keys)) { $null = [TgosCi.Top]::PostMessage([IntPtr]$handle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) }
             Get-Process -Name 'OpenWith' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Milliseconds 500
-            return @($seen.Values)
+            Start-Sleep -Milliseconds 800
+            # wsl.exe: updater WSL milik image runner (lihat pemantau jendela di atas).
+            return @($seen.Values | Where-Object { $_ -notmatch '^wsl ' })
         }
-        foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
-            # 1 = ASSOCSTR_COMMAND, 20 = ASSOCSTR_PROGID, 21 = ASSOCSTR_APPID
-            Write-Host ('   shell resolves {0}: command {1}, progid {2}, appid {3}' -f $protocol, (Get-ProtocolAssoc $protocol 1), (Get-ProtocolAssoc $protocol 20), (Get-ProtocolAssoc $protocol 21))
-        }
+
+        # Kontrol positif: protokol yang pasti tidak punya aplikasi HARUS memunculkan
+        # jendela. Bila tidak, cara uji ini tidak bisa melihat popup dan hasilnya tidak
+        # dihitung.
+        Remove-Item -LiteralPath 'HKCU:\Software\Classes\tgos-no-such-app' -Recurse -Force -ErrorAction SilentlyContinue
+        $control = @(Test-ProtocolPopup 'tgos-no-such-app:')
+        $control | ForEach-Object { Write-Host ('   control window after tgos-no-such-app: {0}' -f (Format-LogLine $_)) }
         $popups = @()
         foreach ($uri in @('ms-gamebar:', 'ms-gamingoverlay:')) {
             $found = @(Test-ProtocolPopup $uri)
             $found | ForEach-Object { Write-Host ('   visible after {0} {1}' -f $uri, (Format-LogLine $_)) }
-            # wsl.exe: jendela konsol yang muncul berkala di runner Windows 11 (juga saat
-            # playbook belum menyentuh apa pun); bukan hasil membuka protokol Game Bar.
-            $popups += @($found | Where-Object { $_ -notmatch '^wsl ' })
+            $popups += $found
         }
-        $null = Assert-That ($popups.Count -eq 0) 'gamebar: opening ms-gamebar: and ms-gamingoverlay: shows no window (control: the Notepad window was detected)'
+        if ($control.Count) {
+            $null = Assert-That ($popups.Count -eq 0) 'gamebar: opening ms-gamebar: and ms-gamingoverlay: shows no window (control: a protocol without an app did show one)'
+        }
+        else {
+            Write-Host '   INFO: a protocol without an app showed no window either, so this check cannot see the popup; result not counted'
+        }
         # Penyebab yang ditemukan di Windows 11 25H2: katalog protokol AppX masih menunjuk ke
         # paket Game Bar yang sudah dihapus (lihat Set-TgosFeature.ps1, GameBar Off).
         $catalogLeft = @()
