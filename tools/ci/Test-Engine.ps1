@@ -839,7 +839,10 @@ public static extern int AssocQueryString(int flags, int str, string assoc, stri
             }
             $toasts = Get-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts' -ErrorAction SilentlyContinue
             if ($toasts) { $toasts.GetValueNames() | Where-Object { $_ -match '(?i)gam' } | ForEach-Object { Write-Host ('   association toast: {0}' -f $_) } }
-            $provisioned = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match '(?i)xbox|gaming' } | ForEach-Object { $_.DisplayName })
+            # Daftar paket provisioned dibaca dari registry, bukan Get-AppxProvisionedPackage
+            # (DISM; bisa lama sekali sesudah ResetBase).
+            $provisioned = @(Get-ChildItem -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Applications' -ErrorAction SilentlyContinue |
+                    Where-Object { $_.PSChildName -match '(?i)xbox|gaming' } | ForEach-Object { $_.PSChildName })
             Write-Host ('   provisioned Xbox/gaming packages: {0}' -f $(if ($provisioned.Count) { $provisioned -join ', ' } else { 'none' }))
             $allGaming = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)xbox|gaming' } | ForEach-Object { $_.Name })
             Write-Host ('   installed Xbox/gaming packages: {0}' -f $(if ($allGaming.Count) { $allGaming -join ', ' } else { 'none' }))
