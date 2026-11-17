@@ -189,6 +189,26 @@ def main() -> int:
     protected_lost = [family for family in removed
                       if any(matches(name + "_*", family)
                              for name in validator.PROTECTED_APPX if name not in allowed)]
+    # Framework yang dibuang Windows sendiri karena SEMUA aplikasi yang memakainya ikut
+    # dihapus (mis. .NET Native sesudah opsi remove-store menghapus Store) bukan kerusakan:
+    # tidak ada aplikasi tersisa yang membutuhkannya, dan aplikasi yang dipasang lagi nanti
+    # membawa framework-nya sendiri. Tanpa data dependensi tetap dianggap BAHAYA.
+    before_items = {item["familyName"]: item for item in as_list(before.get("appx")) if item.get("familyName")}
+    users_of: dict[str, set] = {}
+    for family, item in before_items.items():
+        for dependency in as_list(item.get("dependencies")):
+            users_of.setdefault(text_of(dependency), set()).add(family)
+    orphaned = []
+    for family in list(protected_lost):
+        item = before_items.get(family, {})
+        users = users_of.get(item.get("name", ""), set())
+        if item.get("isFramework") and users and not (users & families_after):
+            orphaned.append((family, sorted(users)))
+            protected_lost.remove(family)
+    if orphaned:
+        print("\n  Framework yang dibuang Windows karena aplikasi terakhir pemakainya ikut dihapus:")
+        for family, users in orphaned:
+            print(f"    . {family}  (dipakai: {', '.join(users)})")
     if protected_lost:
         print("\n  BAHAYA: paket yang dilindungi ikut hilang:")
         for family in protected_lost:

@@ -46,9 +46,10 @@ Most changes need a restart.
   Background Apps        OFF = Microsoft Store apps do not run in the background.
   Lock Screen            OFF = the picture screen before sign-in is skipped. Your
                          password or PIN is still asked.
-  Xbox Game Bar          OFF = the controller buttons and Win+G do not open Game Bar.
-                         ON removes the TGOS blocks; if the Game Bar app was removed,
-                         install "Xbox Game Bar" again from the Microsoft Store.
+  Xbox Game Bar          OFF = the controller buttons do not open Game Bar, and Win+G
+                         is blocked (from the next sign-in). ON removes the TGOS
+                         blocks; if the Game Bar app was removed, install "Xbox Game
+                         Bar" again from the Microsoft Store.
   TGO Login Screen       ON = TGO picture on the lock and sign-in screens.
                          OFF = the Windows picture.
 

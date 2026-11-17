@@ -456,61 +456,33 @@ try {
                         }
                     }
                 }
-                # Katalog protokol AppX. Windows 11 25H2 menyimpan entri protokol untuk paket
-                # Game Bar walaupun paketnya sudah dihapus, dan shell memercayai katalog itu
-                # sebelum penangan di atas: hasilnya "no application is associated" dan
-                # jendela "Pick an app" (terbukti di uji otomatis; protokol buatan sendiri
-                # dengan penangan yang sama tidak memunculkan jendela). Hanya entri yang
-                # SELURUHNYA menunjuk ke paket Game Bar yang sudah tidak terpasang yang
-                # dihapus; bila Game Bar dipasang lagi, Windows membuat entrinya kembali.
-                $installedOverlay = @()
-                $appxKnown = $true
-                try {
-                    $installedOverlay = @(Get-AppxPackage -AllUsers -Name 'Microsoft.XboxGamingOverlay' -ErrorAction Stop | ForEach-Object { $_.PackageFullName })
+                # Win+G dimatikan lewat DisabledHotkeys Explorer (huruf G ditambahkan ke isi yang
+                # sudah ada). Di Windows 11 25H2, sesudah aplikasi Game Bar dihapus, cache AppX
+                # Windows masih mengaitkan ms-gamebar dengan paket yang sudah tidak ada, jadi
+                # Win+G memunculkan "Pick an app" walaupun penangan di atas sudah terpasang
+                # (cache itu bagian dalam Windows dan tidak diubah TGOS). Berlaku setelah
+                # Explorer dijalankan ulang (TGOS melakukannya di akhir instalasi).
+                foreach ($userRoot in $userRoots) {
+                    $advanced = '{0}\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -f $userRoot
+                    $hotkeys = ''
+                    if (Test-Path -LiteralPath $advanced) { $hotkeys = [string](Get-ItemProperty -LiteralPath $advanced -ErrorAction SilentlyContinue).DisabledHotkeys }
+                    if (-not $hotkeys.Contains('G')) { Set-Text -Path $advanced -Name 'DisabledHotkeys' -Value ($hotkeys + 'G') }
                 }
-                catch { $appxKnown = $false }
-                $repository = 'HKLM:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository'
-                $catalogRoots = @('HKLM:\SOFTWARE\Classes') + @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
-                        Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+_Classes$' } |
-                        ForEach-Object { 'Registry::HKEY_USERS\{0}' -f $_.PSChildName })
-                $catalogSeen = 0
-                $catalogKept = @()
-                $catalogRemoved = 0
-                $catalogFailed = 0
-                foreach ($catalogRoot in $catalogRoots) {
-                    foreach ($protocol in $protocols) {
-                        $catalog = '{0}\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\{1}' -f $catalogRoot, $protocol
-                        foreach ($entry in @(Get-ChildItem -LiteralPath $catalog -ErrorAction SilentlyContinue)) {
-                            $packages = @($entry.GetValueNames() | Where-Object { $_ })
-                            if (-not $packages.Count) { continue }
-                            $catalogSeen++
-                            $reason = ''
-                            foreach ($package in $packages) {
-                                if ($package -notmatch '^Microsoft\.XboxGamingOverlay_') { $reason = 'other package' }
-                                elseif ($installedOverlay -contains $package) { $reason = 'installed' }
-                                elseif (Test-Path -LiteralPath (Join-Path (Join-Path $repository 'Packages') $package)) { $reason = 'still in the package repository' }
-                            }
-                            # Tanpa daftar paket AppX yang bisa dibaca, entri tidak disentuh.
-                            if (-not $appxKnown) { $reason = 'package list unavailable' }
-                            if ($reason) {
-                                $catalogKept += ('{0} ({1})' -f $protocol, $reason)
-                                continue
-                            }
-                            try {
-                                Remove-Item -LiteralPath $entry.PSPath -Recurse -Force -ErrorAction Stop
-                                $catalogRemoved++
-                            }
-                            catch { $catalogFailed++ }
-                        }
-                    }
-                }
-                if ($catalogRemoved) { Write-Host ('Removed {0} leftover Game Bar protocol registration(s).' -f $catalogRemoved) }
-                if ($catalogFailed) { Write-Host ('WARNING: {0} leftover Game Bar protocol registration(s) could not be removed; Win+G may still show "Pick an app".' -f $catalogFailed) }
-                Write-Log ('GameBar Off: protocol catalog entries seen {0}, removed {1}, failed {2}, kept {3}' -f $catalogSeen, $catalogRemoved, $catalogFailed, ($catalogKept -join '; '))
-                Write-Host 'Xbox Game Bar is now OFF: the controller buttons and Win+G no longer open it.'
+                Write-Host 'Xbox Game Bar is now OFF: the controller buttons no longer open it, and Win+G is'
+                Write-Host 'blocked from the next sign-in (or the next Explorer restart).'
             }
             else {
                 Remove-Value -Path $gameBar -Name 'UseNexusForGameBarEnabled'
+                foreach ($userRoot in $userRoots) {
+                    $advanced = '{0}\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -f $userRoot
+                    $hotkeys = ''
+                    if (Test-Path -LiteralPath $advanced) { $hotkeys = [string](Get-ItemProperty -LiteralPath $advanced -ErrorAction SilentlyContinue).DisabledHotkeys }
+                    if ($hotkeys.Contains('G')) {
+                        $rest = $hotkeys.Replace('G', '')
+                        if ($rest) { Set-Text -Path $advanced -Name 'DisabledHotkeys' -Value $rest }
+                        else { Remove-Value -Path $advanced -Name 'DisabledHotkeys' }
+                    }
+                }
                 Remove-Value -Path $gameBar -Name 'GamepadNexusChordEnabled'
                 Remove-Value -Path $policy -Name 'AllowGameDVR'
                 foreach ($protocol in $protocols) {
@@ -527,7 +499,7 @@ try {
                         }
                     }
                 }
-                Write-Host 'The TGOS Game Bar blocks are removed.'
+                Write-Host 'The TGOS Game Bar blocks are removed (Win+G works again from the next sign-in).'
                 Write-Host 'If the Xbox Game Bar app was removed, install it again from the Microsoft Store.'
             }
         }

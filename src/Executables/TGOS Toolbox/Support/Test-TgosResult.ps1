@@ -531,29 +531,21 @@ function Test-ScriptResults {
     }
 
     if (Test-Option 'remove-xbox') {
-        # Entri katalog protokol AppX untuk Game Bar yang sudah dihapus membuat Win+G
-        # memunculkan "Pick an app" di Windows 11 25H2 (dibersihkan Set-TgosFeature GameBar Off).
-        $overlay = @()
-        try { $overlay = @(Get-AppxPackage -AllUsers -Name 'Microsoft.XboxGamingOverlay' -ErrorAction Stop) } catch { }
-        $roots = @('HKLM:\SOFTWARE\Classes') + @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
-                Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+_Classes$' } | ForEach-Object { 'Registry::HKEY_USERS\{0}' -f $_.PSChildName })
-        $leftovers = 0
-        foreach ($root in $roots) {
-            foreach ($protocol in @('ms-gamebar', 'ms-gamebarservices', 'ms-gamingoverlay')) {
-                $catalog = '{0}\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\{1}' -f $root, $protocol
-                foreach ($entry in @(Get-ChildItem -LiteralPath $catalog -ErrorAction SilentlyContinue)) {
-                    if (@($entry.GetValueNames() | Where-Object { $_ -match '^Microsoft\.XboxGamingOverlay_' }).Count) { $leftovers++ }
-                }
+        # Win+G diblokir lewat DisabledHotkeys (huruf G) untuk tiap pengguna yang sedang login.
+        $users = @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
+                Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+$' } | ForEach-Object { $_.PSChildName })
+        if (-not $users.Count) {
+            Add-Result 'SKIP' 'game bar' 'Win+G' 'no logged-on user hive to check' 'Set-TgosFeature.ps1'
+        }
+        foreach ($sid in $users) {
+            $advanced = 'Registry::HKEY_USERS\{0}\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -f $sid
+            $hotkeys = [string](Get-ItemProperty -LiteralPath $advanced -ErrorAction SilentlyContinue).DisabledHotkeys
+            if ($hotkeys.Contains('G')) {
+                Add-Result 'PASS' 'game bar' ('Win+G ({0})' -f $sid) 'blocked (DisabledHotkeys contains G)' 'Set-TgosFeature.ps1'
             }
-        }
-        if ($overlay.Count) {
-            Add-Result 'SKIP' 'game bar' 'Win+G protocol' 'the Xbox Game Bar app is installed again' 'Set-TgosFeature.ps1'
-        }
-        elseif ($leftovers) {
-            Add-Result 'FAIL' 'game bar' 'Win+G protocol' ('{0} leftover registration(s) of the removed Game Bar; run "Xbox Game Bar - Turn OFF" in the Toolbox' -f $leftovers) 'Set-TgosFeature.ps1'
-        }
-        else {
-            Add-Result 'PASS' 'game bar' 'Win+G protocol' 'no leftover registration of the removed Game Bar' 'Set-TgosFeature.ps1'
+            else {
+                Add-Result 'FAIL' 'game bar' ('Win+G ({0})' -f $sid) 'not blocked; run "Xbox Game Bar - Turn OFF" in the Toolbox' 'Set-TgosFeature.ps1'
+            }
         }
     }
 

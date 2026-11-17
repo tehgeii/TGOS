@@ -15,6 +15,7 @@ Pemakaian:
 from __future__ import annotations
 
 import shutil
+import json
 import subprocess
 import sys
 import tempfile
@@ -521,9 +522,52 @@ def test_generated_files() -> int:
     return failures
 
 
+def test_compare_frameworks() -> int:
+    """Framework yang dibuang Windows karena pemakainya ikut dihapus bukan BAHAYA; yang
+    hilang padahal masih dipakai, atau tanpa data dependensi, tetap BAHAYA."""
+    def package(name, framework=False, dependencies=None):
+        return {"name": name, "familyName": f"{name}_8wekyb3d8bbwe", "isFramework": framework,
+                "dependencies": dependencies or []}
+
+    def snapshot(packages, options):
+        return {"schema": 1, "label": "uji", "isAdmin": True, "appx": packages,
+                "tgosInstallInfo": [f"Option selected : {option}" for option in options]}
+
+    native = "Microsoft.NET.Native.Framework.2.2"
+    cases = [
+        # (nama, paket sebelum, paket sesudah, opsi, harus ada BAHAYA)
+        ("framework yatim sesudah Store dihapus",
+         [package(native, True), package("Microsoft.WindowsStore", dependencies=[native])],
+         [], ["remove-store"], False),
+        ("framework hilang padahal masih dipakai",
+         [package(native, True), package("Microsoft.WindowsStore", dependencies=[native]),
+          package("Microsoft.WindowsCalculator", dependencies=[native])],
+         [package("Microsoft.WindowsCalculator", dependencies=[native])], ["remove-store"], True),
+        ("framework hilang tanpa data dependensi",
+         [package(native, True), package("Microsoft.WindowsStore")], [], ["remove-store"], True),
+    ]
+    failures = 0
+    for name, before, after, options, danger in cases:
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = []
+            for label, packages in (("before", before), ("after", after)):
+                path = Path(tmp) / f"{label}.json"
+                path.write_text(json.dumps(snapshot(packages, options)), encoding="utf-8")
+                paths.append(str(path))
+            result = subprocess.run([sys.executable, str(ROOT / "tools" / "compare-snapshots.py")] + paths,
+                                    capture_output=True, text=True, encoding="utf-8", errors="replace")
+        found = "BAHAYA" in result.stdout and native in result.stdout.split("BAHAYA", 1)[1]
+        if found != danger:
+            print(f"GAGAL  compare-snapshots, {name}: BAHAYA {'diharapkan' if danger else 'tidak diharapkan'}\n{result.stdout}")
+            failures += 1
+        else:
+            print(f"lolos  compare-snapshots, {name}")
+    return failures
+
+
 def main() -> int:
     failures = (test_validator() + test_compatibility() + test_shell_layout() + test_ps_variable_names()
-                + test_common_functions() + test_generated_files())
+                + test_common_functions() + test_generated_files() + test_compare_frameworks())
     if failures:
         print(f"\nUji diri GAGAL: {failures} kegagalan")
         return 1

@@ -747,42 +747,16 @@ if ($plannedOptions -contains 'remove-xbox') {
     }
     $overlay = @(Get-AppxPackage -AllUsers -Name '*XboxGamingOverlay*' -ErrorAction SilentlyContinue | ForEach-Object { $_.PackageFullName })
     Write-Host ('   Game Bar packages left: {0}' -f $(if ($overlay.Count) { $overlay -join ', ' } else { 'none' }))
-    # Diagnosa katalog protokol AppX (dicetak sebelum membuka protokol).
-    $repositoryRoot = 'HKLM:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository'
-    $repositoryOverlay = @(Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'Packages') -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^Microsoft\.XboxGamingOverlay_' } | ForEach-Object { $_.PSChildName })
-    Write-Host ('   Game Bar in PackageRepository\Packages: {0}' -f $(if ($repositoryOverlay.Count) { $repositoryOverlay -join ', ' } else { 'none' }))
-    foreach ($catalogRoot in @('HKLM:\SOFTWARE\Classes') + @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
-                Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+_Classes$' } | ForEach-Object { 'Registry::HKEY_USERS\{0}' -f $_.PSChildName })) {
-        $catalog = '{0}\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\ms-gamebar' -f $catalogRoot
-        $entries = @(Get-ChildItem -LiteralPath $catalog -ErrorAction SilentlyContinue | ForEach-Object { '{0} -> {1}' -f $_.PSChildName, (@($_.GetValueNames()) -join ', ') })
-        Write-Host ('   ms-gamebar catalog in {0}: {1}' -f ($catalogRoot -replace '^Registry::', ''), $(if ($entries.Count) { $entries -join ' ; ' } else { 'none' }))
-    }
-    Get-Content -LiteralPath (Join-Path $env:ProgramData 'TGOS\toolbox.log') -ErrorAction SilentlyContinue | Where-Object { $_ -match 'GameBar' } |
-        Select-Object -First 4 | ForEach-Object { Write-Host ('   toolbox.log: {0}' -f (Format-LogLine $_)) }
+    # Informasi: cache AppX Windows (StateRepository) yang masih mengaitkan ms-gamebar dengan
+    # Game Bar yang sudah dihapus. TGOS tidak mengubah cache ini; Win+G diblokir.
+    $stateCache = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModel\StateRepository\Cache\Protocol\Index\Name\ms-gamebar'
+    Write-Host ('   StateRepository cache entry for ms-gamebar: {0}' -f $(if (Test-Path -LiteralPath $stateCache) { 'present' } else { 'absent' }))
+    $advanced = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+    $hotkeys = [string](Get-ItemProperty -LiteralPath $advanced -ErrorAction SilentlyContinue).DisabledHotkeys
+    $null = Assert-That ($hotkeys.Contains('G')) ('gamebar: Win+G is blocked for the test user (DisabledHotkeys = {0})' -f $hotkeys)
     if (Test-WindowControl) {
-        # Diagnosa: bagaimana shell Windows menerjemahkan protokol itu (AssocQueryString),
-        # dari proses uji ini dan dari proses baru (tanpa cache apa pun di proses ini).
-        $assocCode = @'
-Add-Type -Namespace TgosCi -Name Assoc -MemberDefinition @"
-[System.Runtime.InteropServices.DllImport("shlwapi.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-public static extern int AssocQueryString(int flags, int str, string assoc, string extra, System.Text.StringBuilder output, ref uint size);
-"@
-foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay', 'tgos-no-such-app')) {
-    $size = [uint32]1024
-    $buffer = New-Object System.Text.StringBuilder 1024
-    # 0x1000 = ASSOCF_IS_PROTOCOL, 1 = ASSOCSTR_COMMAND
-    $hr = [TgosCi.Assoc]::AssocQueryString(0x1000, 1, $protocol, [NullString]::Value, $buffer, [ref]$size)
-    if ($hr -ne 0) { '{0}: (0x{1:X8})' -f $protocol, $hr } else { '{0}: {1}' -f $protocol, $buffer.ToString() }
-}
-'@
-        $assocScript = Join-Path $artifacts 'assoc-check.ps1'
-        Set-Content -LiteralPath $assocScript -Value $assocCode -Encoding ASCII
-        & (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -ExecutionPolicy Bypass -File $assocScript 2>&1 |
-            ForEach-Object { Write-Host ('   shell resolves (fresh process) {0}' -f (Format-LogLine ([string]$_))) }
-
-        # Jendela dicari dengan EnumWindows (semua jendela teratas yang terlihat dan
-        # berjudul), bukan hanya proses baru: dialog yang dibuat Explorer yang sudah
-        # berjalan juga tertangkap.
+        # Win+G sungguhan lewat keybd_event. Jendela dicari dengan EnumWindows (semua jendela
+        # teratas yang terlihat dan berjudul, termasuk dialog milik Explorer).
         Add-Type -Namespace TgosCi -Name Top -MemberDefinition @'
 public delegate bool EnumProc(System.IntPtr hWnd, System.IntPtr lParam);
 [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -795,6 +769,8 @@ public static extern int GetWindowText(System.IntPtr hWnd, System.Text.StringBui
 public static extern uint GetWindowThreadProcessId(System.IntPtr hWnd, out uint processId);
 [System.Runtime.InteropServices.DllImport("user32.dll")]
 public static extern bool PostMessage(System.IntPtr hWnd, uint msg, System.IntPtr wParam, System.IntPtr lParam);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern void keybd_event(byte vk, byte scan, uint flags, System.UIntPtr extra);
 public static System.Collections.Generic.List<System.IntPtr> Visible() {
     var list = new System.Collections.Generic.List<System.IntPtr>();
     EnumWindows((h, l) => { if (IsWindowVisible(h)) { list.Add(h); } return true; }, System.IntPtr.Zero);
@@ -818,21 +794,15 @@ public static System.Collections.Generic.List<System.IntPtr> Visible() {
             }
             return $result
         }
-        # Membuka satu protokol dengan ShellExecute (jalur yang sama dengan Explorer saat
-        # Win+G) di proses PowerShell anak yang dibuang sesudahnya: dialog modal tidak bisa
-        # menahan uji ini, dan tetap terlihat sebagai jendela berjudul. Lewat "explorer.exe
-        # <protokol>" jendela itu tidak pernah muncul, jadi cara itu tidak dipakai.
-        function Test-ProtocolPopup {
-            param([string]$Uri)
+        function Test-WinGPopup {
             $before = Get-TitledWindow
-            $child = $null
-            try {
-                $child = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -NoNewWindow -PassThru `
-                    -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-Command', ("Start-Process -FilePath '{0}'" -f $Uri))
-            }
-            catch { Write-Host ('   {0} could not be started: {1}' -f $Uri, (Format-LogLine $_.Exception.Message)) }
+            [TgosCi.Top]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero)
+            [TgosCi.Top]::keybd_event(0x47, 0, 0, [UIntPtr]::Zero)
+            Start-Sleep -Milliseconds 100
+            [TgosCi.Top]::keybd_event(0x47, 0, 2, [UIntPtr]::Zero)
+            [TgosCi.Top]::keybd_event(0x5B, 0, 2, [UIntPtr]::Zero)
             $seen = @{}
-            for ($attempt = 0; $attempt -lt 14; $attempt++) {
+            for ($attempt = 0; $attempt -lt 16; $attempt++) {
                 Start-Sleep -Milliseconds 500
                 $now = Get-TitledWindow
                 foreach ($handle in @($now.Keys)) {
@@ -841,81 +811,38 @@ public static System.Collections.Generic.List<System.IntPtr> Visible() {
             }
             foreach ($handle in @($seen.Keys)) { $null = [TgosCi.Top]::PostMessage([IntPtr]$handle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) }
             Get-Process -Name 'OpenWith' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-            if ($child -and -not $child.HasExited) {
-                $seen['child'] = 'powershell (still waiting in ShellExecute after 7 s)'
-                Stop-Process -Id $child.Id -Force -ErrorAction SilentlyContinue
-            }
             Start-Sleep -Milliseconds 800
             # wsl.exe: updater WSL milik image runner (lihat pemantau jendela di atas).
             return @($seen.Values | Where-Object { $_ -notmatch '^wsl ' })
         }
-
-        # Kontrol positif: protokol yang pasti tidak punya aplikasi HARUS memunculkan
-        # jendela. Bila tidak, cara uji ini tidak bisa melihat popup dan hasilnya tidak
-        # dihitung.
-        Remove-Item -LiteralPath 'HKCU:\Software\Classes\tgos-no-such-app' -Recurse -Force -ErrorAction SilentlyContinue
-        $control = @(Test-ProtocolPopup 'tgos-no-such-app:')
-        $control | ForEach-Object { Write-Host ('   control window after tgos-no-such-app: {0}' -f (Format-LogLine $_)) }
-        $popups = @()
-        foreach ($uri in @('ms-gamebar:', 'ms-gamingoverlay:')) {
-            $found = @(Test-ProtocolPopup $uri)
-            $found | ForEach-Object { Write-Host ('   visible after {0} {1}' -f $uri, (Format-LogLine $_)) }
-            $popups += $found
+        function Restart-TestExplorer {
+            Get-Process -Name 'explorer' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 3
+            if (-not (Get-Process -Name 'explorer' -ErrorAction SilentlyContinue)) { Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe') }
+            Start-Sleep -Seconds 10
         }
+        # Kontrol: tanpa blok TGOS, Win+G HARUS memunculkan jendela di runner ini (Game Bar
+        # sudah dihapus). Bila tidak, runner ini tidak meneruskan Win+G dan hasilnya tidak
+        # dihitung.
+        $withoutG = $hotkeys.Replace('G', '')
+        if ($withoutG) { Set-ItemProperty -LiteralPath $advanced -Name 'DisabledHotkeys' -Value $withoutG }
+        else { Remove-ItemProperty -LiteralPath $advanced -Name 'DisabledHotkeys' -ErrorAction SilentlyContinue }
+        Restart-TestExplorer
+        $control = @(Test-WinGPopup)
+        $control | ForEach-Object { Write-Host ('   control (block removed), Win+G showed: {0}' -f (Format-LogLine $_)) }
+        Set-ItemProperty -LiteralPath $advanced -Name 'DisabledHotkeys' -Value $hotkeys
+        Restart-TestExplorer
+        $blocked = @(Test-WinGPopup)
+        $blocked | ForEach-Object { Write-Host ('   with the TGOS block, Win+G showed: {0}' -f (Format-LogLine $_)) }
         if ($control.Count) {
-            $null = Assert-That ($popups.Count -eq 0) 'gamebar: opening ms-gamebar: and ms-gamingoverlay: shows no window (control: a protocol without an app did show one)'
+            $null = Assert-That ($blocked.Count -eq 0) 'gamebar: Win+G shows no window (control: without the TGOS block it showed one)'
         }
         else {
-            Write-Host '   INFO: a protocol without an app showed no window either, so this check cannot see the popup; result not counted'
-        }
-        # Penyebab yang ditemukan di Windows 11 25H2: katalog protokol AppX masih menunjuk ke
-        # paket Game Bar yang sudah dihapus (lihat Set-TgosFeature.ps1, GameBar Off).
-        $catalogLeft = @()
-        $catalogRoots = @('HKLM:\SOFTWARE\Classes') + @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
-                Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+_Classes$' } | ForEach-Object { 'Registry::HKEY_USERS\{0}' -f $_.PSChildName })
-        foreach ($catalogRoot in $catalogRoots) {
-            foreach ($protocol in @('ms-gamebar', 'ms-gamebarservices', 'ms-gamingoverlay')) {
-                $catalog = '{0}\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\{1}' -f $catalogRoot, $protocol
-                foreach ($entry in @(Get-ChildItem -LiteralPath $catalog -ErrorAction SilentlyContinue)) {
-                    $catalogLeft += ('{0} -> {1}' -f ($entry.Name -replace '^.*\\windows\.protocol\\', ''), (@($entry.GetValueNames()) -join ', '))
-                }
-            }
-        }
-        $null = Assert-That (-not @($catalogLeft | Where-Object { $_ -match 'XboxGamingOverlay' }).Count) 'gamebar: no protocol catalog entry points to the removed Game Bar'
-        # Diagnosa: semua sisa rujukan ke ms-gamebar di registry (kunci, nama nilai, data),
-        # di luar penangan pengganti TGOS sendiri. Dicari dengan reg.exe lewat cmd.
-        $hives = @('HKLM\SOFTWARE', 'HKCU') + @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
-                Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+_Classes$' } | ForEach-Object { 'HKU\{0}' -f $_.PSChildName })
-        foreach ($hive in $hives) {
-            $found = @(& cmd.exe /c ('reg query "{0}" /f ms-gamebar /s 2>&1' -f $hive) | ForEach-Object { [string]$_ } |
-                    Where-Object { $_.Trim() -and $_ -notmatch '^End of search' -and $_ -notmatch '\\Classes\\ms-gamebar(\\shell(\\open(\\command)?)?)?$' })
-            Write-Host ('   registry references to ms-gamebar in {0}: {1} line(s)' -f $hive, $found.Count)
-            $found | Select-Object -First 30 | ForEach-Object { Write-Host ('     {0}' -f (Format-LogLine $_)) }
-        }
-        foreach ($root in @('HKLM:\SOFTWARE\RegisteredApplications', 'HKCU:\Software\RegisteredApplications')) {
-            $item = Get-Item -LiteralPath $root -ErrorAction SilentlyContinue
-            if (-not $item) { continue }
-            foreach ($name in $item.GetValueNames()) {
-                $capabilities = [string]$item.GetValue($name)
-                $hive = if ($root -like 'HKLM:*') { 'HKLM:\' } else { 'HKCU:\' }
-                $urls = Get-Item -LiteralPath (Join-Path $hive (Join-Path $capabilities 'URLAssociations')) -ErrorAction SilentlyContinue
-                if ($urls -and @($urls.GetValueNames() | Where-Object { $_ -match '(?i)^ms-gam' }).Count) {
-                    Write-Host ('   registered application claiming ms-gam*: {0} -> {1}' -f $name, $capabilities)
-                }
-            }
-        }
-        $catalogLeft | ForEach-Object { Write-Host ('   protocol catalog: {0}' -f (Format-LogLine $_)) }
-        # Pengaman di Set-TgosFeature: paket yang masih terpasang punya kunci di
-        # PackageRepository\Packages. Dibuktikan dengan satu paket yang pasti terpasang.
-        $sample = Get-AppxPackage -Name 'Microsoft.WindowsCalculator' -ErrorAction SilentlyContinue | Select-Object -First 1
-        if (-not $sample) { $sample = Get-AppxPackage -Name 'Microsoft.WindowsNotepad' -ErrorAction SilentlyContinue | Select-Object -First 1 }
-        if ($sample) {
-            $repositoryKey = 'HKLM:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Packages\{0}' -f $sample.PackageFullName
-            Write-Host ('   guard: PackageRepository\Packages key for installed {0}: {1}' -f $sample.Name, $(if (Test-Path -LiteralPath $repositoryKey) { 'present' } else { 'absent' }))
+            Write-Host '   INFO: Win+G showed no window even without the block, so this runner cannot show the effect; result not counted'
         }
     }
     else {
-        Write-Host '   INFO: this runner does not expose windows; the ms-gamebar popup check is inconclusive'
+        Write-Host '   INFO: this runner does not expose windows; the Win+G check is inconclusive'
     }
 }
 if ($plannedOptions -contains 'updates-pause') {
