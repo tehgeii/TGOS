@@ -221,6 +221,7 @@ function Reset-ShellPins {
     $previous = (Get-ItemProperty -LiteralPath $winlogon -ErrorAction SilentlyContinue).AutoRestartShell
     $taskbar = 0
     $start = 0
+    $pinLinks = 0
     try {
         Set-ItemProperty -LiteralPath $winlogon -Name 'AutoRestartShell' -Value 0 -Type DWord
         foreach ($name in @('explorer', 'StartMenuExperienceHost')) {
@@ -233,6 +234,17 @@ function Reset-ShellPins {
             if (Test-Path -LiteralPath $taskband) {
                 Remove-Item -LiteralPath $taskband -Recurse -Force -ErrorAction SilentlyContinue
                 if (-not (Test-Path -LiteralPath $taskband)) { $taskbar++ }
+            }
+            # Pintasan pin lama juga dihapus. Bila dibiarkan, Windows membuat salinan baru
+            # di sebelahnya saat menerapkan layout (uji VM v1.0.0: "File Explorer (2).lnk").
+            # Hanya file .lnk langsung di folder ini; subfolder ImplicitAppShortcuts tidak
+            # disentuh.
+            $pinned = Join-Path $profile.Path 'AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar'
+            if (Test-Path -LiteralPath $pinned) {
+                foreach ($link in @(Get-ChildItem -LiteralPath $pinned -Filter '*.lnk' -File -Force -ErrorAction SilentlyContinue)) {
+                    Remove-Item -LiteralPath $link.FullName -Force -ErrorAction SilentlyContinue
+                    if (-not (Test-Path -LiteralPath $link.FullName)) { $pinLinks++ }
+                }
             }
             $state = Join-Path $profile.Path 'AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState'
             if (Test-Path -LiteralPath $state) {
@@ -248,7 +260,7 @@ function Reset-ShellPins {
         if ($null -eq $previous) { $previous = 1 }
         Set-ItemProperty -LiteralPath $winlogon -Name 'AutoRestartShell' -Value ([int]$previous) -Type DWord
     }
-    Write-Output ("TGOS: pins reset - taskbar for {0} profile(s), Start for {1} profile(s)" -f $taskbar, $start)
+    Write-Output ("TGOS: pins reset - taskbar for {0} profile(s), Start for {1} profile(s), {2} old pin shortcut(s) removed" -f $taskbar, $start, $pinLinks)
 }
 
 try {

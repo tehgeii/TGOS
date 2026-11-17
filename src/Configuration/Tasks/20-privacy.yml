@@ -103,9 +103,8 @@ actions:
   - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment', value: 'POWERSHELL_TELEMETRY_OPTOUT', data: '1', type: REG_SZ }
 
   # --- Telemetri: komponen inti ----------------------------------------------------
-  # Perekam otomatis yang menampung data telemetri sejak boot tidak dijalankan.
-  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\AutoLogger-Diagtrack-Listener', value: 'Start', data: '0', type: REG_DWORD }
-  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\SQMLogger', value: 'Start', data: '0', type: REG_DWORD }
+  # Perekam otomatis telemetri (AutoLogger-Diagtrack-Listener, SQMLogger) dimatikan di
+  # 30-services.yml, sesudah layanan DiagTrack dihentikan.
   # Dua program pengumpul data dicegah jalan: setiap kali Windows mencoba menjalankannya,
   # yang jalan adalah taskkill (langsung selesai tanpa berbuat apa-apa). Tidak ada
   # jaringan yang diblokir.

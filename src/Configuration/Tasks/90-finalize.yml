@@ -2,11 +2,11 @@
 title: Finalize
 description: Memasang TGOS Toolbox, mencatat instalasi, dan memeriksa hasilnya.
 actions:
-  # Menyalin TGOS Toolbox ke drive sistem, membuat pintasan di Desktop, dan menyalin
-  # wallpaper.
+  # Menyalin TGOS Toolbox ke drive sistem dan menyalin wallpaper (harus sudah ada
+  # sebelum Explorer dijalankan lagi di bawah). Pintasan Desktop dibuat paling akhir.
   - !run:
     exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
-    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Toolbox.ps1"'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Toolbox.ps1" -Part Files'
     runas: trustedInstaller
     exeDir: true
     wait: true
@@ -71,6 +71,19 @@ actions:
     exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
     args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Start-Shell.ps1"'
     runas: currentUser
+    exeDir: true
+    wait: true
+    weight: 1
+    showOutput: true
+    showError: true
+
+  # Pintasan "TGOS Toolbox" di Desktop, dibuat SETELAH Explorer hidup lagi, supaya
+  # Explorer menaruhnya di petak kosong berikutnya. Di uji VM v1.0.0 pintasan yang dibuat
+  # sebelum Explorer dihentikan muncul di tengah Desktop.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Toolbox.ps1" -Part Shortcut'
+    runas: trustedInstaller
     exeDir: true
     wait: true
     weight: 1

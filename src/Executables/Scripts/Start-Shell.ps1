@@ -10,6 +10,9 @@
     Bila Explorer sudah berjalan, tidak ada yang dilakukan (menjalankannya lagi hanya
     membuka jendela File Explorer).
 
+    Setelah Explorer dijalankan, skrip menunggu beberapa detik sampai Desktop siap,
+    karena aksi berikutnya membuat pintasan TGOS Toolbox di Desktop.
+
     File ini harus tetap ASCII murni dan kompatibel dengan Windows PowerShell 5.1.
 #>
 [CmdletBinding()]
@@ -21,6 +24,10 @@ try {
     }
     else {
         Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe')
+        for ($attempt = 0; $attempt -lt 30 -and -not (Get-Process -Name 'explorer' -ErrorAction SilentlyContinue); $attempt++) {
+            Start-Sleep -Milliseconds 500
+        }
+        Start-Sleep -Seconds 5
         Write-Output 'TGOS: Explorer started'
     }
 }

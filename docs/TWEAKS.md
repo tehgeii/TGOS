@@ -273,10 +273,8 @@ Bukan penghapusan: hanya mengosongkan cache `*Client.CBS*`, `*StartMenuExperienc
 
 | Kunci | Nilai | Data | Syarat | Keterangan |
 |---|---|---|---|---|
-| `HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\AutoLogger-Diagtrack-Listener` | `Start` | `0` |  | Perekam otomatis yang menampung data telemetri sejak boot tidak dijalankan. |
-| `HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\SQMLogger` | `Start` | `0` |  | Perekam otomatis yang menampung data telemetri sejak boot tidak dijalankan. |
-| `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\CompatTelRunner.exe` | `Debugger` | `%windir%\System32\taskkill.exe` |  | Dua program pengumpul data dicegah jalan: setiap kali Windows mencoba menjalankannya, yang jalan adalah taskkill (langsung selesai tanpa berbuat apa-apa). Tidak ada jaringan yang diblokir. CompatTelRunner.exe  Compatibility Appraiser: memindai program dan perangkat DeviceCensus.exe     mengirim data spesifikasi perangkat Akibatnya: pemeriksa kompatibilitas sebelum upgrade fitur Windows (mis. 25H2 ke 26H2) tidak jalan. Sebelum upgrade fitur, buka lagi lewat "Telemetry Collectors - Turn ON" di TGOS Toolbox. |
-| `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\DeviceCensus.exe` | `Debugger` | `%windir%\System32\taskkill.exe` |  | Dua program pengumpul data dicegah jalan: setiap kali Windows mencoba menjalankannya, yang jalan adalah taskkill (langsung selesai tanpa berbuat apa-apa). Tidak ada jaringan yang diblokir. CompatTelRunner.exe  Compatibility Appraiser: memindai program dan perangkat DeviceCensus.exe     mengirim data spesifikasi perangkat Akibatnya: pemeriksa kompatibilitas sebelum upgrade fitur Windows (mis. 25H2 ke 26H2) tidak jalan. Sebelum upgrade fitur, buka lagi lewat "Telemetry Collectors - Turn ON" di TGOS Toolbox. |
+| `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\CompatTelRunner.exe` | `Debugger` | `%windir%\System32\taskkill.exe` |  | Perekam otomatis telemetri (AutoLogger-Diagtrack-Listener, SQMLogger) dimatikan di 30-services.yml, sesudah layanan DiagTrack dihentikan. Dua program pengumpul data dicegah jalan: setiap kali Windows mencoba menjalankannya, yang jalan adalah taskkill (langsung selesai tanpa berbuat apa-apa). Tidak ada jaringan yang diblokir. CompatTelRunner.exe  Compatibility Appraiser: memindai program dan perangkat DeviceCensus.exe     mengirim data spesifikasi perangkat Akibatnya: pemeriksa kompatibilitas sebelum upgrade fitur Windows (mis. 25H2 ke 26H2) tidak jalan. Sebelum upgrade fitur, buka lagi lewat "Telemetry Collectors - Turn ON" di TGOS Toolbox. |
+| `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\DeviceCensus.exe` | `Debugger` | `%windir%\System32\taskkill.exe` |  | Perekam otomatis telemetri (AutoLogger-Diagtrack-Listener, SQMLogger) dimatikan di 30-services.yml, sesudah layanan DiagTrack dihentikan. Dua program pengumpul data dicegah jalan: setiap kali Windows mencoba menjalankannya, yang jalan adalah taskkill (langsung selesai tanpa berbuat apa-apa). Tidak ada jaringan yang diblokir. CompatTelRunner.exe  Compatibility Appraiser: memindai program dan perangkat DeviceCensus.exe     mengirim data spesifikasi perangkat Akibatnya: pemeriksa kompatibilitas sebelum upgrade fitur Windows (mis. 25H2 ke 26H2) tidak jalan. Sebelum upgrade fitur, buka lagi lewat "Telemetry Collectors - Turn ON" di TGOS Toolbox. |
 
 ### Recall dan analisis data AI (ada mulai 24H2)
 
@@ -306,6 +304,10 @@ Bukan penghapusan: hanya mengosongkan cache `*Client.CBS*`, `*StartMenuExperienc
 
 ### Telemetri dan diagnostik
 
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\AutoLogger-Diagtrack-Listener` | `Start` | `0` |  | Perekam otomatis yang menampung data telemetri sejak boot tidak dijalankan. Ditulis sesudah DiagTrack berhenti (lihat di atas). |
+| `HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\SQMLogger` | `Start` | `0` |  | Perekam otomatis yang menampung data telemetri sejak boot tidak dijalankan. Ditulis sesudah DiagTrack berhenti (lihat di atas). |
 | Layanan | Startup menjadi | Syarat | Keterangan |
 |---|---|---|---|
 | `DiagTrack` | Disabled |  | Connected User Experiences and Telemetry: pengirim utama data telemetri. |
@@ -315,6 +317,10 @@ Bukan penghapusan: hanya mengosongkan cache `*Client.CBS*`, `*StartMenuExperienc
 | `wisvc` | Disabled |  | Windows Insider Service: hanya dipakai bila ikut program Insider. |
 | `InventorySvc` | Disabled |  | Inventory and Compatibility Appraisal: menginventaris aplikasi dan perangkat untuk telemetri kompatibilitas. Berjalan otomatis di 24H2 ke atas. |
 | `whesvc` | Disabled |  | Windows Health and Optimized Experiences: pengumpul data kesehatan perangkat. Berjalan otomatis di 24H2 ke atas. |
+
+| Skrip | Syarat | Keterangan |
+|---|---|---|
+| `Scripts\Stop-DisabledServices.ps1` `-Names DiagTrack` |  | DiagTrack dihentikan sekarang, bukan baru saat restart. Selama masih berjalan ia menulis ulang konfigurasi perekam telemetrinya sendiri ketika dimatikan saat shutdown, sehingga nilai di bawah hilang lagi (terlihat di uji VM v1.0.0). |
 
 ### Aktivitas latar yang tidak perlu
 
@@ -649,8 +655,9 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 
 | Skrip | Syarat | Keterangan |
 |---|---|---|
-| `Scripts\Install-Toolbox.ps1` |  | Menyalin TGOS Toolbox ke drive sistem, membuat pintasan di Desktop, dan menyalin wallpaper. |
+| `Scripts\Install-Toolbox.ps1` `-Part Files` |  | Menyalin TGOS Toolbox ke drive sistem dan menyalin wallpaper (harus sudah ada sebelum Explorer dijalankan lagi di bawah). Pintasan Desktop dibuat paling akhir. |
 | `Scripts\Write-InstallInfo.ps1` `-Modules "preflight,software,debloat-appx,privacy,services,scheduled-tasks,performance,security-options,components,interface"` |  | Menulis %ProgramData%\TGOS\install-info.txt: versi TGOS, edisi, build, waktu, hasil restore point, dan modul yang dijalankan. Nama modul di -Modules harus sama dengan modul yang dipanggil main.yml (dijaga tools/validate.py). |
 | `Scripts\Set-ShellLayout.ps1` |  | Menyusun ulang pin taskbar dan Start menjadi set TGOS. Dijalankan setelah opsi tercatat (skrip membaca opsi "remove-store" dari install-info.txt) dan setelah browser terpasang. Skrip ini menghentikan Explorer; aksi berikutnya menjalankannya lagi sebagai pengguna yang login. |
 | `Scripts\Start-Shell.ps1` |  |  |
+| `Scripts\Install-Toolbox.ps1` `-Part Shortcut` |  | Pintasan "TGOS Toolbox" di Desktop, dibuat SETELAH Explorer hidup lagi, supaya Explorer menaruhnya di petak kosong berikutnya. Di uji VM v1.0.0 pintasan yang dibuat sebelum Explorer dihentikan muncul di tengah Desktop. |
 | `TGOS Toolbox\Support\Test-TgosResult.ps1` |  | Mencocokkan sistem dengan expected-state.json dan menulis %ProgramData%\TGOS\verify-report.txt. Hanya membaca; tidak fatal. |
