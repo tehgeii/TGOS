@@ -3,7 +3,9 @@
     Memasang TGOS Toolbox dan wallpaper TGO ke sistem.
 
 .DESCRIPTION
-    1. Menyalin folder "TGOS Toolbox" dari playbook ke <drive sistem>\TGOS Toolbox.
+    1. Menyalin folder "TGOS Toolbox" dari playbook ke <drive sistem>\TGOS Toolbox,
+       ditambah tiga skrip playbook yang dipakai tombol Toolbox (Common.ps1,
+       Install-Software.ps1, Set-ShellLayout.ps1) ke subfolder Support.
     2. Membuat pintasan "TGOS Toolbox" di Desktop semua pengguna.
     3. Menyalin wallpaper ke %SystemRoot%\Web\Wallpaper\TGOS\TGOS.png.
 
@@ -46,6 +48,11 @@ try {
         Remove-Item -LiteralPath $ToolboxDestination -Recurse -Force
     }
     Copy-Item -LiteralPath $toolboxSource -Destination $ToolboxDestination -Recurse -Force
+
+    # Skrip playbook yang juga dipakai tombol Toolbox (pasang software, susun ulang pin).
+    foreach ($name in @('Common.ps1', 'Install-Software.ps1', 'Set-ShellLayout.ps1')) {
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $ToolboxDestination 'Support') -Force
+    }
     Write-Output ("TGOS: Toolbox installed to {0}" -f $ToolboxDestination)
 }
 catch {

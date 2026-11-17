@@ -50,10 +50,31 @@ actions:
   - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Edge', value: 'BackgroundModeEnabled', data: '0', type: REG_DWORD }
 
   # --- Efek visual -----------------------------------------------------------------
-  # Transparansi dan animasi dimatikan untuk meringankan compositor.
+  # Transparansi dimatikan untuk meringankan compositor.
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', value: 'EnableTransparency', data: '0', type: REG_DWORD }
-  - !registryValue: { path: 'HKCU\Control Panel\Desktop\WindowMetrics', value: 'MinAnimate', data: '0', type: REG_SZ }
-  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'TaskbarAnimations', data: '0', type: REG_DWORD }
+
+  # --- Opsi: animasi ---------------------------------------------------------------
+  # Animasi jendela, menu, dan taskbar dimatikan; menu tampil tanpa jeda. Perataan font,
+  # thumbnail, dan isi jendela saat digeser TETAP ada. Berlaku setelah login ulang.
+  # Bisa diatur lagi di Settings > Accessibility > Visual effects, atau di
+  # "Adjust the appearance and performance of Windows".
+  - !registryValue: { path: 'HKCU\Control Panel\Desktop\WindowMetrics', value: 'MinAnimate', data: '0', type: REG_SZ, option: 'disable-animations' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'TaskbarAnimations', data: '0', type: REG_DWORD, option: 'disable-animations' }
+  - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'MenuShowDelay', data: '0', type: REG_SZ, option: 'disable-animations' }
+  # 3 = pengaturan khusus (bukan "biarkan Windows memilih").
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects', value: 'VisualFXSetting', data: '3', type: REG_DWORD, option: 'disable-animations' }
+  # Topeng efek visual Windows. Bawaan: 9E1E078012000000. Nilai ini mematikan animasi
+  # dan efek pudar, mempertahankan perataan font dan isi jendela saat digeser.
+  - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'UserPreferencesMask', data: '9012038010000000', type: REG_BINARY, option: 'disable-animations' }
+
+  # --- Tombol aksesibilitas --------------------------------------------------------
+  # Jalan pintas Sticky Keys (Shift 5 kali), Filter Keys (tahan Shift kanan), dan
+  # Toggle Keys (tahan Num Lock) dimatikan, supaya popup-nya tidak muncul di tengah
+  # game. Fiturnya sendiri tetap bisa dinyalakan di Settings > Accessibility > Keyboard.
+  # Bawaan Windows: 510, 126, 62.
+  - !registryValue: { path: 'HKCU\Control Panel\Accessibility\StickyKeys', value: 'Flags', data: '506', type: REG_SZ }
+  - !registryValue: { path: 'HKCU\Control Panel\Accessibility\Keyboard Response', value: 'Flags', data: '122', type: REG_SZ }
+  - !registryValue: { path: 'HKCU\Control Panel\Accessibility\ToggleKeys', value: 'Flags', data: '58', type: REG_SZ }
 
   # --- Startup ---------------------------------------------------------------------
   # Menghilangkan jeda sebelum aplikasi startup dijalankan setelah login.
@@ -63,6 +84,15 @@ actions:
   # NTFS tidak memperbarui waktu akses terakhir setiap file dibaca (2147483649 =
   # 0x80000001, "dimatikan oleh pengguna"), mengurangi penulisan disk.
   - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\FileSystem', value: 'NtfsDisableLastAccessUpdate', data: '2147483649', type: REG_DWORD }
+
+  # --- Opsi: core parking CPU ------------------------------------------------------
+  # Windows "memarkir" core CPU yang sedang tidak dipakai untuk menghemat daya; core itu
+  # butuh waktu untuk aktif lagi. Di sini jumlah core minimum yang tidak boleh diparkir
+  # dijadikan 100% pada skema daya yang aktif. Daya idle naik sedikit, jadi tidak untuk
+  # laptop. Dijalankan SETELAH power plan di bawah diaktifkan (urutan aksi di file ini),
+  # nilai sebelumnya dicatat, dan bisa dikembalikan lewat TGOS Toolbox.
+  #
+  # (Aksi skripnya ada di akhir file, sesudah opsi power plan.)
 
   # --- Opsi: hibernasi dan Fast Startup --------------------------------------------
   # Fast Startup membuat shutdown menjadi hibernasi parsial; mematikannya memberi boot
@@ -93,3 +123,15 @@ actions:
     showOutput: true
     showError: true
     option: 'disable-power-saving'
+
+  # --- Opsi: core parking CPU (aksi) -----------------------------------------------
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Set-PowerPlan.ps1" -DisableCoreParking'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 3
+    showOutput: true
+    showError: true
+    option: 'disable-core-parking'

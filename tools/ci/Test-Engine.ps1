@@ -30,12 +30,19 @@
 
 .PARAMETER Options
     Opsi tambahan dipisah spasi. Opsi radio di sini menggantikan bawaan halamannya.
+
+.PARAMETER ForceItems
+    Program (dipisah spasi) yang diunduh dan dipasang ulang setelah playbook selesai,
+    lewat skrip di TGOS Toolbox. Image runner sudah berisi Chrome, Firefox, dan 7-Zip,
+    jadi tanpa ini jalur unduh dan pemeriksaan tanda tangan untuk program itu tidak
+    teruji (skrip hanya berkata "already installed").
 #>
 [CmdletBinding()]
 param(
     [ValidateSet('default', 'all')]
     [string]$OptionSet = 'default',
     [string]$Options = '',
+    [string]$ForceItems = '',
     [string]$WorkDirectory,
     [int]$TimeoutMinutes = 25
 )
@@ -313,6 +320,40 @@ else {
 }
 
 # =======================================================================================
+Write-Section 'Installer safety checks'
+$playbookScripts = Join-Path $playbook 'Executables\Scripts'
+$scratchData = Join-Path $WorkDirectory 'scratch-data'
+New-Item -ItemType Directory -Path $scratchData -Force | Out-Null
+
+# Unduhan yang gagal tidak boleh menghentikan apa pun: skrip melapor, mencatat, selesai.
+$command = 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -Item firefox -Force -UrlOverride "https://tgos-ci.invalid/setup.exe" -DataDirectory "{1}" 2>&1' -f (Join-Path $playbookScripts 'Install-Software.ps1'), $scratchData
+$output = & cmd.exe /c $command | Out-String
+$exit = $LASTEXITCODE
+$record = @()
+if (Test-Path -LiteralPath (Join-Path $scratchData 'software.txt')) { $record = @(Get-Content -LiteralPath (Join-Path $scratchData 'software.txt')) }
+$ok = ($exit -eq 1) -and ($output -match 'WARNING: Mozilla Firefox was not installed') -and (@($record | Where-Object { $_ -match '^firefox: failed' }).Count -eq 1)
+if (-not (Assert-That $ok 'software: a failed download is reported and recorded, and nothing is run')) {
+    Write-Host ('   exit {0}' -f $exit)
+    $output -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 4 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+}
+
+# Pengaman Edge: bila browser yang diminta tidak terpasang, Edge tidak dihapus.
+$edgeExe = @(${env:ProgramFiles(x86)}, $env:ProgramFiles) | Where-Object { $_ } |
+    ForEach-Object { Join-Path $_ 'Microsoft\Edge\Application\msedge.exe' } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if ($edgeExe) {
+    Set-Content -LiteralPath (Join-Path $scratchData 'software.txt') -Value 'brave: requested' -Encoding ASCII
+    $command = 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -DataDirectory "{1}" -AssumeNoBrowser 2>&1' -f (Join-Path $playbookScripts 'Remove-Edge.ps1'), $scratchData
+    $output = & cmd.exe /c $command | Out-String
+    $ok = ($output -match 'Microsoft Edge was kept') -and (Test-Path -LiteralPath $edgeExe)
+    if (-not (Assert-That $ok 'edge: kept when the requested browser is not installed')) {
+        $output -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 4 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+    }
+}
+else {
+    Write-Host '  skip  edge: Microsoft Edge is not installed on this runner'
+}
+
+# =======================================================================================
 Write-Section 'Pass test (runner edition allowed)'
 $playbookPass = Join-Path $WorkDirectory 'playbook-pass'
 Copy-Item -LiteralPath $playbook -Destination $playbookPass -Recurse -Force
@@ -365,7 +406,7 @@ if (Test-Path -LiteralPath $engineOutput) {
     Get-Content -LiteralPath $engineOutput |
         Where-Object { $_ -match 'TGOS: (?!recorded option|task disabled:|task not present)|PASSED:|REJECTED:|SUMMARY:' -or $_ -match 'WARNING: ' } |
         ForEach-Object { ($_ -replace '^.*?(TGOS: |PASSED:|REJECTED:|SUMMARY:|WARNING: )', '$1') } |
-        Select-Object -First 40 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+        Select-Object -First 80 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
 }
 
 Write-Host '   install-info.txt:'
@@ -378,6 +419,34 @@ if ($enabledTasks.Count -gt 0) {
         })
     $null = Assert-That ($stillEnabled.Count -eq 0) ('pass: all {0} task(s) enabled before the run are now Disabled' -f $enabledTasks.Count)
     $stillEnabled | ForEach-Object { Write-Host ('   still enabled: {0}{1}' -f $_.TaskPath, $_.TaskName) }
+}
+
+# =======================================================================================
+Write-Section 'Software'
+$selectedOptions = @($optionList -split '\s+' | Where-Object { $_ })
+$softwareChecks = @(
+    @{ Option = 'browser-brave'; Name = 'Brave'; Relative = 'BraveSoftware\Brave-Browser\Application\brave.exe' },
+    @{ Option = 'browser-chrome'; Name = 'Chrome'; Relative = 'Google\Chrome\Application\chrome.exe' },
+    @{ Option = 'browser-firefox'; Name = 'Firefox'; Relative = 'Mozilla Firefox\firefox.exe' },
+    @{ Option = 'install-7zip'; Name = '7-Zip'; Relative = '7-Zip\7z.exe' })
+foreach ($check in $softwareChecks) {
+    if ($selectedOptions -notcontains $check.Option) { continue }
+    $found = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
+        ForEach-Object { Join-Path $_ $check.Relative } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    $null = Assert-That ([bool]$found) ('software: {0} is installed after the run' -f $check.Name)
+    if ($found) { Write-Host ('   {0} {1}' -f $found, (Get-Item -LiteralPath $found).VersionInfo.ProductVersion) }
+}
+
+# Unduh, periksa tanda tangan, dan pasang ulang lewat skrip yang terpasang di Toolbox.
+$toolboxInstaller = Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox\Support\Install-Software.ps1'
+foreach ($item in @($ForceItems -split '\s+' | Where-Object { $_ })) {
+    $command = 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -Item {1} -Force 2>&1' -f $toolboxInstaller, $item
+    $output = & cmd.exe /c $command | Out-String
+    $exit = $LASTEXITCODE
+    $ok = ($exit -eq 0) -and ($output -match 'verified:') -and ($output -match 'TGOS: .+ installed')
+    $null = Assert-That $ok ('software: forced download of {0} is verified and installed' -f $item)
+    $output -split "`r?`n" | Where-Object { $_ -match 'TGOS: |WARNING: ' } | Select-Object -First 8 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+    if (-not $ok) { Write-Host ('   exit {0}' -f $exit) }
 }
 
 # =======================================================================================
@@ -414,6 +483,10 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
         @{ Feature = 'AutoUpdate'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'; Name = 'NoAutoUpdate'; Off = 1; On = $null },
         @{ Feature = 'Indexing'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\WSearch'; Name = 'Start'; Off = 4; On = 2 },
         @{ Feature = 'Hibernation'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'; Name = 'HiberbootEnabled'; Off = 0; On = 1 },
+        @{ Feature = 'Telemetry'; Path = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\CompatTelRunner.exe'; Name = 'Debugger'; Off = '%windir%\System32\taskkill.exe'; On = $null },
+        @{ Feature = 'ExtraServices'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\Spooler'; Name = 'Start'; Off = 4; On = 2 },
+        # Tanpa nilai registry: yang diperiksa kode keluarnya (0, atau 3 bila tidak didukung).
+        @{ Feature = 'CoreParking'; Path = $null; Name = 'exit code'; Off = $null; On = $null },
         @{ Feature = 'Defender'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection'; Name = 'DisableRealtimeMonitoring'; Off = 1; On = $null }
     )
 
@@ -440,6 +513,13 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
                 # skrip menolak, menjelaskan caranya, dan tidak mengubah apa pun.
                 $untouched = ($null -eq (Get-Value -Path $case.Path -Name $case.Name))
                 $null = Assert-That ($untouched -and $output -match 'Tamper Protection') 'toolbox: Defender Off is refused while Tamper Protection is on, and changes nothing'
+                continue
+            }
+            if ($null -eq $case.Path) {
+                if (-not (Assert-That ($exit -eq 0) ('toolbox: {0} {1} -> exit 0' -f $case.Feature, $state))) {
+                    Write-Host ('   exit {0}' -f $exit)
+                    $output -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 4 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+                }
                 continue
             }
             $actual = Get-Value -Path $case.Path -Name $case.Name

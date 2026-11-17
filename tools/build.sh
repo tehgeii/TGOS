@@ -36,6 +36,10 @@ ITEMS=(playbook.conf Configuration Executables)
 if [[ -f "$SRC/playbook.png" ]]; then
     ITEMS+=(playbook.png)
 fi
+# Gambar opsi untuk halaman RadioImagePage.
+if [[ -d "$SRC/Images" ]]; then
+    ITEMS+=(Images)
+fi
 (cd "$SRC" && "$SEVENZIP" a -t7z -mx=9 "-p$APBX_PASSWORD" -bso0 -bsp0 "$APBX" "${ITEMS[@]}")
 "$SEVENZIP" t "-p$APBX_PASSWORD" -bso0 -bsp0 "$APBX"
 echo "Dibuat: ${APBX#"$ROOT"/}"

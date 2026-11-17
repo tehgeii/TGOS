@@ -22,12 +22,15 @@ actions:
   # Pengguna baru tidak mendapat pemasangan OneDrive otomatis saat login pertama.
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run', value: 'OneDriveSetup', operation: delete, option: 'remove-onedrive' }
 
-  # --- Opsi: Microsoft Edge (eksperimental) ----------------------------------------
+  # --- Opsi: Microsoft Edge --------------------------------------------------------
   # Memakai uninstaller milik Edge sendiri. WebView2 Runtime TIDAK dihapus karena
   # banyak launcher dan aplikasi bergantung padanya. Di Windows 11 Pro 26H2 Microsoft
-  # menolak uninstall biasa (kode 93), jadi skrip mencoba dua cara tambahan; tetap bisa
-  # gagal, dan update Windows bisa memasang Edge kembali. Hasilnya diperiksa di laporan
-  # verifikasi. Tidak fatal.
+  # menolak uninstall biasa (kode 93); cara pertama skrip ini berhasil di uji TGOS 0.9.1.
+  # Update Windows bisa memasang Edge kembali. Hasilnya diperiksa di laporan verifikasi.
+  # Tidak fatal.
+  #
+  # Pengaman: bila pengguna memilih browser di Wizard tetapi browser itu tidak terpasang
+  # (mis. unduhan gagal), skrip TIDAK menghapus Edge.
   - !run:
     exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
     args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Remove-Edge.ps1"'

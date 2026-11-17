@@ -11,10 +11,12 @@
     Microsoft Edge WebView2 Runtime TIDAK dihapus: itu produk terpisah yang dipakai
     banyak launcher dan aplikasi. Update Windows bisa memasang Edge lagi.
 
-    -RequireBrowser
-        Edge TIDAK dihapus bila tidak ada browser lain yang terpasang. Dipakai playbook
-        ketika pengguna memilih browser untuk dipasang: bila pemasangannya gagal, Edge
-        dibiarkan supaya pengguna tidak kehilangan browser.
+    Pengaman: bila pengguna memilih browser untuk dipasang (tercatat "requested" di
+    <folder data TGOS>\software.txt oleh Install-Software.ps1) tetapi tidak ada browser
+    lain yang terpasang, Edge TIDAK dihapus, supaya pengguna tidak kehilangan browser.
+    Bila pengguna memilih "None", tidak ada catatan itu dan Edge dihapus sesuai pilihan.
+
+    -DataDirectory dan -AssumeNoBrowser hanya untuk pengujian.
 
     Skrip ini tidak fatal (kode keluar selalu 0); hasil sebenarnya diperiksa
     Test-TgosResult.ps1.
@@ -23,7 +25,8 @@
 #>
 [CmdletBinding()]
 param(
-    [switch]$RequireBrowser
+    [string]$DataDirectory,
+    [switch]$AssumeNoBrowser
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,8 +53,15 @@ try {
         exit 0
     }
 
-    if ($RequireBrowser) {
+    if (-not $DataDirectory) { $DataDirectory = Join-Path $env:ProgramData 'TGOS' }
+    $record = Join-Path $DataDirectory 'software.txt'
+    $requested = @()
+    if (Test-Path -LiteralPath $record) {
+        $requested = @(Get-Content -LiteralPath $record | Where-Object { $_ -match '^(brave|chrome|firefox):\s*requested\b' })
+    }
+    if ($requested.Count -gt 0) {
         $other = @(Get-TgosInstalledBrowsers)
+        if ($AssumeNoBrowser) { $other = @() }
         if ($other.Count -eq 0) {
             Write-Output 'WARNING: Microsoft Edge was kept: the selected browser is not installed, and removing Edge would leave no browser'
             exit 0

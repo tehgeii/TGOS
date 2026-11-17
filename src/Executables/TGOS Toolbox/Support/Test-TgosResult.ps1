@@ -170,6 +170,11 @@ function Compare-RegistryData {
         $unsigned = [BitConverter]::ToUInt64([BitConverter]::GetBytes([long]$Actual), 0)
         return ($unsigned -eq [uint64]$Expected)
     }
+    if ($RegType -eq 'REG_BINARY') {
+        # Data biner ditulis di YAML sebagai heksadesimal tanpa pemisah.
+        $hex = -join (@($Actual) | ForEach-Object { '{0:X2}' -f [int]$_ })
+        return ($hex -eq ('' + $Expected).ToUpper())
+    }
     return ([string]$Actual -eq $Expected)
 }
 
@@ -289,6 +294,88 @@ function Test-TaskCheck {
 
 # --- Pemeriksaan hasil skrip (tidak berasal dari YAML) -------------------------------
 
+function Find-Program {
+    # Jalur pertama yang ada di Program Files (64-bit lalu 32-bit), atau $null.
+    param([string]$Relative)
+    foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+        if ($base) {
+            $path = Join-Path $base $Relative
+            if (Test-Path -LiteralPath $path) { return $path }
+        }
+    }
+    return $null
+}
+
+function Test-AnyBrowser {
+    foreach ($relative in @('BraveSoftware\Brave-Browser\Application\brave.exe',
+            'Google\Chrome\Application\chrome.exe', 'Mozilla Firefox\firefox.exe')) {
+        if (Find-Program $relative) { return $true }
+    }
+    return $false
+}
+
+function Test-VcRuntime {
+    param([string]$Architecture)
+    foreach ($subKey in @(
+            ('SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\{0}' -f $Architecture),
+            ('SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\{0}' -f $Architecture))) {
+        $read = Read-RegistryValue ([Microsoft.Win32.Registry]::LocalMachine) $subKey 'Installed'
+        if ($read.Found -and [int]$read.Data -eq 1) { return $true }
+    }
+    return $false
+}
+
+function Test-SoftwareResults {
+    # Program pilihan pengguna. Yang tidak terpasang bisa diulang dari TGOS Toolbox.
+    $programs = @(
+        @{ Option = 'browser-brave'; Name = 'Brave'; Relative = 'BraveSoftware\Brave-Browser\Application\brave.exe' },
+        @{ Option = 'browser-chrome'; Name = 'Google Chrome'; Relative = 'Google\Chrome\Application\chrome.exe' },
+        @{ Option = 'browser-firefox'; Name = 'Mozilla Firefox'; Relative = 'Mozilla Firefox\firefox.exe' },
+        @{ Option = 'install-7zip'; Name = '7-Zip'; Relative = '7-Zip\7z.exe' })
+    foreach ($program in $programs) {
+        if (-not (Test-Option $program.Option)) { continue }
+        $path = Find-Program $program.Relative
+        if ($path) {
+            Add-Result 'PASS' 'software' $program.Name ("installed: {0}" -f $path) 'Install-Software.ps1'
+        }
+        else {
+            Add-Result 'FAIL' 'software' $program.Name 'not installed; retry from the TGOS Toolbox (needs internet)' 'Install-Software.ps1'
+        }
+    }
+
+    if (Test-Option 'install-runtimes') {
+        if ((Test-VcRuntime 'x64') -and (Test-VcRuntime 'x86')) {
+            Add-Result 'PASS' 'software' 'Visual C++ Redistributable' 'x64 and x86 installed' 'Install-Software.ps1'
+        }
+        else {
+            Add-Result 'FAIL' 'software' 'Visual C++ Redistributable' 'x64 or x86 runtime missing; retry from the TGOS Toolbox' 'Install-Software.ps1'
+        }
+        $legacy = @('System32', 'SysWOW64') | ForEach-Object { Join-Path $env:SystemRoot ('{0}\d3dx9_43.dll' -f $_) } |
+            Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+        if ($legacy) {
+            Add-Result 'PASS' 'software' 'DirectX End-User Runtime' 'legacy DirectX libraries present' 'Install-Software.ps1'
+        }
+        else {
+            Add-Result 'FAIL' 'software' 'DirectX End-User Runtime' 'd3dx9_43.dll missing; retry from the TGOS Toolbox' 'Install-Software.ps1'
+        }
+    }
+
+    if (Test-Option 'disable-core-parking') {
+        # Dua angka heksadesimal terakhir = nilai AC dan baterai saat ini.
+        $query = (& cmd.exe /c 'powercfg.exe /query SCHEME_CURRENT 54533251-82be-4824-96c1-47b60b740d00 0cc5b647-c1df-4637-891a-dec35c318583 2>&1' | Out-String)
+        $values = @([regex]::Matches($query, '0x[0-9a-fA-F]{8}') | ForEach-Object { [Convert]::ToInt32($_.Value, 16) })
+        if ($values.Count -ge 2 -and $values[$values.Count - 2] -eq 100) {
+            Add-Result 'PASS' 'core parking' 'minimum unparked cores' '100% on the active power plan' 'Set-PowerPlan.ps1'
+        }
+        elseif ($values.Count -lt 2) {
+            Add-Result 'SKIP' 'core parking' 'minimum unparked cores' 'setting not available on this PC' 'Set-PowerPlan.ps1'
+        }
+        else {
+            Add-Result 'FAIL' 'core parking' 'minimum unparked cores' ("expected 100, found {0}" -f $values[$values.Count - 2]) 'Set-PowerPlan.ps1'
+        }
+    }
+}
+
 function Test-ScriptResults {
     $toolbox = Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox'
     if (Test-Path -LiteralPath (Join-Path $toolbox 'Support\Set-TgosFeature.ps1')) {
@@ -404,7 +491,12 @@ function Test-ScriptResults {
                 if (Test-Path -LiteralPath $candidate) { $edge = $candidate }
             }
         }
-        if ($edge) {
+        $browserWanted = (Test-Option 'browser-brave') -or (Test-Option 'browser-chrome') -or (Test-Option 'browser-firefox')
+        if ($edge -and $browserWanted -and -not (Test-AnyBrowser)) {
+            # Bukan kegagalan: Edge sengaja dipertahankan supaya masih ada browser.
+            Add-Result 'WARN' 'edge' 'Microsoft Edge' 'kept on purpose: the selected browser is not installed' 'Remove-Edge.ps1'
+        }
+        elseif ($edge) {
             Add-Result 'FAIL' 'edge' 'Microsoft Edge' ("still installed: {0}" -f $edge) 'Remove-Edge.ps1'
         }
         else {
@@ -457,6 +549,12 @@ if ($null -ne $state) {
     }
     catch {
         Add-Result 'FAIL' 'setup' 'script results' ("check crashed: {0}" -f (($_.Exception.Message -replace '\s+', ' ').Trim())) ''
+    }
+    try {
+        Test-SoftwareResults
+    }
+    catch {
+        Add-Result 'FAIL' 'setup' 'software results' ("check crashed: {0}" -f (($_.Exception.Message -replace '\s+', ' ').Trim())) ''
     }
 }
 

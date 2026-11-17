@@ -100,6 +100,19 @@ actions:
   - !appx: { name: 'Microsoft.XboxSpeechToTextOverlay*', type: family, option: 'remove-xbox' }  # Xbox speech-to-text overlay
   - !appx: { name: 'Microsoft.Xbox.TCUI*', type: family, option: 'remove-xbox' }  # Xbox Live dialog UI
 
+  # --- Opsi: Microsoft Edge --------------------------------------------------------
+  # Edge sendiri dihapus skrip di modul komponen; ini pendampingnya di Game Bar.
+  - !appx: { name: 'Microsoft.Edge.GameAssist*', type: family, option: 'remove-edge' }  # Microsoft Edge Game Assist
+
+  # --- Opsi: Microsoft Store -------------------------------------------------------
+  # Default mati. Tanpa Store, aplikasi Xbox / PC Game Pass dan aplikasi Store lain tidak
+  # bisa dipasang atau diperbarui. App Installer (winget) TIDAK dihapus. Store bisa
+  # dipasang lagi lewat "Reinstall Microsoft Store" di TGOS Toolbox.
+  # Kedua paket ini ada di daftar dilindungi tools/validate.py dan hanya boleh dihapus
+  # dengan opsi ini.
+  - !appx: { name: 'Microsoft.WindowsStore*', type: family, option: 'remove-store' }  # Microsoft Store
+  - !appx: { name: 'Microsoft.StorePurchaseApp*', type: family, option: 'remove-store' }  # Store Purchase App
+
   # --- Segarkan cache Start dan Search ---------------------------------------------
   # Anjuran dokumentasi AME setelah menghapus paket AppX, supaya ubin aplikasi yang
   # sudah dihapus tidak tertinggal di Start dan hasil pencarian.

@@ -47,25 +47,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Browser berbeda di tiap job, supaya ketiganya terpasang lewat mesin AME.
+          # "force" = program yang diunduh ulang sesudahnya: image runner sudah berisi
+          # Chrome, Firefox, dan 7-Zip, jadi tanpa ini unduhannya tidak teruji.
           - name: default
             os: windows-2025
             set: default
             options: ''
+            force: '7zip vcredist'
             experimental: false
           - name: all-options
             os: windows-2025
             set: all
-            options: 'mitigations-disable'
+            options: 'mitigations-disable browser-chrome'
+            force: 'chrome directx'
             experimental: false
           - name: windows-11
             os: windows-11-arm
             set: default
             options: ''
+            force: 'firefox'
             experimental: true
           - name: windows-11-all-options
             os: windows-11-arm
             set: all
-            options: 'mitigations-disable'
+            options: 'mitigations-disable browser-firefox'
+            force: ''
             experimental: true
     defaults:
       run:
@@ -75,7 +82,7 @@ jobs:
       - name: Install Python packages
         run: python -m pip install --quiet pyyaml
       - name: Run playbook through the AME engine
-        run: .\tools\ci\Test-Engine.ps1 -OptionSet ${{ matrix.set }} -Options '${{ matrix.options }}'
+        run: .\tools\ci\Test-Engine.ps1 -OptionSet ${{ matrix.set }} -Options '${{ matrix.options }}' -ForceItems '${{ matrix.force }}'
       - name: Upload logs and snapshots
         if: always()
         uses: actions/upload-artifact@v4

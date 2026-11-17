@@ -189,6 +189,49 @@ $tgos = Invoke-Section 'tgos' {
     }
 }
 
+# Program biasa (bukan paket Store) yang terdaftar di "Installed apps". Dibutuhkan untuk
+# menemukan program seperti Copilot, yang di 26H2 bukan paket Store.
+$programs = Invoke-Section 'programs' {
+    $roots = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall')
+    $list = @()
+    foreach ($root in $roots) {
+        if (-not (Test-Path -LiteralPath $root)) { continue }
+        foreach ($key in (Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
+            $item = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
+            if (-not $item -or -not $item.DisplayName) { continue }
+            $list += [ordered]@{
+                name            = [string]$item.DisplayName
+                key             = [string]$key.PSChildName
+                version         = [string]$item.DisplayVersion
+                uninstallString = [string]$item.UninstallString
+                systemComponent = [bool]($item.SystemComponent -eq 1)
+            }
+        }
+    }
+    @($list | Sort-Object { $_.name })
+}
+
+# Nama dan ID aplikasi di Start (dipakai untuk pin taskbar dan Start).
+$startApps = Invoke-Section 'startApps' {
+    @(Get-StartApps | Sort-Object Name | ForEach-Object {
+            [ordered]@{ name = [string]$_.Name; appId = [string]$_.AppID }
+        })
+}
+
+# Pintasan pin taskbar milik pengguna yang menjalankan skrip ini.
+$taskbarPins = Invoke-Section 'taskbarPins' {
+    $folder = Join-Path $env:APPDATA 'Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar'
+    if (Test-Path -LiteralPath $folder) {
+        @(Get-ChildItem -LiteralPath $folder -Filter '*.lnk' -Force -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.Name })
+    }
+    else {
+        @()
+    }
+}
+
 $snapshot = [ordered]@{
     schema         = 1
     label          = $Label
@@ -205,6 +248,9 @@ $snapshot = [ordered]@{
     appx           = $appx
     provisioned    = $provisioned
     scheduledTasks = $tasks
+    programs       = $programs
+    startApps      = $startApps
+    taskbarPins    = $taskbarPins
     errors         = $script:errors
 }
 

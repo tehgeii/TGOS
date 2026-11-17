@@ -33,6 +33,7 @@ SERVICES = "src/Configuration/Tasks/30-services.yml"
 TASK_LIST = "src/Executables/TGOS/scheduled-tasks.txt"
 EXPECTED_STATE = "src/Executables/TGOS Toolbox/Support/expected-state.json"
 ICON = "src/playbook.png"
+OPTION_IMAGE = "src/Images/firefox.png"
 
 # PNG 1x1 yang valid: dipakai untuk menguji pemeriksaan ukuran ikon.
 TINY_PNG = bytes.fromhex(
@@ -140,8 +141,22 @@ MUTATIONS = [
     # --- Catatan instalasi ---
     ("opsi tidak dicatat", FINALIZE, '-AppendOption "remove-edge"', '-AppendOption "remove-edg"',
      "opsi 'remove-edge' tidak dicatat"),
-    ("modul tidak cocok dengan main.yml", FINALIZE, "preflight,debloat-appx,", "preflight,debloat,",
+    ("modul tidak cocok dengan main.yml", FINALIZE, "preflight,software,debloat-appx,", "preflight,software,debloat,",
      "tidak sama dengan modul"),
+    ("Store dihapus tanpa opsinya", APPX, "type: family, option: 'remove-store' }  # Microsoft Store",
+     "type: family }  # Microsoft Store", "hanya boleh dengan option: 'remove-store'"),
+    ("Spooler dimatikan tanpa opsinya", SERVICES, "name: 'Spooler', operation: change, startup: 4, option: 'trim-services'",
+     "name: 'Spooler', operation: change, startup: 4", "hanya boleh disentuh dengan option: 'trim-services'"),
+    ("gambar opsi tidak ada", CONF, "<FileName>brave</FileName>", "<FileName>opera</FileName>",
+     "Images/opera.png tidak ditemukan"),
+    ("warna gradasi salah format", CONF, "<GradientTopColor>#FB542B</GradientTopColor>",
+     "<GradientTopColor>orange</GradientTopColor>", "warna gradasi harus berformat #RRGGBB"),
+    ("warna gradasi sama", CONF, "<GradientBottomColor>#A3300F</GradientBottomColor>",
+     "<GradientBottomColor>#FB542B</GradientBottomColor>", "dua warna gradasi tidak boleh sama"),
+    ("opsi gambar tanpa FileName", CONF, "\t\t\t\t\t<FileName>chrome</FileName>\n", "",
+     "opsi gambar 'browser-chrome' tanpa <FileName>"),
+    ("opsi None di halaman wajib", CONF, '<RadioImagePage DefaultOption="browser-brave"',
+     '<RadioImagePage IsRequired="true" DefaultOption="browser-brave"', "punya opsi None tetapi IsRequired"),
     ("kunci options dipakai", PRIVACY, "option: 'remove-ai-widgets' }",
      "options: ['remove-ai-widgets'] }", "options: tidak dipakai"),
     # --- Halaman opsi ---
@@ -177,6 +192,8 @@ BINARY_MUTATIONS = [
     ("ikon bukan PNG", ICON, b"GIF89a bukan png, cuma teks pengisi", "bukan file PNG"),
     ("ikon salah ukuran", ICON, TINY_PNG, "harus 256x256"),
     ("file pendukung hilang", EXPECTED_STATE, None, "file pendukung tidak ditemukan"),
+    ("gambar opsi salah tinggi", OPTION_IMAGE, TINY_PNG, "tingginya 1 piksel"),
+    ("gambar opsi bukan PNG", OPTION_IMAGE, b"bukan png, cuma teks pengisi yang cukup panjang", "bukan file PNG"),
 ]
 
 # (edisi, build, arsitektur, kode keluar yang diharapkan)

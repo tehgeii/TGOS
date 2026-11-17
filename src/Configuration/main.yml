@@ -11,6 +11,10 @@ actions:
   - !writeStatus: { status: 'Checking system' }
   - !task: { path: 'Tasks\00-preflight.yml' }
 
+  # Unduhan dan pemasangan lebih dulu, selagi sistem masih utuh.
+  - !writeStatus: { status: 'Installing software' }
+  - !task: { path: 'Tasks\05-software.yml' }
+
   - !writeStatus: { status: 'Removing apps' }
   - !task: { path: 'Tasks\10-debloat-appx.yml' }
 

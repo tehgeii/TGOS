@@ -11,6 +11,19 @@ actions:
   #   - Layanan di daftar PROTECTED_SERVICES pada tools/validate.py tidak boleh disentuh
   #     (audio, jaringan, firewall, Windows Update, Store, Bluetooth, printer, Defender).
 
+  # Nilai Start semua layanan di file ini dicatat dulu ke
+  # %ProgramData%\TGOS\services-before.txt, supaya TGOS Toolbox bisa mengembalikannya
+  # persis seperti semula.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Save-ServiceState.ps1"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 1
+    showOutput: true
+    showError: true
+
   # --- Telemetri dan diagnostik ----------------------------------------------------
   # Connected User Experiences and Telemetry: pengirim utama data telemetri.
   - !service: { name: 'DiagTrack', operation: change, startup: 4 }
@@ -63,3 +76,29 @@ actions:
   # Pengindeksan isi file. Tanpa ini pencarian file di Explorer lebih lambat, tetapi
   # pencarian aplikasi di Start tetap jalan.
   - !service: { name: 'WSearch', operation: change, startup: 4, option: 'disable-indexing' }
+
+  # --- Opsi: pangkas layanan ekstra ------------------------------------------------
+  # Default mati. Untuk PC gaming tanpa printer yang tidak butuh troubleshooter Windows
+  # dan tidak mencari perangkat lain di jaringan. Bisa dikembalikan lewat "Extra
+  # Services - Turn ON" di TGOS Toolbox. Berbagi file (LanmanServer) TIDAK disentuh.
+  #
+  # Printer: mencetak dan "Print to PDF" tidak jalan. Spooler ada di daftar dilindungi
+  # tools/validate.py dan hanya boleh dimatikan dengan opsi ini.
+  - !service: { name: 'Spooler', operation: change, startup: 4, option: 'trim-services' }
+  - !service: { name: 'PrintNotify', operation: change, startup: 4, option: 'trim-services' }
+  - !service: { name: 'PrintScanBrokerService', operation: change, startup: 4, option: 'trim-services' }
+  - !service: { name: 'PrintDeviceConfigurationService', operation: change, startup: 4, option: 'trim-services' }
+  # Diagnostik: troubleshooter Windows ("Find and fix problems") dan Program
+  # Compatibility Assistant tidak jalan.
+  - !service: { name: 'DPS', operation: change, startup: 4, option: 'trim-services' }
+  - !service: { name: 'WdiServiceHost', operation: change, startup: 4, option: 'trim-services' }
+  - !service: { name: 'WdiSystemHost', operation: change, startup: 4, option: 'trim-services' }
+  - !service: { name: 'PcaSvc', operation: change, startup: 4, option: 'trim-services' }
+  # Penemuan jaringan: PC ini tidak mencari atau mengumumkan diri ke perangkat lain
+  # (media server, printer jaringan), dan nama NetBIOS tidak dicari. Internet dan game
+  # online tidak terpengaruh.
+  - !service: { name: 'SSDPSRV', operation: change, startup: 4, option: 'trim-services' }
+  - !service: { name: 'upnphost', operation: change, startup: 4, option: 'trim-services' }
+  - !service: { name: 'fdPHost', operation: change, startup: 4, option: 'trim-services' }
+  - !service: { name: 'FDResPub', operation: change, startup: 4, option: 'trim-services' }
+  - !service: { name: 'lmhosts', operation: change, startup: 4, option: 'trim-services' }

@@ -4,7 +4,7 @@
 > `src/Configuration/Tasks/`. Jangan diedit langsung: ubah YAML-nya (termasuk komentar
 > di atas tiap aksi), lalu jalankan skrip itu lagi.
 
-Versi playbook: `0.9.1`
+Versi playbook: `1.0.0`
 
 Kolom **Syarat** kosong berarti tweak selalu diterapkan. `opsi: nama` berarti hanya bila
 opsi itu dicentang di AME Wizard; `build: ...` berarti hanya di build Windows tersebut.
@@ -39,7 +39,33 @@ dipasang lagi dari Store (lihat [TESTING.md](TESTING.md)).
 | Skrip | Syarat | Keterangan |
 |---|---|---|
 | `Scripts\Test-Compatibility.ps1` |  | AME Wizard hanya memeriksa nomor build (SupportedBuilds), tidak memeriksa edisi. Skrip ini keluar dengan kode bukan 0 bila edisi bukan Pro, build terlalu lama, atau arsitektur bukan x64. Kode bukan 0 menghentikan seluruh playbook. |
+| `Scripts\Test-Prerequisites.ps1` |  | Informasi saja (tidak menghentikan playbook): koneksi internet untuk unduhan software pilihan, dan ruang disk kosong. |
 | `Scripts\New-RestorePoint.ps1` |  | Restore point "Before TGOS <versi>" sebagai jaring pengaman untuk perubahan registry. Tidak fatal: skrip selalu keluar 0 dan mencatat hasilnya di %ProgramData%\TGOS\restore-point.txt, yang lalu disalin ke install-info.txt. |
+
+
+## 05-software (`05-software.yml`)
+
+
+### Opsi: browser
+
+| Skrip | Syarat | Keterangan |
+|---|---|---|
+| `Scripts\Install-Software.ps1` `-Item brave` | opsi: `browser-brave` | Halaman browser di Wizard adalah pilihan tunggal; "None" tidak mengirim opsi apa pun. |
+| `Scripts\Install-Software.ps1` `-Item chrome` | opsi: `browser-chrome` | Halaman browser di Wizard adalah pilihan tunggal; "None" tidak mengirim opsi apa pun. |
+| `Scripts\Install-Software.ps1` `-Item firefox` | opsi: `browser-firefox` | Halaman browser di Wizard adalah pilihan tunggal; "None" tidak mengirim opsi apa pun. |
+
+### Opsi: 7-Zip
+
+| Skrip | Syarat | Keterangan |
+|---|---|---|
+| `Scripts\Install-Software.ps1` `-Item 7zip` | opsi: `install-7zip` |  |
+
+### Opsi: runtime game
+
+| Skrip | Syarat | Keterangan |
+|---|---|---|
+| `Scripts\Install-Software.ps1` `-Item vcredist` | opsi: `install-runtimes` | Visual C++ 2015-2022 (x64 dan x86) dan pustaka DirectX lama (Juni 2010) yang masih dibutuhkan banyak game dan launcher. |
+| `Scripts\Install-Software.ps1` `-Item directx` | opsi: `install-runtimes` | Visual C++ 2015-2022 (x64 dan x86) dan pustaka DirectX lama (Juni 2010) yang masih dibutuhkan banyak game dan launcher. |
 
 
 ## Aplikasi bawaan (`10-debloat-appx.yml`)
@@ -120,6 +146,19 @@ dipasang lagi dari Store (lihat [TESTING.md](TESTING.md)).
 | Game Bar overlay | `Microsoft.XboxGameOverlay*` | opsi: `remove-xbox` | Microsoft.XboxIdentityProvider dan Microsoft.GamingServices TIDAK dihapus: keduanya dibutuhkan untuk login dan menjalankan game dari Microsoft Store / PC Game Pass. |
 | Xbox speech-to-text overlay | `Microsoft.XboxSpeechToTextOverlay*` | opsi: `remove-xbox` | Microsoft.XboxIdentityProvider dan Microsoft.GamingServices TIDAK dihapus: keduanya dibutuhkan untuk login dan menjalankan game dari Microsoft Store / PC Game Pass. |
 | Xbox Live dialog UI | `Microsoft.Xbox.TCUI*` | opsi: `remove-xbox` | Microsoft.XboxIdentityProvider dan Microsoft.GamingServices TIDAK dihapus: keduanya dibutuhkan untuk login dan menjalankan game dari Microsoft Store / PC Game Pass. |
+
+### Opsi: Microsoft Edge
+
+| Aplikasi | Paket | Syarat | Keterangan |
+|---|---|---|---|
+| Microsoft Edge Game Assist | `Microsoft.Edge.GameAssist*` | opsi: `remove-edge` | Edge sendiri dihapus skrip di modul komponen; ini pendampingnya di Game Bar. |
+
+### Opsi: Microsoft Store
+
+| Aplikasi | Paket | Syarat | Keterangan |
+|---|---|---|---|
+| Microsoft Store | `Microsoft.WindowsStore*` | opsi: `remove-store` | Default mati. Tanpa Store, aplikasi Xbox / PC Game Pass dan aplikasi Store lain tidak bisa dipasang atau diperbarui. App Installer (winget) TIDAK dihapus. Store bisa dipasang lagi lewat "Reinstall Microsoft Store" di TGOS Toolbox. Kedua paket ini ada di daftar dilindungi tools/validate.py dan hanya boleh dihapus dengan opsi ini. |
+| Store Purchase App | `Microsoft.StorePurchaseApp*` | opsi: `remove-store` | Default mati. Tanpa Store, aplikasi Xbox / PC Game Pass dan aplikasi Store lain tidak bisa dipasang atau diperbarui. App Installer (winget) TIDAK dihapus. Store bisa dipasang lagi lewat "Reinstall Microsoft Store" di TGOS Toolbox. Kedua paket ini ada di daftar dilindungi tools/validate.py dan hanya boleh dihapus dengan opsi ini. |
 
 ### Segarkan cache Start dan Search
 
@@ -204,6 +243,32 @@ Bukan penghapusan: hanya mengosongkan cache `*Client.CBS*`, `*StartMenuExperienc
 | `HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting` | `Disabled` | `1` |  | Windows Error Reporting tidak mengirim laporan crash ke Microsoft. |
 | `HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization` | `DODownloadMode` | `0` |  | Delivery Optimization: unduh update hanya dari Microsoft, tidak mengunggah ke PC lain. |
 
+### Telemetri: policy tambahan
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection` | `DisableOneSettingsDownloads` | `1` |  | Windows tidak mengunduh konfigurasi telemetri dari layanan OneSettings. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection` | `LimitDiagnosticLogCollection` | `1` |  | Log diagnostik dan memory dump tidak ikut dikirim. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection` | `LimitDumpCollection` | `1` |  | Log diagnostik dan memory dump tidak ikut dikirim. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection` | `AllowDeviceNameInTelemetry` | `0` |  | Nama perangkat tidak disertakan di data diagnostik. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\AppCompat` | `AITEnable` | `0` |  | Application Telemetry, inventaris program, dan perekam langkah pengguna dimatikan. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\AppCompat` | `DisableInventory` | `1` |  | Application Telemetry, inventaris program, dan perekam langkah pengguna dimatikan. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\AppCompat` | `DisableUAR` | `1` |  | Application Telemetry, inventaris program, dan perekam langkah pengguna dimatikan. |
+| `HKLM\SOFTWARE\Policies\Microsoft\SQMClient\Windows` | `CEIPEnable` | `0` |  | Customer Experience Improvement Program. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\TabletPC` | `PreventHandwritingDataSharing` | `1` |  | Data tulisan tangan dan laporan error pengenalnya tidak dikirim. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\HandwritingErrorReports` | `PreventHandwritingErrorReports` | `1` |  | Data tulisan tangan dan laporan error pengenalnya tidak dikirim. |
+| `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment` | `DOTNET_CLI_TELEMETRY_OPTOUT` | `1` |  | Telemetri alat pengembang Microsoft (.NET CLI dan PowerShell 7) lewat variabel lingkungan sistem. Tidak berpengaruh bila alat itu tidak terpasang. |
+| `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment` | `POWERSHELL_TELEMETRY_OPTOUT` | `1` |  | Telemetri alat pengembang Microsoft (.NET CLI dan PowerShell 7) lewat variabel lingkungan sistem. Tidak berpengaruh bila alat itu tidak terpasang. |
+
+### Telemetri: komponen inti
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\AutoLogger-Diagtrack-Listener` | `Start` | `0` |  | Perekam otomatis yang menampung data telemetri sejak boot tidak dijalankan. |
+| `HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\SQMLogger` | `Start` | `0` |  | Perekam otomatis yang menampung data telemetri sejak boot tidak dijalankan. |
+| `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\CompatTelRunner.exe` | `Debugger` | `%windir%\System32\taskkill.exe` |  | Dua program pengumpul data dicegah jalan: setiap kali Windows mencoba menjalankannya, yang jalan adalah taskkill (langsung selesai tanpa berbuat apa-apa). Tidak ada jaringan yang diblokir. CompatTelRunner.exe  Compatibility Appraiser: memindai program dan perangkat DeviceCensus.exe     mengirim data spesifikasi perangkat Akibatnya: pemeriksa kompatibilitas sebelum upgrade fitur Windows (mis. 25H2 ke 26H2) tidak jalan. Sebelum upgrade fitur, buka lagi lewat "Telemetry Collectors - Turn ON" di TGOS Toolbox. |
+| `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\DeviceCensus.exe` | `Debugger` | `%windir%\System32\taskkill.exe` |  | Dua program pengumpul data dicegah jalan: setiap kali Windows mencoba menjalankannya, yang jalan adalah taskkill (langsung selesai tanpa berbuat apa-apa). Tidak ada jaringan yang diblokir. CompatTelRunner.exe  Compatibility Appraiser: memindai program dan perangkat DeviceCensus.exe     mengirim data spesifikasi perangkat Akibatnya: pemeriksa kompatibilitas sebelum upgrade fitur Windows (mis. 25H2 ke 26H2) tidak jalan. Sebelum upgrade fitur, buka lagi lewat "Telemetry Collectors - Turn ON" di TGOS Toolbox. |
+
 ### Recall dan analisis data AI (ada mulai 24H2)
 
 | Kunci | Nilai | Data | Syarat | Keterangan |
@@ -223,6 +288,12 @@ Bukan penghapusan: hanya mengosongkan cache `*Client.CBS*`, `*StartMenuExperienc
 
 ## Layanan (`30-services.yml`)
 
+
+### Umum
+
+| Skrip | Syarat | Keterangan |
+|---|---|---|
+| `Scripts\Save-ServiceState.ps1` |  | Nilai Start semua layanan di file ini dicatat dulu ke %ProgramData%\TGOS\services-before.txt, supaya TGOS Toolbox bisa mengembalikannya persis seperti semula. |
 
 ### Telemetri dan diagnostik
 
@@ -268,6 +339,24 @@ Bukan penghapusan: hanya mengosongkan cache `*Client.CBS*`, `*StartMenuExperienc
 | Layanan | Startup menjadi | Syarat | Keterangan |
 |---|---|---|---|
 | `WSearch` | Disabled | opsi: `disable-indexing` | Pengindeksan isi file. Tanpa ini pencarian file di Explorer lebih lambat, tetapi pencarian aplikasi di Start tetap jalan. |
+
+### Opsi: pangkas layanan ekstra
+
+| Layanan | Startup menjadi | Syarat | Keterangan |
+|---|---|---|---|
+| `Spooler` | Disabled | opsi: `trim-services` | Default mati. Untuk PC gaming tanpa printer yang tidak butuh troubleshooter Windows dan tidak mencari perangkat lain di jaringan. Bisa dikembalikan lewat "Extra Services - Turn ON" di TGOS Toolbox. Berbagi file (LanmanServer) TIDAK disentuh. Printer: mencetak dan "Print to PDF" tidak jalan. Spooler ada di daftar dilindungi tools/validate.py dan hanya boleh dimatikan dengan opsi ini. |
+| `PrintNotify` | Disabled | opsi: `trim-services` | Default mati. Untuk PC gaming tanpa printer yang tidak butuh troubleshooter Windows dan tidak mencari perangkat lain di jaringan. Bisa dikembalikan lewat "Extra Services - Turn ON" di TGOS Toolbox. Berbagi file (LanmanServer) TIDAK disentuh. Printer: mencetak dan "Print to PDF" tidak jalan. Spooler ada di daftar dilindungi tools/validate.py dan hanya boleh dimatikan dengan opsi ini. |
+| `PrintScanBrokerService` | Disabled | opsi: `trim-services` | Default mati. Untuk PC gaming tanpa printer yang tidak butuh troubleshooter Windows dan tidak mencari perangkat lain di jaringan. Bisa dikembalikan lewat "Extra Services - Turn ON" di TGOS Toolbox. Berbagi file (LanmanServer) TIDAK disentuh. Printer: mencetak dan "Print to PDF" tidak jalan. Spooler ada di daftar dilindungi tools/validate.py dan hanya boleh dimatikan dengan opsi ini. |
+| `PrintDeviceConfigurationService` | Disabled | opsi: `trim-services` | Default mati. Untuk PC gaming tanpa printer yang tidak butuh troubleshooter Windows dan tidak mencari perangkat lain di jaringan. Bisa dikembalikan lewat "Extra Services - Turn ON" di TGOS Toolbox. Berbagi file (LanmanServer) TIDAK disentuh. Printer: mencetak dan "Print to PDF" tidak jalan. Spooler ada di daftar dilindungi tools/validate.py dan hanya boleh dimatikan dengan opsi ini. |
+| `DPS` | Disabled | opsi: `trim-services` | Diagnostik: troubleshooter Windows ("Find and fix problems") dan Program Compatibility Assistant tidak jalan. |
+| `WdiServiceHost` | Disabled | opsi: `trim-services` | Diagnostik: troubleshooter Windows ("Find and fix problems") dan Program Compatibility Assistant tidak jalan. |
+| `WdiSystemHost` | Disabled | opsi: `trim-services` | Diagnostik: troubleshooter Windows ("Find and fix problems") dan Program Compatibility Assistant tidak jalan. |
+| `PcaSvc` | Disabled | opsi: `trim-services` | Diagnostik: troubleshooter Windows ("Find and fix problems") dan Program Compatibility Assistant tidak jalan. |
+| `SSDPSRV` | Disabled | opsi: `trim-services` | Penemuan jaringan: PC ini tidak mencari atau mengumumkan diri ke perangkat lain (media server, printer jaringan), dan nama NetBIOS tidak dicari. Internet dan game online tidak terpengaruh. |
+| `upnphost` | Disabled | opsi: `trim-services` | Penemuan jaringan: PC ini tidak mencari atau mengumumkan diri ke perangkat lain (media server, printer jaringan), dan nama NetBIOS tidak dicari. Internet dan game online tidak terpengaruh. |
+| `fdPHost` | Disabled | opsi: `trim-services` | Penemuan jaringan: PC ini tidak mencari atau mengumumkan diri ke perangkat lain (media server, printer jaringan), dan nama NetBIOS tidak dicari. Internet dan game online tidak terpengaruh. |
+| `FDResPub` | Disabled | opsi: `trim-services` | Penemuan jaringan: PC ini tidak mencari atau mengumumkan diri ke perangkat lain (media server, printer jaringan), dan nama NetBIOS tidak dicari. Internet dan game online tidak terpengaruh. |
+| `lmhosts` | Disabled | opsi: `trim-services` | Penemuan jaringan: PC ini tidak mencari atau mengumumkan diri ke perangkat lain (media server, printer jaringan), dan nama NetBIOS tidak dicari. Internet dan game online tidak terpengaruh. |
 
 
 ## Tugas terjadwal (`40-scheduled-tasks.yml`)
@@ -368,9 +457,25 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 
 | Kunci | Nilai | Data | Syarat | Keterangan |
 |---|---|---|---|---|
-| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize` | `EnableTransparency` | `0` |  | Transparansi dan animasi dimatikan untuk meringankan compositor. |
-| `HKCU\Control Panel\Desktop\WindowMetrics` | `MinAnimate` | `0` |  | Transparansi dan animasi dimatikan untuk meringankan compositor. |
-| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | `TaskbarAnimations` | `0` |  | Transparansi dan animasi dimatikan untuk meringankan compositor. |
+| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize` | `EnableTransparency` | `0` |  | Transparansi dimatikan untuk meringankan compositor. |
+
+### Opsi: animasi
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKCU\Control Panel\Desktop\WindowMetrics` | `MinAnimate` | `0` | opsi: `disable-animations` | Animasi jendela, menu, dan taskbar dimatikan; menu tampil tanpa jeda. Perataan font, thumbnail, dan isi jendela saat digeser TETAP ada. Berlaku setelah login ulang. Bisa diatur lagi di Settings > Accessibility > Visual effects, atau di "Adjust the appearance and performance of Windows". |
+| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | `TaskbarAnimations` | `0` | opsi: `disable-animations` | Animasi jendela, menu, dan taskbar dimatikan; menu tampil tanpa jeda. Perataan font, thumbnail, dan isi jendela saat digeser TETAP ada. Berlaku setelah login ulang. Bisa diatur lagi di Settings > Accessibility > Visual effects, atau di "Adjust the appearance and performance of Windows". |
+| `HKCU\Control Panel\Desktop` | `MenuShowDelay` | `0` | opsi: `disable-animations` | Animasi jendela, menu, dan taskbar dimatikan; menu tampil tanpa jeda. Perataan font, thumbnail, dan isi jendela saat digeser TETAP ada. Berlaku setelah login ulang. Bisa diatur lagi di Settings > Accessibility > Visual effects, atau di "Adjust the appearance and performance of Windows". |
+| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects` | `VisualFXSetting` | `3` | opsi: `disable-animations` | 3 = pengaturan khusus (bukan "biarkan Windows memilih"). |
+| `HKCU\Control Panel\Desktop` | `UserPreferencesMask` | `9012038010000000` | opsi: `disable-animations` | Topeng efek visual Windows. Bawaan: 9E1E078012000000. Nilai ini mematikan animasi dan efek pudar, mempertahankan perataan font dan isi jendela saat digeser. |
+
+### Tombol aksesibilitas
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKCU\Control Panel\Accessibility\StickyKeys` | `Flags` | `506` |  | Jalan pintas Sticky Keys (Shift 5 kali), Filter Keys (tahan Shift kanan), dan Toggle Keys (tahan Num Lock) dimatikan, supaya popup-nya tidak muncul di tengah game. Fiturnya sendiri tetap bisa dinyalakan di Settings > Accessibility > Keyboard. Bawaan Windows: 510, 126, 62. |
+| `HKCU\Control Panel\Accessibility\Keyboard Response` | `Flags` | `122` |  | Jalan pintas Sticky Keys (Shift 5 kali), Filter Keys (tahan Shift kanan), dan Toggle Keys (tahan Num Lock) dimatikan, supaya popup-nya tidak muncul di tengah game. Fiturnya sendiri tetap bisa dinyalakan di Settings > Accessibility > Keyboard. Bawaan Windows: 510, 126, 62. |
+| `HKCU\Control Panel\Accessibility\ToggleKeys` | `Flags` | `58` |  | Jalan pintas Sticky Keys (Shift 5 kali), Filter Keys (tahan Shift kanan), dan Toggle Keys (tahan Num Lock) dimatikan, supaya popup-nya tidak muncul di tengah game. Fiturnya sendiri tetap bisa dinyalakan di Settings > Accessibility > Keyboard. Bawaan Windows: 510, 126, 62. |
 
 ### Startup
 
@@ -403,6 +508,12 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 | Skrip | Syarat | Keterangan |
 |---|---|---|
 | `Scripts\Set-PowerPlan.ps1` `-UltimatePerformance` | opsi: `disable-power-saving` | Mengaktifkan power plan Ultimate Performance dan mematikan USB selective suspend. |
+
+### Opsi: core parking CPU (aksi)
+
+| Skrip | Syarat | Keterangan |
+|---|---|---|
+| `Scripts\Set-PowerPlan.ps1` `-DisableCoreParking` | opsi: `disable-core-parking` |  |
 
 
 ## Opsi keamanan (`60-security-options.yml`)
@@ -443,7 +554,7 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 |---|---|---|
 | `Scripts\Remove-OneDrive.ps1` | opsi: `remove-onedrive` | OneDrive terpasang per pengguna, jadi uninstaller resminya dijalankan sebagai pengguna yang sedang login, dengan token yang sudah ter-elevasi: uninstaller itu meminta hak admin, dan tanpa elevasi Windows menampilkan prompt UAC di tengah instalasi. Tidak fatal: hasilnya diperiksa di laporan verifikasi. |
 
-### Opsi: Microsoft Edge (eksperimental)
+### Opsi: Microsoft Edge
 
 | Kunci | Nilai | Data | Syarat | Keterangan |
 |---|---|---|---|---|
@@ -451,7 +562,7 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 
 | Skrip | Syarat | Keterangan |
 |---|---|---|
-| `Scripts\Remove-Edge.ps1` | opsi: `remove-edge` | Memakai uninstaller milik Edge sendiri. WebView2 Runtime TIDAK dihapus karena banyak launcher dan aplikasi bergantung padanya. Di Windows 11 Pro 26H2 Microsoft menolak uninstall biasa (kode 93), jadi skrip mencoba dua cara tambahan; tetap bisa gagal, dan update Windows bisa memasang Edge kembali. Hasilnya diperiksa di laporan verifikasi. Tidak fatal. |
+| `Scripts\Remove-Edge.ps1` | opsi: `remove-edge` | Memakai uninstaller milik Edge sendiri. WebView2 Runtime TIDAK dihapus karena banyak launcher dan aplikasi bergantung padanya. Di Windows 11 Pro 26H2 Microsoft menolak uninstall biasa (kode 93); cara pertama skrip ini berhasil di uji TGOS 0.9.1. Update Windows bisa memasang Edge kembali. Hasilnya diperiksa di laporan verifikasi. Tidak fatal. Pengaman: bila pengguna memilih browser di Wizard tetapi browser itu tidak terpasang (mis. unduhan gagal), skrip TIDAK menghapus Edge. |
 
 
 ## Tampilan (`80-interface.yml`)
@@ -465,6 +576,13 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 | `HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer` | `LockedStartLayout` | `1` |  | Pin taskbar ditetapkan lewat policy "Start Layout" resmi Windows. File layout-nya ditulis Set-ShellLayout.ps1 di modul finalisasi, sesuai browser yang terpasang: File Explorer, browser, Microsoft Store. Skrip itu juga mereset daftar pin yang tersimpan di profil, karena policy ini saja tidak membuang pin yang sudah ada. |
 | `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search` | `SearchboxTaskbarMode` | `1` |  | Pencarian tampil sebagai ikon saja (0 = sembunyi, 1 = ikon, 2 = kotak). |
 | `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | `ShowTaskViewButton` | `0` |  | Tombol Task View disembunyikan (Win+Tab tetap jalan). |
+| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | `TaskbarAl` | `0` | opsi: `taskbar-left` | Opsi: ikon taskbar rata kiri seperti Windows 10 (0 = kiri, 1 = tengah). |
+
+### Opsi: menu klik kanan klasik
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKCU\SOFTWARE\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32` | `` | `` | opsi: `classic-context-menu` | Kunci kosong ini membuat Explorer memakai menu klik kanan lengkap gaya Windows 10, tanpa perlu "Show more options". Nilai default kunci (nama nilai kosong) diisi teks kosong. Untuk kembali ke menu Windows 11, hapus kunci {86ca1aa0-...} itu. |
 
 ### Start menu
 
@@ -498,13 +616,32 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 | `HKCU\Control Panel\Desktop` | `TileWallpaper` | `0` |  | File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS. 10 = Fill. JPEGImportQuality 100 mencegah Windows mengompres ulang wallpaper, yang membuat gradasi gelapnya bergaris. |
 | `HKCU\Control Panel\Desktop` | `JPEGImportQuality` | `100` |  | File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS. 10 = Fill. JPEGImportQuality 100 mencegah Windows mengompres ulang wallpaper, yang membuat gradasi gelapnya bergaris. |
 
+### Warna aksen TGO
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Accent` | `AccentColorMenu` | `4294345275` |  | Biru TGO #3B82F6, sama dengan website dan aplikasi TGO. Windows menyimpan warna sebagai ABGR (4294345275 = 0xFFF6823B) dan palet 8 warna (terang ke gelap, lalu merah logo TGO sebagai warna pelengkap). Berlaku setelah login ulang; bisa diganti di Settings > Personalization > Colors. |
+| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Accent` | `StartColorMenu` | `4291127343` |  | Biru TGO #3B82F6, sama dengan website dan aplikasi TGO. Windows menyimpan warna sebagai ABGR (4294345275 = 0xFFF6823B) dan palet 8 warna (terang ke gelap, lalu merah logo TGO sebagai warna pelengkap). Berlaku setelah login ulang; bisa diganti di Settings > Personalization > Colors. |
+| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Accent` | `AccentPalette` | `B1CDFB0089B4FA00629BF8003B82F6002F68C500234E940018346200EB121C00` |  | Biru TGO #3B82F6, sama dengan website dan aplikasi TGO. Windows menyimpan warna sebagai ABGR (4294345275 = 0xFFF6823B) dan palet 8 warna (terang ke gelap, lalu merah logo TGO sebagai warna pelengkap). Berlaku setelah login ulang; bisa diganti di Settings > Personalization > Colors. |
+| `HKCU\SOFTWARE\Microsoft\Windows\DWM` | `AccentColor` | `4294345275` |  | Biru TGO #3B82F6, sama dengan website dan aplikasi TGO. Windows menyimpan warna sebagai ABGR (4294345275 = 0xFFF6823B) dan palet 8 warna (terang ke gelap, lalu merah logo TGO sebagai warna pelengkap). Berlaku setelah login ulang; bisa diganti di Settings > Personalization > Colors. |
+| `HKCU\SOFTWARE\Microsoft\Windows\DWM` | `ColorizationColor` | `3292234486` |  | Biru TGO #3B82F6, sama dengan website dan aplikasi TGO. Windows menyimpan warna sebagai ABGR (4294345275 = 0xFFF6823B) dan palet 8 warna (terang ke gelap, lalu merah logo TGO sebagai warna pelengkap). Berlaku setelah login ulang; bisa diganti di Settings > Personalization > Colors. |
+| `HKCU\SOFTWARE\Microsoft\Windows\DWM` | `ColorizationAfterglow` | `3292234486` |  | Biru TGO #3B82F6, sama dengan website dan aplikasi TGO. Windows menyimpan warna sebagai ABGR (4294345275 = 0xFFF6823B) dan palet 8 warna (terang ke gelap, lalu merah logo TGO sebagai warna pelengkap). Berlaku setelah login ulang; bisa diganti di Settings > Personalization > Colors. |
+
+### Info sistem
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation` | `Manufacturer` | `TGOS` |  | Tampil di Settings > System > About. Hanya teks; tidak mengubah lisensi atau dukungan pabrikan PC. |
+| `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation` | `Model` | `Tech Gameplay Operating System` |  | Tampil di Settings > System > About. Hanya teks; tidak mengubah lisensi atau dukungan pabrikan PC. |
+| `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation` | `SupportURL` | `https://tgopremium.my.id` |  | Tampil di Settings > System > About. Hanya teks; tidak mengubah lisensi atau dukungan pabrikan PC. |
+
 
 ## Penyelesaian (`90-finalize.yml`)
 
 | Skrip | Syarat | Keterangan |
 |---|---|---|
 | `Scripts\Install-Toolbox.ps1` |  | Menyalin TGOS Toolbox ke drive sistem, membuat pintasan di Desktop, dan menyalin wallpaper. |
-| `Scripts\Write-InstallInfo.ps1` `-Modules "preflight,debloat-appx,privacy,services,scheduled-tasks,performance,security-options,components,interface"` |  | Menulis %ProgramData%\TGOS\install-info.txt: versi TGOS, edisi, build, waktu, hasil restore point, dan modul yang dijalankan. Nama modul di -Modules harus sama dengan modul yang dipanggil main.yml (dijaga tools/validate.py). |
+| `Scripts\Write-InstallInfo.ps1` `-Modules "preflight,software,debloat-appx,privacy,services,scheduled-tasks,performance,security-options,components,interface"` |  | Menulis %ProgramData%\TGOS\install-info.txt: versi TGOS, edisi, build, waktu, hasil restore point, dan modul yang dijalankan. Nama modul di -Modules harus sama dengan modul yang dipanggil main.yml (dijaga tools/validate.py). |
 | `Scripts\Set-ShellLayout.ps1` |  | Menyusun ulang pin taskbar dan Start menjadi set TGOS. Dijalankan setelah opsi tercatat (skrip membaca opsi "remove-store" dari install-info.txt) dan setelah browser terpasang. Skrip ini menghentikan Explorer; aksi berikutnya menjalankannya lagi sebagai pengguna yang login. |
 | `Scripts\Start-Shell.ps1` |  |  |
 | `TGOS Toolbox\Support\Test-TgosResult.ps1` |  | Mencocokkan sistem dengan expected-state.json dan menulis %ProgramData%\TGOS\verify-report.txt. Hanya membaca; tidak fatal. |

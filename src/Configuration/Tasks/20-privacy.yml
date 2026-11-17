@@ -80,6 +80,43 @@ actions:
   # Delivery Optimization: unduh update hanya dari Microsoft, tidak mengunggah ke PC lain.
   - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization', value: 'DODownloadMode', data: '0', type: REG_DWORD }
 
+  # --- Telemetri: policy tambahan --------------------------------------------------
+  # Windows tidak mengunduh konfigurasi telemetri dari layanan OneSettings.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection', value: 'DisableOneSettingsDownloads', data: '1', type: REG_DWORD }
+  # Log diagnostik dan memory dump tidak ikut dikirim.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection', value: 'LimitDiagnosticLogCollection', data: '1', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection', value: 'LimitDumpCollection', data: '1', type: REG_DWORD }
+  # Nama perangkat tidak disertakan di data diagnostik.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection', value: 'AllowDeviceNameInTelemetry', data: '0', type: REG_DWORD }
+  # Application Telemetry, inventaris program, dan perekam langkah pengguna dimatikan.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppCompat', value: 'AITEnable', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppCompat', value: 'DisableInventory', data: '1', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppCompat', value: 'DisableUAR', data: '1', type: REG_DWORD }
+  # Customer Experience Improvement Program.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\SQMClient\Windows', value: 'CEIPEnable', data: '0', type: REG_DWORD }
+  # Data tulisan tangan dan laporan error pengenalnya tidak dikirim.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\TabletPC', value: 'PreventHandwritingDataSharing', data: '1', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\HandwritingErrorReports', value: 'PreventHandwritingErrorReports', data: '1', type: REG_DWORD }
+  # Telemetri alat pengembang Microsoft (.NET CLI dan PowerShell 7) lewat variabel
+  # lingkungan sistem. Tidak berpengaruh bila alat itu tidak terpasang.
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment', value: 'DOTNET_CLI_TELEMETRY_OPTOUT', data: '1', type: REG_SZ }
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment', value: 'POWERSHELL_TELEMETRY_OPTOUT', data: '1', type: REG_SZ }
+
+  # --- Telemetri: komponen inti ----------------------------------------------------
+  # Perekam otomatis yang menampung data telemetri sejak boot tidak dijalankan.
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\AutoLogger-Diagtrack-Listener', value: 'Start', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\SQMLogger', value: 'Start', data: '0', type: REG_DWORD }
+  # Dua program pengumpul data dicegah jalan: setiap kali Windows mencoba menjalankannya,
+  # yang jalan adalah taskkill (langsung selesai tanpa berbuat apa-apa). Tidak ada
+  # jaringan yang diblokir.
+  #   CompatTelRunner.exe  Compatibility Appraiser: memindai program dan perangkat
+  #   DeviceCensus.exe     mengirim data spesifikasi perangkat
+  # Akibatnya: pemeriksa kompatibilitas sebelum upgrade fitur Windows (mis. 25H2 ke
+  # 26H2) tidak jalan. Sebelum upgrade fitur, buka lagi lewat "Telemetry Collectors -
+  # Turn ON" di TGOS Toolbox.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\CompatTelRunner.exe', value: 'Debugger', data: '%windir%\System32\taskkill.exe', type: REG_SZ }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\DeviceCensus.exe', value: 'Debugger', data: '%windir%\System32\taskkill.exe', type: REG_SZ }
+
   # --- Recall dan analisis data AI (ada mulai 24H2) --------------------------------
   # Selalu dimatikan: Recall merekam isi layar secara berkala.
   - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI', value: 'DisableAIDataAnalysis', data: '1', type: REG_DWORD, builds: ['>=26100'] }
