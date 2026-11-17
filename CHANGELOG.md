@@ -46,9 +46,13 @@ proses −25%, layanan berjalan −22%. Permintaan pemilik dan tambahan di revis
   *Deep Clean*, dan fitur baru: Windows Updates, Driver Updates, Background Apps, Lock
   Screen, Xbox Game Bar, TGO Login Screen, Reserved Storage.
 - **Uji otomatis**: pemantau jendela selama seluruh playbook (dengan kontrol Notepad),
-  uji popup `ms-gamebar:`, uji tombol `.cmd` Toolbox sungguhan termasuk menu, bolak-balik
-  semua fitur Toolbox baru, uji Deep clean; validator menolak `-Feature`/`-Item` yang
-  tidak ada di skripnya.
+  uji tombol `.cmd` Toolbox sungguhan termasuk menu, bolak-balik semua fitur Toolbox
+  baru, uji Deep clean, uji Win+G dengan kontrol; validator menolak `-Feature`/`-Item`
+  yang tidak ada di skripnya dan menolak pemanggilan WSL; potret sistem mencatat
+  dependensi AppX sehingga framework yang dibuang Windows karena tidak dipakai lagi
+  dibedakan dari kerusakan.
+- **Menu Toolbox lebih aman**: ketikan yang bukan nomor (tanda kutip, `&`, baris baru)
+  tidak lagi merusak menu *Install Software*.
 
 Revisi pertama (setelah uji VM build pertama):
 

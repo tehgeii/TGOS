@@ -314,8 +314,9 @@ Semuanya ditangani di `1.0.0`.
 
 | Lapis | Tanggal | Hasil | Catatan |
 |---|---|---|---|
-| 1. Uji bentuk | 17 Nov 2026 | Lolos | 91 pemeriksaan di `tools/selftest.py` |
+| 1. Uji bentuk | 17 Nov 2026 | Lolos | 91 pemeriksaan di `tools/selftest.py`; revisi kedua 97 |
 | 2. Mesin AME | 17 Nov 2026 | Lolos di kelima job | Rincian di bawah |
+| 2. Mesin AME, revisi kedua | 17 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
 | 3. VM pemilik, build pertama | 17 Nov 2026 | 225 PASS, 1 FAIL; setelah restart 224 PASS, 2 FAIL | Rincian di bawah; dua FAIL itu diperbaiki di revisi |
 | 3. VM pemilik, revisi pertama | 17 Nov 2026 | Setelah restart 226 PASS, 0 FAIL, 0 WARN | Rincian di bawah |
 | 3. VM pemilik, revisi kedua | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
@@ -437,3 +438,41 @@ Settings > Gaming (toggle controller dan View + Menu) walaupun aplikasinya dihap
 tambahan. Sisa kecil yang dicatat apa adanya: "Click to Do" dan "Get Started" masih di All
 apps (komponen sistem); baris error Widgets di log AME adalah upaya mesin AME sendiri pada
 file terkunci, dan skrip TGOS sesudahnya tidak menemukan sisa folder.
+
+Lapis 2, revisi kedua (runner command-line AME versi 0.8.4, run terakhir sebelum rilis):
+
+| Runner | Opsi, browser | Pemeriksaan diri | Pemeriksaan CI |
+|---|---|---|---|
+| Windows Server 2025, build 26100, x64 | bawaan, Brave | 212 PASS, 0 FAIL, 1 WARN, 73 SKIP | 74 dari 74 |
+| Windows Server 2025, build 26100, x64 | semua, Chrome | 273 PASS, 0 FAIL, 1 WARN, 19 SKIP | 85 dari 85 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan, Brave | 209 PASS, 0 FAIL, 0 WARN, 77 SKIP | 73 dari 73 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua, Firefox | 263 PASS, 0 FAIL, 0 WARN, 30 SKIP | 75 dari 75 |
+
+`WARN` di Server tetap restore point (tidak didukung Windows Server). Yang terbukti:
+
+- **Pause update**: nilai pause tertulis (sampai 2036) dan Windows 11 sendiri mencatat
+  `PausedFeatureStatus = 1` dan `PausedQualityStatus = 1`. Definisi Defender tetap bisa
+  diperbarui saat pause (`MpCmdRun -SignatureUpdate` keluar 0).
+- **Launcher dan aplikasi** (Server x64): Steam, Epic Games Launcher, EA app, Ubisoft
+  Connect terpasang untuk semua pengguna; Discord dan Spotify terpasang di profil pengguna
+  yang login. Semua bertanda tangan penerbitnya. Di runner ARM64 dilewati (TGOS x64 saja).
+- **Runtime**: Visual C++ 2005-2013 dan XNA 4.0 (x64), DirectX dari paket lengkap,
+  .NET Framework 3.5 lewat DISM (juga di ARM64; sekitar 6 menit), .NET Desktop Runtime 10.
+- **Tanpa jendela**: pemantau jendela tidak menangkap satu pun jendela dari TGOS selama
+  seluruh playbook di keempat job (kontrol Notepad terdeteksi). Satu-satunya jendela di
+  runner Windows 11 adalah updater WSL milik image runner (`wsl.exe --update`, sudah
+  berjalan sebelum playbook); TGOS sendiri tidak pernah menjalankan WSL (dijaga validator).
+- **Deep clean**: sekitar 6 GB dibebaskan di Windows 11, hampir semuanya dari Reserved
+  Storage; Deep clean+ menjalankan ResetBase; folder playbook yang sedang berjalan tidak
+  tersentuh.
+- **Toolbox**: semua fitur baru bolak-balik ON/OFF; tombol `.cmd` di subfolder bekerja;
+  menu *Install Software* memasang 7-Zip, keluar dengan 0, dan menolak ketikan aneh
+  (tanda kutip, `&`) tanpa error.
+- **Game Bar**: blok Win+G tertulis (`DisabledHotkeys` berisi `G`) dan diperiksa
+  pemeriksaan diri. Efeknya **tidak bisa dibuktikan di runner**: bahkan tanpa blok, Win+G
+  yang dikirim uji tidak memunculkan jendela apa pun di runner, jadi hasil itu tidak
+  dihitung. Bukti akhirnya di VM (checklist di atas).
+- **.NET Native di Server dengan *Remove Microsoft Store***: Windows kadang langsung
+  membuang .NET Native 2.2 karena Store adalah pemakai terakhirnya. Perbandingan potret
+  sekarang membedakan ini (framework tanpa pemakai) dari framework yang hilang padahal
+  masih dipakai.
