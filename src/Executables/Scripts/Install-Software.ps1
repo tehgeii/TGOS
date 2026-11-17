@@ -37,9 +37,14 @@
     DirectX: dipakai paket lengkap resmi "directx_Jun2010_redist.exe", bukan installer
     web "dxwebsetup.exe". Installer web tetap menampilkan jendela "Installing Microsoft
     DirectX" walaupun diberi /Q, dan mengunduh komponennya satu per satu (di uji VM v1.0.0
-    ia macet sampai batas 15 menit). Paket lengkap diekstrak tanpa tampilan (/Q /T:), lalu
+    ia macet sampai batas 15 menit). Paket lengkap diekstrak tanpa tampilan, lalu
     DXSETUP.exe di dalamnya dijalankan dengan /silent, mode senyap yang didokumentasikan
-    Microsoft untuk installer game. Tanda tangan Microsoft diperiksa pada paket DAN pada
+    Microsoft untuk installer game. Paket itu self-extractor IExpress: /Q saja masih
+    menampilkan jendela progres "DirectX June 2010 SDK" (tertangkap uji otomatis), jadi
+    dipakai /Q:A (tanpa tampilan sama sekali), /C (hanya ekstrak), /T:<folder>.
+    Pemeriksaannya berlapis: tanda tangan Microsoft pada paket, SHA256 paket harus sama
+    dengan checksum yang dikunci di katalog (file ini tidak berubah sejak 2010; nilainya
+    sama dengan checksum paket Chocolatey "directx"), dan tanda tangan Microsoft pada
     DXSETUP.exe hasil ekstraknya. Hanya dipakai di Windows x64 (target TGOS); di Windows
     ARM64 langkah ini dilewati.
 
@@ -81,6 +86,7 @@ $ErrorActionPreference = 'Stop'
 $UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) TGOS-Setup'
 $DownloadTimeoutMilliseconds = 900000
 $InstallTimeoutMilliseconds = 900000
+$ExtractTimeoutMilliseconds = 300000
 
 function Get-ProgramPath {
     # Jalur pertama yang ada di Program Files (64-bit lalu 32-bit), atau $null.
@@ -186,9 +192,11 @@ $Catalog = @{
     directx  = @{
         Name  = 'DirectX End-User Runtime'
         # Paket lengkap: diekstrak dulu (Extract), lalu Setup di dalamnya dijalankan.
+        # Sha256 = checksum yang dikunci untuk file unduhan (bukan untuk Setup).
         Files = @(@{ Url = 'https://download.microsoft.com/download/8/4/A/84A35BF1-DAFE-4AE8-82AF-AD2AE20B6B14/directx_Jun2010_redist.exe'
                 File = 'directx_Jun2010_redist.exe'; Signer = 'Microsoft Corporation'
-                Extract = '/Q /T:"{0}"'; Setup = 'DXSETUP.exe'; Arguments = '/silent' })
+                Sha256 = '053F76DCBB28802E23341B6A787E3B0791C0FA5C8D4D011B1044172DBF89C73B'
+                Extract = '/Q:A /C /T:"{0}"'; Setup = 'DXSETUP.exe'; Arguments = '/silent' })
         Test  = { Test-Path -LiteralPath (Join-Path $env:SystemRoot 'System32\d3dx9_43.dll') }
     }
 }
@@ -312,6 +320,13 @@ try {
         Write-Output ("TGOS: downloading {0} from {1}" -f $spec.File, ([uri]$url).Host)
         Save-Download -Url $url -Path $path
         $trust = Assert-TrustedFile -Spec $spec -Path $path -Release $release
+        if ($spec.Sha256) {
+            $hash = Get-Sha256 $path
+            if ($hash -ne $spec.Sha256) {
+                throw ("SHA256 {0} does not match the pinned checksum {1}; the file was not run" -f $hash, $spec.Sha256)
+            }
+            $trust = '{0}, SHA256 matches the pinned checksum' -f $trust
+        }
         Write-Output ("TGOS: {0} verified: {1}, {2:N1} MB, SHA256 {3}" -f $spec.File, $trust, ((Get-Item -LiteralPath $path).Length / 1MB), (Get-Sha256 $path))
 
         # Jangan pernah menurunkan versi program yang sudah terpasang.
@@ -340,8 +355,8 @@ try {
             # tanda tangannya sebelum dijalankan.
             $extractDirectory = Join-Path $workDirectory 'extracted'
             New-Item -ItemType Directory -Path $extractDirectory -Force | Out-Null
-            $code = Invoke-TgosProcess -File $path -Arguments ($spec.Extract -f $extractDirectory) -TimeoutMilliseconds $InstallTimeoutMilliseconds
-            if ($null -eq $code) { throw ("extracting {0} did not finish within 15 minutes" -f $spec.File) }
+            $code = Invoke-TgosProcess -File $path -Arguments ($spec.Extract -f $extractDirectory) -TimeoutMilliseconds $ExtractTimeoutMilliseconds
+            if ($null -eq $code) { throw ("extracting {0} did not finish within 5 minutes" -f $spec.File) }
             $file = Join-Path $extractDirectory $spec.Setup
             if ($code -ne 0 -or -not (Test-Path -LiteralPath $file)) {
                 throw ("extracting {0} failed (exit code {1}); {2} was not found" -f $spec.File, $code, $spec.Setup)

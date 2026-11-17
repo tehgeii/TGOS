@@ -399,8 +399,12 @@ Susunan `1.0.0` (✔ = bawaan tercentang):
 
 Halaman browser memakai `RadioImagePage`: satu gambar PNG setinggi 128 piksel per opsi
 di folder `Images/` playbook, di atas gradasi dua warna, dan opsi `None="true"` yang tidak
-punya nama. Gambarnya dibuat `tools/make-option-images.py` (inisial browser di dalam
-lingkaran), bukan logo resmi, karena logo itu merek dagang pemiliknya.
+punya nama. Gambarnya logo resmi tiap browser, dari koleksi
+[alrra/browser-logos](https://github.com/alrra/browser-logos) (sumber 512 px di
+`assets/branding/browser-logos/`, beserta catatan bahwa logo itu merek dagang
+pemiliknya), diperkecil ke 128 px oleh `tools/make-option-images.py`. Ketiga kotak memakai
+gradasi gelap TGO yang sama, `#1B2232` ke `#2C3650` (keputusan pemilik; build pertama
+1.0.0 memakai inisial huruf di atas warna tiap browser, dan itu terlihat kurang rapi).
 
 Yang sengaja tidak dijadikan opsi: telemetri (selalu dimatikan sejauh mungkin, tanpa
 memblokir jaringan) dan Windows Defender (tidak disentuh playbook; hanya lewat Toolbox).
@@ -478,6 +482,14 @@ Widgets hanya diterapkan bila opsi `remove-ai-widgets` dipilih.
 Catatan jujur: di edisi Pro, `AllowTelemetry=0` diperlakukan Windows sebagai level 1
 (Required). Telemetri baru benar-benar berhenti setelah layanan `DiagTrack` dimatikan
 di modul layanan.
+
+Perekam otomatis telemetri (`AutoLogger-Diagtrack-Listener`, `SQMLogger`) dimatikan di
+modul layanan, **sesudah** DiagTrack dihentikan. Di uji VM build pertama 1.0.0 nilai
+`Start` perekam itu ditulis di modul privasi saat DiagTrack masih berjalan, dan sudah
+hilang setelah restart: DiagTrack menulis ulang konfigurasi perekamnya sendiri saat
+dimatikan ketika shutdown. Karena aksi `!service` hanya mengubah Startup type, DiagTrack
+dihentikan oleh skrip kecil `Stop-DisabledServices.ps1`, yang hanya menghentikan layanan
+yang sudah Disabled.
 
 ### 8.3 Layanan (`30-services.yml`)
 
@@ -657,6 +669,21 @@ Pelajaran dari uji otomatis sebelum rilis `1.0.0` (semuanya diperbaiki sebelum r
 - **DirectX** hanya dipasang di Windows x64. Di runner uji Windows 11 ARM64 installernya
   gagal (kode -9); di PC sungguhan TGOS sudah menolak ARM64 di langkah pertama.
 
+Pelajaran dari uji VM build pertama `1.0.0`:
+
+- **DirectX.** Installer web `dxwebsetup.exe /Q` menampilkan jendela "Installing
+  Microsoft DirectX" di tengah instalasi dan macet sampai batas 15 menit. Sekarang
+  dipakai paket lengkap resmi `directx_Jun2010_redist.exe` (~96 MB, alamat yang sama
+  dengan paket Chocolatey dan npackd): diekstrak dengan `/Q:A /C /T:<folder>`, lalu
+  `DXSETUP.exe /silent`, mode senyap yang didokumentasikan Microsoft untuk installer
+  game. Paket itu self-extractor IExpress; dengan `/Q` saja ia masih menampilkan jendela
+  progres "DirectX June 2010 SDK" (tertangkap pemantau jendela di uji otomatis), `/Q:A`
+  menyembunyikan semuanya. Pemeriksaan: tanda tangan Microsoft pada paket, SHA256 paket
+  harus `053F76DC...F89C73B` (dikunci di skrip; sama dengan checksum paket Chocolatey
+  `directx`, file ini tidak berubah sejak 2010), lalu tanda tangan Microsoft pada
+  `DXSETUP.exe` hasil ekstraknya. SHA256 tiap file yang lolos pemeriksaan dicatat di
+  log.
+
 ### 8.8 Antarmuka (`80-interface.yml`)
 
 Mode gelap, File Explorer membuka "This PC", ekstensi file ditampilkan. Wallpaper dan
@@ -676,8 +703,11 @@ di registry `HKCU\...\Explorer\Taskband`. Jadi sekarang:
   terpasang (Edge bila tidak ada yang lain), Microsoft Store (bila tidak dihapus).
 - Pin Start ditulis lewat policy `ConfigureStartPins`: File Explorer, Settings, Store,
   browser, Notepad, Calculator, Terminal.
-- Explorer dihentikan, kunci `Taskband` dan file `start*.bin` tiap profil dihapus, lalu
-  Explorer dijalankan lagi, sehingga Windows menyusun keduanya dari layout di atas.
+- Explorer dihentikan, kunci `Taskband`, file pintasan pin di
+  `...\Quick Launch\User Pinned\TaskBar` (bukan subfolder `ImplicitAppShortcuts`), dan
+  file `start*.bin` tiap profil dihapus, lalu Explorer dijalankan lagi, sehingga Windows
+  menyusun keduanya dari layout di atas. Pintasan pin lama ikut dihapus karena di uji VM
+  build pertama 1.0.0 Windows membuat salinan di sebelahnya (`File Explorer (2).lnk`).
   **Pin buatan pengguna ikut hilang** (keputusan pemilik).
 - Bagian Recent/rekomendasi di Start disembunyikan.
 
@@ -715,7 +745,8 @@ bila playbook terverifikasi AME. Saat memuat `.apbx`, ikon TGOS tampil (uji Fase
 ### 8.9 Finalisasi (`90-finalize.yml`)
 
 - Menyalin folder **TGOS Toolbox** ke `%SystemDrive%\TGOS Toolbox` dan membuat pintasan di
-  Desktop. Isinya skrip berpasangan (matikan / aktifkan lagi) untuk: Defender, VBS,
+  Desktop. Pintasan dibuat paling akhir, setelah Explorer hidup lagi dari reset pin;
+  di build pertama 1.0.0 pintasan yang dibuat sebelumnya muncul di tengah Desktop. Isinya skrip berpasangan (matikan / aktifkan lagi) untuk: Defender, VBS,
   mitigasi CPU, update otomatis, indexing, hibernasi.
 - Menulis `%ProgramData%\TGOS\install-info.txt` berisi versi TGOS, edisi, build, dan
   (mulai `0.1.0`) opsi yang dipilih. Bagian ini sudah ada sejak Fase 0.
