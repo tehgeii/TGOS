@@ -768,7 +768,11 @@ public static extern int AssocQueryString(int flags, int str, string assoc, stri
         function Test-ProtocolPopup {
             param([string]$Uri)
             $before = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | ForEach-Object { $_.Id })
-            try { Start-Process -FilePath $Uri } catch { Write-Host ('   {0} could not be started: {1}' -f $Uri, (Format-LogLine $_.Exception.Message)) }
+            # Dibuka lewat proses explorer.exe tersendiri (seperti klik pengguna), bukan
+            # ShellExecute di proses uji ini: dialog modal tidak bisa menahan uji, dan
+            # jendela apa pun yang muncul terlihat sebagai jendela proses baru.
+            try { $null = Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe') -ArgumentList $Uri -PassThru }
+            catch { Write-Host ('   {0} could not be started: {1}' -f $Uri, (Format-LogLine $_.Exception.Message)) }
             $seen = @{}
             for ($attempt = 0; $attempt -lt 12; $attempt++) {
                 Start-Sleep -Milliseconds 500
