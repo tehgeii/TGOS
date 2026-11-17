@@ -426,16 +426,34 @@ try {
             $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR'
             $protocols = @('ms-gamebar', 'ms-gamebarservices', 'ms-gamingoverlay')
             $handler = '"%SystemRoot%\System32\systray.exe"'
+            # Tempat penangan protokol: HKLM (semua pengguna) dan kelas tiap profil yang
+            # sedang dimuat (di Windows 11 kunci per pengguna menimpa HKLM).
+            $classRoots = @('HKLM:\SOFTWARE\Classes')
+            $userRoots = @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
+                    Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+$' } |
+                    ForEach-Object { 'Registry::HKEY_USERS\{0}' -f $_.PSChildName })
+            foreach ($userRoot in $userRoots) { $classRoots += ('{0}\Software\Classes' -f $userRoot) }
             if ($State -eq 'Off') {
                 Set-Dword -Path $gameBar -Name 'UseNexusForGameBarEnabled' -Value 0
                 Set-Dword -Path $gameBar -Name 'GamepadNexusChordEnabled' -Value 0
                 Set-Dword -Path $policy -Name 'AllowGameDVR' -Value 0
                 foreach ($protocol in $protocols) {
-                    $key = 'HKLM:\SOFTWARE\Classes\{0}' -f $protocol
-                    Set-Text -Path $key -Name '(default)' -Value ('URL:{0}' -f $protocol)
-                    Set-Text -Path $key -Name 'URL Protocol' -Value ''
-                    Set-Text -Path $key -Name 'NoOpenWith' -Value ''
-                    Set-Text -Path (Join-Path $key 'shell\open\command') -Name '(default)' -Value $handler -Type 'ExpandString'
+                    foreach ($classRoot in $classRoots) {
+                        $key = '{0}\{1}' -f $classRoot, $protocol
+                        Set-Text -Path $key -Name '(default)' -Value ('URL:{0}' -f $protocol)
+                        Set-Text -Path $key -Name 'URL Protocol' -Value ''
+                        Set-Text -Path $key -Name 'NoOpenWith' -Value ''
+                        Set-Text -Path (Join-Path $key 'shell\open\command') -Name '(default)' -Value $handler -Type 'ExpandString'
+                    }
+                    # Pilihan aplikasi yang masih menunjuk ke Game Bar yang sudah dihapus
+                    # membuat Windows bertanya "Pick an app"; dicabut supaya penangan di
+                    # atas yang dipakai.
+                    foreach ($userRoot in $userRoots) {
+                        $choice = '{0}\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\{1}' -f $userRoot, $protocol
+                        if (Test-Path -LiteralPath $choice) {
+                            Remove-Item -LiteralPath $choice -Recurse -Force -ErrorAction SilentlyContinue
+                        }
+                    }
                 }
                 Write-Host 'Xbox Game Bar is now OFF: the controller buttons and Win+G no longer open it.'
             }
@@ -444,15 +462,17 @@ try {
                 Remove-Value -Path $gameBar -Name 'GamepadNexusChordEnabled'
                 Remove-Value -Path $policy -Name 'AllowGameDVR'
                 foreach ($protocol in $protocols) {
-                    # Hanya penangan pengganti buatan TGOS yang dicabut.
-                    $key = 'HKLM:\SOFTWARE\Classes\{0}' -f $protocol
-                    $command = Join-Path $key 'shell\open\command'
-                    $current = ''
-                    if (Test-Path -LiteralPath $command) {
-                        $current = [string](Get-Item -LiteralPath $command).GetValue('', '', 'DoNotExpandEnvironmentNames')
-                    }
-                    if ($current -match '(?i)systray\.exe') {
-                        Remove-Item -LiteralPath $key -Recurse -Force
+                    foreach ($classRoot in $classRoots) {
+                        # Hanya penangan pengganti buatan TGOS yang dicabut.
+                        $key = '{0}\{1}' -f $classRoot, $protocol
+                        $command = Join-Path $key 'shell\open\command'
+                        $current = ''
+                        if (Test-Path -LiteralPath $command) {
+                            $current = [string](Get-Item -LiteralPath $command).GetValue('', '', 'DoNotExpandEnvironmentNames')
+                        }
+                        if ($current -match '(?i)systray\.exe') {
+                            Remove-Item -LiteralPath $key -Recurse -Force
+                        }
                     }
                 }
                 Write-Host 'The TGOS Game Bar blocks are removed.'

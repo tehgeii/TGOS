@@ -44,7 +44,7 @@ param(
     [string]$Options = '',
     [string]$ForceItems = '',
     [string]$WorkDirectory,
-    [int]$TimeoutMinutes = 25
+    [int]$TimeoutMinutes = 60
 )
 
 $ErrorActionPreference = 'Stop'
@@ -450,7 +450,53 @@ if ($diagTrack -and [string]$diagTrack.Status -ne 'Running') {
 if ($diagTrack) { Write-Host ('   DiagTrack before the run: {0}' -f (Get-Service -Name 'DiagTrack').Status) }
 else { Write-Host '   DiagTrack is not on this runner' }
 
+# Pemantau jendela selama seluruh playbook (permintaan pemilik: semua harus berjalan di
+# latar, tanpa jendela). Proses terpisah mencatat setiap proses baru yang punya jendela
+# terlihat. Kontrol dulu: jendela Notepad harus tercatat, kalau tidak hasilnya tidak
+# berarti dan hanya dilaporkan.
+$windowLog = Join-Path $artifacts 'visible-windows.txt'
+Set-Content -LiteralPath $windowLog -Value @() -Encoding ASCII
+$watcher = Start-Job -ArgumentList $windowLog -ScriptBlock {
+    param($Path)
+    $known = @{}
+    foreach ($process in @(Get-Process -ErrorAction SilentlyContinue)) {
+        if ($process.MainWindowHandle -ne [IntPtr]::Zero) { $known[$process.Id] = $true }
+    }
+    while ($true) {
+        foreach ($process in @(Get-Process -ErrorAction SilentlyContinue)) {
+            if ($process.MainWindowHandle -ne [IntPtr]::Zero -and -not $known.ContainsKey($process.Id)) {
+                $known[$process.Id] = $true
+                Add-Content -LiteralPath $Path -Value ('{0} | {1}' -f $process.ProcessName, $process.MainWindowTitle) -Encoding ASCII
+            }
+        }
+        Start-Sleep -Milliseconds 300
+    }
+}
+Start-Sleep -Seconds 3
+$null = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\notepad.exe') -PassThru
+$watcherWorks = $false
+for ($attempt = 0; $attempt -lt 30 -and -not $watcherWorks; $attempt++) {
+    Start-Sleep -Milliseconds 500
+    $watcherWorks = [bool](@(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue) -match '^notepad \|').Count
+}
+Get-Process -Name 'notepad' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Set-Content -LiteralPath $windowLog -Value @() -Encoding ASCII
+
 $pass = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbookPass -OptionList $optionList -Name 'pass'
+
+Stop-Job -Job $watcher -ErrorAction SilentlyContinue
+Remove-Job -Job $watcher -Force -ErrorAction SilentlyContinue
+# Bagian shell Windows yang memang muncul lagi saat TGOS menjalankan ulang Explorer.
+$shellProcesses = '^(explorer|ShellExperienceHost|StartMenuExperienceHost|SearchHost|SearchApp|TextInputHost|ApplicationFrameHost|LockApp|ShellHost) \|'
+$newWindows = @(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue | Where-Object { $_ })
+$unexpected = @($newWindows | Where-Object { $_ -notmatch $shellProcesses })
+if ($watcherWorks) {
+    $null = Assert-That ($unexpected.Count -eq 0) ('pass: no window appeared during the playbook ({0} shell window(s) from the Explorer restart ignored)' -f ($newWindows.Count - $unexpected.Count))
+}
+else {
+    Write-Host '   INFO: the window watcher could not see the Notepad control window; the no-window check is inconclusive'
+}
+$newWindows | Select-Object -First 15 | ForEach-Object { Write-Host ('   window: {0}' -f (Format-LogLine $_)) }
 $ok = Assert-That (-not $pass.TimedOut) 'pass: the engine did not hang'
 $ok = (Assert-That ($pass.Output -notmatch 'YAML Error|Fatal Playbook Error') 'pass: no YAML or fatal error') -and $ok
 $ok = (Assert-That ($pass.Output -match 'Playbook completed successfully') 'pass: the engine reported "Playbook completed successfully."') -and $ok
@@ -502,11 +548,37 @@ $softwareChecks = @(
     @{ Option = 'browser-brave'; Name = 'Brave'; Relative = 'BraveSoftware\Brave-Browser\Application\brave.exe' },
     @{ Option = 'browser-chrome'; Name = 'Chrome'; Relative = 'Google\Chrome\Application\chrome.exe' },
     @{ Option = 'browser-firefox'; Name = 'Firefox'; Relative = 'Mozilla Firefox\firefox.exe' },
-    @{ Option = 'install-7zip'; Name = '7-Zip'; Relative = '7-Zip\7z.exe' })
+    @{ Option = 'install-7zip'; Name = '7-Zip'; Relative = '7-Zip\7z.exe' },
+    @{ Option = 'install-steam'; Name = 'Steam'; Relative = 'Steam\steam.exe'; X64Only = $true },
+    @{ Option = 'install-epic'; Name = 'Epic Games Launcher'; Relative = 'Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe'; X64Only = $true },
+    @{ Option = 'install-ea'; Name = 'EA app'; Relative = 'Electronic Arts\EA Desktop\EA Desktop\EADesktop.exe'; X64Only = $true },
+    @{ Option = 'install-ubisoft'; Name = 'Ubisoft Connect'; Relative = 'Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe'; X64Only = $true },
+    @{ Option = 'install-discord'; Name = 'Discord'; UserRelative = 'Discord\Update.exe'; X64Only = $true },
+    @{ Option = 'install-spotify'; Name = 'Spotify'; UserRelative = 'Spotify\Spotify.exe'; Roaming = $true; X64Only = $true })
 foreach ($check in $softwareChecks) {
     if ($selectedOptions -notcontains $check.Option) { continue }
-    $found = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
-        ForEach-Object { Join-Path $_ $check.Relative } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if ($check.X64Only -and $runnerArch -ne 'AMD64') {
+        Write-Host ('   {0}: skipped on {1} (TGOS installs it on x64 only)' -f $check.Name, $runnerArch)
+        continue
+    }
+    if ($check.UserRelative) {
+        # Per pengguna: dipasang ke profil akun yang menjalankan uji ini.
+        $base = $env:LOCALAPPDATA
+        if ($check.Roaming) { $base = $env:APPDATA }
+        $found = @(Join-Path $base $check.UserRelative) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    }
+    else {
+        $found = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
+            ForEach-Object { Join-Path $_ $check.Relative } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    }
+    if (-not $found -and $check.Option -eq 'install-epic') {
+        $found = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
+            ForEach-Object { Join-Path $_ 'Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe' } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    }
+    if (-not $found -and $check.Option -eq 'install-ubisoft') {
+        $found = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
+            ForEach-Object { Join-Path $_ 'Ubisoft\Ubisoft Game Launcher\upc.exe' } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    }
     $null = Assert-That ([bool]$found) ('software: {0} is installed after the run' -f $check.Name)
     if ($found) { Write-Host ('   {0} {1}' -f $found, (Get-Item -LiteralPath $found).VersionInfo.ProductVersion) }
     elseif ($check.Option -eq 'browser-brave') {
@@ -600,6 +672,21 @@ if ($plannedOptions -contains 'remove-xbox') {
     # app to open this ms-gamebar link". TGOS memberi penangan pengganti (systray.exe).
     $systray = Join-Path $env:SystemRoot 'System32\systray.exe'
     $null = Assert-That (Test-Path -LiteralPath $systray) 'gamebar: systray.exe (the replacement handler) exists'
+    # Diagnosa: penangan tiap protokol untuk pengguna uji, dan pilihan aplikasi tersimpan.
+    foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
+        foreach ($root in @('HKCU:\Software\Classes', 'HKLM:\SOFTWARE\Classes')) {
+            $command = Join-Path (Join-Path $root $protocol) 'shell\open\command'
+            $value = '(missing)'
+            if (Test-Path -LiteralPath $command) { $value = [string](Get-Item -LiteralPath $command).GetValue('', '', 'DoNotExpandEnvironmentNames') }
+            Write-Host ('   {0}\{1}\shell\open\command = {2}' -f ($root -replace ':', ''), $protocol, $value)
+        }
+        $choice = 'HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\{0}\UserChoice' -f $protocol
+        $progId = (Get-ItemProperty -LiteralPath $choice -ErrorAction SilentlyContinue).ProgId
+        if (-not $progId) { $progId = '(none)' }
+        Write-Host ('   UserChoice for {0}: {1}' -f $protocol, $progId)
+    }
+    $overlay = @(Get-AppxPackage -AllUsers -Name '*XboxGamingOverlay*' -ErrorAction SilentlyContinue | ForEach-Object { $_.PackageFullName })
+    Write-Host ('   Game Bar packages left: {0}' -f $(if ($overlay.Count) { $overlay -join ', ' } else { 'none' }))
     if (Test-WindowControl) {
         $before = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | ForEach-Object { $_.Id })
         foreach ($uri in @('ms-gamebar:', 'ms-gamingoverlay:')) {
@@ -741,17 +828,21 @@ Write-Section 'Toolbox buttons'
 # "pause"). Membuktikan jalur ..\Support dari subfolder dan menu Install Software.
 $toolboxRoot = Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox'
 function Invoke-ToolboxButton {
-    param([string]$Relative, [string[]]$InputLines)
+    param([string]$Relative, [string[]]$InputLines, [string]$Path)
     $inputFile = Join-Path $artifacts 'button-input.txt'
-    $outputFile = Join-Path $artifacts ('button-{0}.txt' -f ([IO.Path]::GetFileNameWithoutExtension($Relative) -replace '[^A-Za-z0-9-]', ''))
+    $stem = [IO.Path]::GetFileNameWithoutExtension($Relative) -replace '[^A-Za-z0-9-]', ''
+    $outputFile = Join-Path $artifacts ('button-{0}.txt' -f $stem)
+    $errorFile = Join-Path $artifacts ('button-{0}-stderr.txt' -f $stem)
     Set-Content -LiteralPath $inputFile -Value $InputLines -Encoding ASCII
-    $path = Join-Path $toolboxRoot $Relative
-    $process = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', ('"{0}"' -f $path)) -RedirectStandardInput $inputFile -RedirectStandardOutput $outputFile -NoNewWindow -PassThru
+    if (-not $Path) { $Path = Join-Path $toolboxRoot $Relative }
+    $process = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', ('"{0}"' -f $Path)) -RedirectStandardInput $inputFile -RedirectStandardOutput $outputFile -RedirectStandardError $errorFile -NoNewWindow -PassThru
     $null = $process.Handle
     if (-not $process.WaitForExit(600000)) { try { $process.Kill() } catch { } }
     $text = ''
     if (Test-Path -LiteralPath $outputFile) { $text = Get-Content -LiteralPath $outputFile -Raw }
-    return @{ Exit = $process.ExitCode; Output = [string]$text }
+    $errors = ''
+    if (Test-Path -LiteralPath $errorFile) { $errors = Get-Content -LiteralPath $errorFile -Raw }
+    return @{ Exit = $process.ExitCode; Output = [string]$text; Errors = [string]$errors }
 }
 $lockKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'
 $result = Invoke-ToolboxButton -Relative 'Turn ON or OFF\Lock Screen - Turn OFF.cmd' -InputLines @('')
@@ -764,6 +855,18 @@ $null = Assert-That ($null -eq $value -and $result.Output -match 'lock screen is
 $result = Invoke-ToolboxButton -Relative 'Install Software.cmd' -InputLines @('4', '', '0')
 $ok = Assert-That ($result.Output -match 'TGOS: 7-Zip installed' -and $result.Output -match 'verified:') 'toolbox button: "Install Software.cmd" menu installs 7-Zip and exits on 0'
 if (-not $ok) { $result.Output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 8 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) } }
+$null = Assert-That (-not $result.Errors.Trim()) 'toolbox button: "Install Software.cmd" printed no cmd error'
+if ($result.Errors.Trim()) {
+    Write-Host ('   stderr: {0}' -f (Format-LogLine $result.Errors))
+    # Jalankan salinan dengan "echo on" supaya baris yang memicu error terlihat.
+    $debugCopy = Join-Path $toolboxRoot 'menu-debug.cmd'
+    (Get-Content -LiteralPath (Join-Path $toolboxRoot 'Install Software.cmd') -Raw).Replace('@echo off', '@echo on') |
+        Set-Content -LiteralPath $debugCopy -Encoding ASCII -NoNewline
+    $debug = Invoke-ToolboxButton -Relative 'menu-debug.cmd' -Path $debugCopy -InputLines @('0')
+    $debug.Output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 25 | ForEach-Object { Write-Host ('   debug | ' + (Format-LogLine $_)) }
+    Write-Host ('   debug stderr: {0}' -f (Format-LogLine $debug.Errors))
+    Remove-Item -LiteralPath $debugCopy -Force -ErrorAction SilentlyContinue
+}
 
 # =======================================================================================
 Write-Section 'Report collector'

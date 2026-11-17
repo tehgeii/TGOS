@@ -325,16 +325,57 @@ function Test-VcRuntime {
     return $false
 }
 
+function Test-UninstallEntry {
+    # Ada program terpasang yang DisplayName-nya cocok dengan pola ini (64 dan 32-bit).
+    param([string]$Pattern)
+    $roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
+    $names = @(Get-ItemProperty -Path $roots -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.DisplayName })
+    return [bool](@($names | Where-Object { $_ -match $Pattern }).Count)
+}
+
+function Find-UserProgram {
+    # Program per pengguna: jalur pertama yang ada di salah satu profil pengguna biasa.
+    param([string]$Relative)
+    $root = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+    foreach ($key in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
+        if ($key.PSChildName -notmatch '^S-1-5-21-[\d-]+$') { continue }
+        $profilePath = [string](Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue).ProfileImagePath
+        if (-not $profilePath) { continue }
+        $path = Join-Path $profilePath $Relative
+        if (Test-Path -LiteralPath $path) { return $path }
+    }
+    return $null
+}
+
 function Test-SoftwareResults {
     # Program pilihan pengguna. Yang tidak terpasang bisa diulang dari TGOS Toolbox.
+    # Arsitektur asli Windows (bukan arsitektur proses PowerShell ini). Selain browser
+    # dan 7-Zip, software TGOS hanya dipasang di Windows x64.
+    $native = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -ErrorAction SilentlyContinue).PROCESSOR_ARCHITECTURE
+    $x64 = (-not $native) -or $native -eq 'AMD64'
     $programs = @(
-        @{ Option = 'browser-brave'; Name = 'Brave'; Relative = 'BraveSoftware\Brave-Browser\Application\brave.exe' },
-        @{ Option = 'browser-chrome'; Name = 'Google Chrome'; Relative = 'Google\Chrome\Application\chrome.exe' },
-        @{ Option = 'browser-firefox'; Name = 'Mozilla Firefox'; Relative = 'Mozilla Firefox\firefox.exe' },
-        @{ Option = 'install-7zip'; Name = '7-Zip'; Relative = '7-Zip\7z.exe' })
+        @{ Option = 'browser-brave'; Name = 'Brave'; Relative = @('BraveSoftware\Brave-Browser\Application\brave.exe') },
+        @{ Option = 'browser-chrome'; Name = 'Google Chrome'; Relative = @('Google\Chrome\Application\chrome.exe') },
+        @{ Option = 'browser-firefox'; Name = 'Mozilla Firefox'; Relative = @('Mozilla Firefox\firefox.exe') },
+        @{ Option = 'install-7zip'; Name = '7-Zip'; Relative = @('7-Zip\7z.exe') },
+        @{ Option = 'install-steam'; Name = 'Steam'; Relative = @('Steam\steam.exe'); X64Only = $true },
+        @{ Option = 'install-epic'; Name = 'Epic Games Launcher'; X64Only = $true
+            Relative = @('Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe', 'Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe') },
+        @{ Option = 'install-ea'; Name = 'EA app'; Relative = @('Electronic Arts\EA Desktop\EA Desktop\EADesktop.exe'); X64Only = $true },
+        @{ Option = 'install-ubisoft'; Name = 'Ubisoft Connect'; X64Only = $true
+            Relative = @('Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe', 'Ubisoft\Ubisoft Game Launcher\upc.exe') },
+        @{ Option = 'install-discord'; Name = 'Discord'; UserRelative = 'AppData\Local\Discord\Update.exe'; X64Only = $true },
+        @{ Option = 'install-spotify'; Name = 'Spotify'; UserRelative = 'AppData\Roaming\Spotify\Spotify.exe'; X64Only = $true })
     foreach ($program in $programs) {
         if (-not (Test-Option $program.Option)) { continue }
-        $path = Find-Program $program.Relative
+        if ($program.X64Only -and -not $x64) {
+            Add-Result 'SKIP' 'software' $program.Name ("installed on x64 Windows only (this PC is {0})" -f $native) 'Install-Software.ps1'
+            continue
+        }
+        $path = $null
+        if ($program.UserRelative) { $path = Find-UserProgram $program.UserRelative }
+        else { $path = @($program.Relative | ForEach-Object { Find-Program $_ } | Where-Object { $_ }) | Select-Object -First 1 }
         if ($path) {
             Add-Result 'PASS' 'software' $program.Name ("installed: {0}" -f $path) 'Install-Software.ps1'
         }
@@ -350,8 +391,6 @@ function Test-SoftwareResults {
         else {
             Add-Result 'FAIL' 'software' 'Visual C++ Redistributable' 'x64 or x86 runtime missing; retry from the TGOS Toolbox' 'Install-Software.ps1'
         }
-        # Arsitektur asli Windows (bukan arsitektur proses PowerShell ini).
-        $native = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -ErrorAction SilentlyContinue).PROCESSOR_ARCHITECTURE
         $legacy = @('System32', 'SysWOW64') | ForEach-Object { Join-Path $env:SystemRoot ('{0}\d3dx9_43.dll' -f $_) } |
             Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
         if ($native -and $native -ne 'AMD64') {
@@ -362,6 +401,56 @@ function Test-SoftwareResults {
         }
         else {
             Add-Result 'FAIL' 'software' 'DirectX End-User Runtime' 'd3dx9_43.dll missing; retry from the TGOS Toolbox' 'Install-Software.ps1'
+        }
+
+        # Visual C++ 2005-2013 (x86 dan x64) dan XNA 4.0, dari daftar program terpasang.
+        $runtimes = @(
+            @{ Name = 'Visual C++ 2005 x86'; Pattern = 'Visual C\+\+ 2005 Redistributable$' },
+            @{ Name = 'Visual C++ 2005 x64'; Pattern = 'Visual C\+\+ 2005 Redistributable \(x64\)' },
+            @{ Name = 'Visual C++ 2008 x86'; Pattern = 'Visual C\+\+ 2008 Redistributable - x86' },
+            @{ Name = 'Visual C++ 2008 x64'; Pattern = 'Visual C\+\+ 2008 Redistributable - x64' },
+            @{ Name = 'Visual C++ 2010 x86'; Pattern = 'Visual C\+\+ 2010\s+x86 Redistributable' },
+            @{ Name = 'Visual C++ 2010 x64'; Pattern = 'Visual C\+\+ 2010\s+x64 Redistributable' },
+            @{ Name = 'Visual C++ 2012 x86'; Pattern = 'Visual C\+\+ 2012 Redistributable \(x86\)' },
+            @{ Name = 'Visual C++ 2012 x64'; Pattern = 'Visual C\+\+ 2012 Redistributable \(x64\)' },
+            @{ Name = 'Visual C++ 2013 x86'; Pattern = 'Visual C\+\+ 2013 Redistributable \(x86\)' },
+            @{ Name = 'Visual C++ 2013 x64'; Pattern = 'Visual C\+\+ 2013 Redistributable \(x64\)' },
+            @{ Name = 'XNA Framework 4.0'; Pattern = '^Microsoft XNA Framework Redistributable 4\.0' })
+        foreach ($runtime in $runtimes) {
+            if (-not $x64) {
+                Add-Result 'SKIP' 'software' $runtime.Name ("installed on x64 Windows only (this PC is {0})" -f $native) 'Install-Software.ps1'
+            }
+            elseif (Test-UninstallEntry $runtime.Pattern) {
+                Add-Result 'PASS' 'software' $runtime.Name 'installed' 'Install-Software.ps1'
+            }
+            else {
+                Add-Result 'FAIL' 'software' $runtime.Name 'not installed; retry from the TGOS Toolbox' 'Install-Software.ps1'
+            }
+        }
+    }
+
+    if (Test-Option 'install-dotnet') {
+        $netfx3 = Read-RegistryValue ([Microsoft.Win32.Registry]::LocalMachine) 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5' 'Install'
+        if ($netfx3.Found -and [int]$netfx3.Data -eq 1) {
+            Add-Result 'PASS' 'software' '.NET Framework 3.5' 'installed' 'Install-Software.ps1'
+        }
+        else {
+            Add-Result 'FAIL' 'software' '.NET Framework 3.5' 'not installed; retry from the TGOS Toolbox (needs internet)' 'Install-Software.ps1'
+        }
+        foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+            $label = '.NET Desktop Runtime 10 ({0})' -f $(if ($base -eq $env:ProgramFiles) { 'x64' } else { 'x86' })
+            if (-not $x64) {
+                Add-Result 'SKIP' 'software' $label ("installed on x64 Windows only (this PC is {0})" -f $native) 'Install-Software.ps1'
+                continue
+            }
+            $folder = Join-Path $base 'dotnet\shared\Microsoft.WindowsDesktop.App'
+            $found = @(Get-ChildItem -LiteralPath $folder -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '10.*' })
+            if ($found.Count -gt 0) {
+                Add-Result 'PASS' 'software' $label ('installed: {0}' -f ($found | Select-Object -Last 1).Name) 'Install-Software.ps1'
+            }
+            else {
+                Add-Result 'FAIL' 'software' $label 'not installed; retry from the TGOS Toolbox' 'Install-Software.ps1'
+            }
         }
     }
 

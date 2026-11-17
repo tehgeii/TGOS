@@ -40,7 +40,7 @@ jobs:
   engine:
     name: AME engine (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 90
     # Runner Windows 11 masih percobaan: hasilnya dibaca, tetapi tidak menggagalkan run.
     continue-on-error: ${{ matrix.experimental }}
     strategy:

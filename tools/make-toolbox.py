@@ -53,7 +53,14 @@ SOFTWARE = [
     ("Google Chrome", ["chrome"]),
     ("Mozilla Firefox", ["firefox"]),
     ("7-Zip", ["7zip"]),
-    ("Game runtimes (Visual C++, DirectX)", ["vcredist", "directx"]),
+    ("Game runtimes (Visual C++ 2005-2022, DirectX, XNA)", ["vcredist", "vcredist-legacy", "xna", "directx"]),
+    (".NET (Framework 3.5 and Desktop Runtime)", ["netfx3", "dotnet"]),
+    ("Steam", ["steam"]),
+    ("Epic Games Launcher", ["epic"]),
+    ("EA app", ["ea"]),
+    ("Ubisoft Connect", ["ubisoft"]),
+    ("Discord (for this account)", ["discord"]),
+    ("Spotify (for this account)", ["spotify"]),
 ]
 
 ELEVATE = [
