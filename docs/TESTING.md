@@ -309,15 +309,26 @@ Lapis 2, runner command-line AME versi 0.8.4 (run terakhir sebelum rilis):
 
 | Runner | Opsi, browser | Pemeriksaan diri | Pemeriksaan CI |
 |---|---|---|---|
-| Windows Server 2025, build 26100, x64 | bawaan, Brave | 188 PASS, 0 FAIL, 1 WARN, 43 SKIP | 48 dari 48 |
-| Windows Server 2025, build 26100, x64 | semua, Chrome | 214 PASS, 0 FAIL, 1 WARN, 18 SKIP | 49 dari 49 |
-| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan, Brave | 198 PASS, 0 FAIL, 0 WARN, 34 SKIP | 47 dari 47 |
-| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua, Firefox | 224 PASS, 0 FAIL, 0 WARN, 9 SKIP | 46 dari 46 |
+| Windows Server 2025, build 26100, x64 | bawaan, Brave | 188 PASS, 0 FAIL, 1 WARN, 43 SKIP | 51 dari 51 |
+| Windows Server 2025, build 26100, x64 | semua, Chrome | 214 PASS, 0 FAIL, 1 WARN, 18 SKIP | 53 dari 53 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan, Brave | 198 PASS, 0 FAIL, 0 WARN, 34 SKIP | 50 dari 50 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua, Firefox | 224 PASS, 0 FAIL, 0 WARN, 9 SKIP | 49 dari 49 |
 
 `WARN` di Server adalah restore point, yang memang tidak didukung Windows Server.
 
 Yang terlihat di log:
 
+- **Revisi setelah uji VM.** DirectX dipasang playbook sendiri (lewat mesin AME) dari
+  paket lengkap di kedua job Server: SHA256 cocok dengan checksum yang dikunci,
+  `DXSETUP.exe` bertanda tangan Microsoft dan keluar dengan kode 0. Selama pemasangan
+  DirectX, pemantau jendela **tidak melihat jendela DirectX apa pun**, dan kontrolnya
+  (jendela Notepad) terdeteksi, jadi pemantaunya terbukti bekerja. Satu run sebelumnya,
+  saat masih memakai `/Q` saja, pemantau yang sama menangkap jendela progres
+  pengekstrak "DirectX June 2010 SDK"; itu sebabnya sekarang `/Q:A`.
+- DiagTrack berjalan sebelum playbook dan dihentikan playbook di keempat job; nilai
+  `Start` kedua perekam telemetri tetap 0 sesudahnya.
+- Reset pin menghapus 1-2 pintasan pin lama di job Server; Explorer hidup lagi sebelum
+  pintasan TGOS Toolbox dibuat.
 - **Software dipasang oleh playbook sendiri** (sebagai sistem, lewat mesin AME): Brave
   157.1.99.57 di `C:\Program Files\BraveSoftware` (dua job), Chrome 157.0.8103.79 dan
   Firefox 160.0 setelah versi bawaan runner dicopot, 7-Zip 26.06 di keempat job
