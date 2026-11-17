@@ -377,7 +377,7 @@ Susunan `1.0.0` (✔ = bawaan tercentang):
 | 1 | Komponen (`CheckboxPage`) | Remove Copilot and Widgets | `remove-ai-widgets` | ✔ |
 | | | Remove OneDrive | `remove-onedrive` | ✔ |
 | | | Remove Xbox app and Game Bar | `remove-xbox` | ✘ |
-| | | Remove Microsoft Store | `remove-store` | ✘ |
+| | | Remove Microsoft Store (hard to undo) | `remove-store` | ✘ |
 | 2 | Browser (`RadioImagePage`) | Brave | `browser-brave` | bawaan |
 | | | Chrome | `browser-chrome` | |
 | | | Firefox | `browser-firefox` | |
@@ -620,10 +620,35 @@ Temuan dari uji `0.9.1`, ditangani di `1.0.0`:
 Software pilihan (`05-software.yml`, `Install-Software.ps1`) diunduh dari sumber resmi:
 Brave (rilis GitHub Brave), Chrome (MSI enterprise `dl.google.com`), Firefox
 (`download.mozilla.org`), Visual C++ (`aka.ms`), DirectX (`download.microsoft.com`),
-7-Zip (`www.7-zip.org`). Tanda tangan Authenticode tiap file harus sah dan penerbitnya
-harus cocok sebelum dijalankan. Pengecualian: installer 7-Zip tidak ditandatangani
-pembuatnya, jadi yang diperiksa hanya info versi filenya; perlindungannya sebatas HTTPS
-ke situs resmi.
+7-Zip (rilis resmi `ip7z/7zip` di GitHub). Tanda tangan Authenticode tiap file harus sah
+dan penerbitnya harus cocok sebelum dijalankan. Pengecualian: installer 7-Zip tidak
+ditandatangani pembuatnya, jadi filenya dicocokkan dengan SHA256 yang tercantum di
+manifest winget Microsoft (`microsoft/winget-pkgs`) untuk versi itu, ditambah nama produk
+dan versi. Bila manifest versi baru belum terbit, hanya nama dan versi yang diperiksa, dan
+itu dicatat di log.
+
+Pelajaran dari uji otomatis sebelum rilis `1.0.0` (semuanya diperbaiki sebelum rilis):
+
+- **Brave.** `BraveBrowserStandaloneSilentSetup.exe` memasang **per pengguna**
+  ([issue Brave #18711](https://github.com/brave/brave-browser/issues/18711)). Dijalankan
+  playbook (sebagai sistem), Brave masuk ke profil SYSTEM yang tidak terlihat dan uji
+  menyatakannya tidak terpasang. Yang benar untuk semua pengguna adalah
+  `BraveBrowserStandaloneSetup.exe /silent /install`, sama dengan manifest winget
+  `Brave.Brave` (scope machine). Installer itu juga memasang updater Brave, jadi Brave
+  tetap update otomatis.
+- **7-Zip.** Versi semula dibaca dari tautan pertama di halaman 7-zip.org, dan di uji
+  menghasilkan 7-Zip 23.01 yang terpasang menimpa 26.05. Sekarang versi dibaca dari
+  `releases/latest` GitHub (tidak pernah pre-release), dan **TGOS tidak pernah memasang
+  7-Zip yang lebih lama dari yang sudah terpasang**. Aturan ini sempat juga dipasang
+  untuk Firefox, dan uji menunjukkan itu salah: installer Firefox membawa nomor versi
+  installer-nya sendiri (18.5), bukan versi Firefox (160.0), sehingga Firefox tidak
+  pernah dipasang ulang. Untuk browser aturan itu dicabut; browser memperbarui dirinya
+  sendiri.
+- **Konteks pemasangan.** Image runner uji sudah berisi Chrome, Firefox, dan 7-Zip,
+  sehingga pemasangan oleh playbook (sebagai sistem) untuk ketiganya semula tidak
+  teruji. Uji sekarang mencopot program itu dulu.
+- **DirectX** hanya dipasang di Windows x64. Di runner uji Windows 11 ARM64 installernya
+  gagal (kode -9); di PC sungguhan TGOS sudah menolak ARM64 di langkah pertama.
 
 ### 8.8 Antarmuka (`80-interface.yml`)
 

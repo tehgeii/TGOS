@@ -53,7 +53,7 @@ extra services*).
 |---|---|
 | Aplikasi yang dihapus | Pasang lagi dari Microsoft Store (cari namanya), atau `winget install <nama>`. |
 | Defender, VBS, mitigasi CPU, update otomatis, indexing, hibernasi, core parking, layanan ekstra, pengumpul telemetri | File *Turn ON* di **TGOS Toolbox** (pintasan di Desktop). |
-| Microsoft Store | *Reinstall Microsoft Store* di TGOS Toolbox (butuh internet). |
+| Microsoft Store | **Sulit dikembalikan.** *Reinstall Microsoft Store* di TGOS Toolbox mencoba `wsreset -i` (butuh internet), tetapi di uji otomatis Windows 11 Store tidak kembali dalam 5 menit. Bila tetap tidak ada setelah restart: Settings > System > Recovery > *Fix problems using Windows Update*. |
 | Browser, 7-Zip, runtime game | Program biasa: hapus lewat Settings > Apps > Installed apps. Pasang lagi lewat TGOS Toolbox. |
 | Copilot, Edge | Unduh lagi dari situs Microsoft. Policy yang mencegah pemasangan ulang otomatis ada di `HKLM\\SOFTWARE\\Policies\\Microsoft\\EdgeUpdate` (nilai `Install{{...}}`); hapus nilainya dulu. |
 | Pin taskbar dan Start | Pin sendiri seperti biasa. *Reset Taskbar and Start* di TGOS Toolbox mengembalikan set TGOS. |

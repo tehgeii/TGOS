@@ -91,6 +91,9 @@ actions:
   # dijadikan 100% pada skema daya yang aktif. Daya idle naik sedikit, jadi tidak untuk
   # laptop. Dijalankan SETELAH power plan di bawah diaktifkan (urutan aksi di file ini),
   # nilai sebelumnya dicatat, dan bisa dikembalikan lewat TGOS Toolbox.
+  # Pengaturan ini disembunyikan Windows; skrip membuatnya terlihat supaya nilainya bisa
+  # dibaca, jadi "Processor performance core parking min cores" tampil di Advanced power
+  # settings.
   #
   # (Aksi skripnya ada di akhir file, sesudah opsi power plan.)
 

@@ -30,7 +30,10 @@ Software (needs internet)
   Install 7-Zip          Same, for 7-Zip.
   Install Game Runtimes  Visual C++ and DirectX runtimes from Microsoft.
   Reinstall Microsoft Store
-                         Brings the Store back if you removed it.
+                         Tries to bring the Store back if you removed it. Not
+                         guaranteed: if it has not come back after a restart, use
+                         Settings > System > Recovery > "Fix problems using
+                         Windows Update".
 
 Other
 -----

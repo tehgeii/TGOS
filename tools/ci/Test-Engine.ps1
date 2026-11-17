@@ -510,6 +510,8 @@ foreach ($item in @($ForceItems -split '\s+' | Where-Object { $_ })) {
     $output = & cmd.exe /c $command | Out-String
     $exit = $LASTEXITCODE
     $ok = ($exit -eq 0) -and ($output -match 'verified:') -and ($output -match 'TGOS: .+ installed')
+    # Hanya 7-Zip yang boleh dilewati karena versi terpasang lebih baru.
+    $ok = $ok -and ($item -eq '7zip' -or $output -notmatch 'nothing changed')
     $null = Assert-That $ok ('software: forced download of {0} is verified and installed' -f $item)
     if ($null -ne $before) {
         $after = Get-InstalledVersion $versionedExe[$item]

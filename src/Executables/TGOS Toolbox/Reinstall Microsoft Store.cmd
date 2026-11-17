@@ -11,5 +11,9 @@ echo Memasang ulang Microsoft Store. Butuh internet dan bisa makan beberapa meni
 wsreset.exe -i
 echo.
 echo Windows downloads the Store in the background. It appears in Start when it is done.
+echo This is not guaranteed to work. If the Store has not come back after a restart,
+echo use Settings, System, Recovery, "Fix problems using Windows Update".
+echo Tidak dijamin berhasil. Bila Store belum kembali setelah restart, gunakan
+echo Settings, System, Recovery, "Fix problems using Windows Update".
 echo.
 pause

@@ -271,14 +271,14 @@
   {
    "type": "appx",
    "name": "Microsoft.WindowsStore*",
-   "source": "10-debloat-appx.yml:113",
+   "source": "10-debloat-appx.yml:115",
    "option": "remove-store",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.StorePurchaseApp*",
-   "source": "10-debloat-appx.yml:114",
+   "source": "10-debloat-appx.yml:116",
    "option": "remove-store",
    "builds": null
   },
@@ -1462,7 +1462,7 @@
    "type": "registry",
    "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power",
    "value": "HiberbootEnabled",
-   "source": "50-performance.yml:100",
+   "source": "50-performance.yml:103",
    "option": "disable-hibernation",
    "builds": null,
    "absent": false,
@@ -1473,7 +1473,7 @@
    "type": "registry",
    "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling",
    "value": "PowerThrottlingOff",
-   "source": "50-performance.yml:114",
+   "source": "50-performance.yml:117",
    "option": "disable-power-saving",
    "builds": null,
    "absent": false,

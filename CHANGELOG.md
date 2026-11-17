@@ -27,11 +27,14 @@ uji di hardware asli (benchmark, anti-cheat) belum dilakukan.
 
 - **Halaman pilihan browser** bergambar: Brave (bawaan), Chrome, Firefox, atau None.
 - **Software**: 7-Zip dan runtime game (Visual C++ x64/x86, DirectX). Semuanya diunduh
-  dari sumber resmi dan tanda tangan digitalnya diperiksa sebelum dijalankan. Tanpa
-  internet instalasi tetap lanjut; pemasangan bisa diulang dari Toolbox.
+  dari sumber resmi dan tanda tangan digitalnya diperiksa sebelum dijalankan; 7-Zip, yang
+  tidak ditandatangani pembuatnya, dicocokkan dengan checksum di manifest winget
+  Microsoft, dan tidak pernah diturunkan versinya. Brave
+  dipasang untuk semua pengguna, lengkap dengan updater-nya. Tanpa internet instalasi
+  tetap lanjut; pemasangan bisa diulang dari Toolbox.
 - **Pengaman Edge**: Edge tidak dihapus bila browser yang dipilih gagal terpasang.
-- **Opsi baru**: hapus Microsoft Store (default mati), matikan core parking CPU, matikan
-  animasi, pangkas layanan ekstra (printer, diagnostik, penemuan jaringan; default
+- **Opsi baru**: hapus Microsoft Store (default mati, ditandai *hard to undo*), matikan core parking CPU (pengaturan
+  itu jadi tampil di Advanced power settings), matikan animasi, pangkas layanan ekstra (printer, diagnostik, penemuan jaringan; default
   mati), menu klik kanan klasik, taskbar rata kiri.
 - **Telemetri maksimal tanpa blokir jaringan**: policy tambahan, perekam otomatis
   dimatikan, dan `CompatTelRunner.exe` serta `DeviceCensus.exe` dicegah jalan.
@@ -39,7 +42,9 @@ uji di hardware asli (benchmark, anti-cheat) belum dilakukan.
   Settings > About; Click to Do dimatikan bersama Copilot.
 - Aplikasi tambahan yang dihapus: Cross Device Experience Host, Start Experiences App,
   Edge Game Assist (bersama Edge).
-- **TGOS Toolbox**: pasang browser / 7-Zip / runtime game, pasang ulang Microsoft Store,
+- **TGOS Toolbox**: pasang browser / 7-Zip / runtime game, mencoba pasang ulang Microsoft
+  Store (`wsreset -i`; di uji otomatis Store tidak kembali dalam 5 menit, jadi tidak
+  dijamin),
   reset taskbar dan Start, dan tombol ON/OFF untuk core parking, layanan ekstra, dan
   pengumpul telemetri.
 - Laporan (`Collect TGOS Report`) sekarang memuat daftar program terpasang, ID aplikasi
@@ -49,8 +54,14 @@ uji di hardware asli (benchmark, anti-cheat) belum dilakukan.
 
 - Validator: halaman `RadioImagePage` dan gambarnya; Store dan `Spooler` hanya boleh
   disentuh lewat opsinya sendiri.
-- Uji otomatis: tiap browser dipasang sungguhan di salah satu job; unduhan dipaksa ulang
-  untuk program yang sudah ada di image runner; uji unduhan gagal dan pengaman Edge.
+- Uji diri: pemindai yang menolak variabel PowerShell bernama sama dengan parameter skrip
+  (beda huruf besar-kecil; bug jenis ini sempat merusak satu tombol Toolbox sebelum
+  rilis), uji pembaca checksum winget dan pembanding versi, dan uji pemilihan browser
+  untuk pin taskbar.
+- Uji otomatis: tiap browser dipasang sungguhan oleh playbook di salah satu job (program
+  yang sudah ada di image runner dicopot dulu); pemasangan ulang lewat Toolbox, dengan
+  pemeriksaan versi tidak turun; uji unduhan gagal dan pengaman Edge; percobaan pasang
+  ulang Microsoft Store (hasilnya dicatat, tidak menggagalkan uji).
 
 **Perubahan perilaku dari 0.9.1**: animasi tidak lagi selalu dimatikan (sekarang opsi,
 bawaan tercentang); label "(experimental)" pada opsi hapus Edge dicabut; pin taskbar dan

@@ -265,7 +265,13 @@ try {
             }
             $defaults = @{ Spooler = 2; DPS = 2; PcaSvc = 2 }
 
+            # Lewat sc.exe (Service Control Manager), bukan menulis registry langsung:
+            # sebagian kunci layanan hanya bisa ditulis sistem, dan Administrator ditolak
+            # ("Requested registry access is not allowed"). Tiap layanan ditangani sendiri,
+            # jadi satu kegagalan tidak menghentikan yang lain, dan yang gagal disebut.
+            $modes = @{ 2 = 'auto'; 3 = 'demand'; 4 = 'disabled' }
             $changed = 0
+            $failed = @()
             foreach ($name in $names) {
                 $key = 'HKLM:\SYSTEM\CurrentControlSet\Services\{0}' -f $name
                 if (-not (Test-Path -LiteralPath $key)) { continue }
@@ -273,14 +279,33 @@ try {
                 elseif ($before.ContainsKey($name) -and $before[$name] -ne 4) { $value = $before[$name] }
                 elseif ($defaults.ContainsKey($name)) { $value = $defaults[$name] }
                 else { $value = 3 }
-                Set-Dword -Path $key -Name 'Start' -Value $value
-                $changed++
+                if (-not $modes.ContainsKey($value)) { $value = 3 }
+
+                $output = (& cmd.exe /c ('sc.exe config "{0}" start= {1} 2>&1' -f $name, $modes[$value]) | Out-String)
+                if ($LASTEXITCODE -ne 0) {
+                    try { Set-Dword -Path $key -Name 'Start' -Value $value }
+                    catch { }
+                }
+                $now = (Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue).Start
+                if ($now -eq $value) {
+                    $changed++
+                }
+                else {
+                    $failed += $name
+                    Write-Log ('ExtraServices {0}: {1} not changed: {2}' -f $State, $name, ($output -replace '\s+', ' ').Trim())
+                }
             }
             if ($State -eq 'Off') {
                 Write-Host ('{0} extra services (printing, diagnostics, network discovery) are now OFF.' -f $changed)
             }
             else {
                 Write-Host ('{0} extra services (printing, diagnostics, network discovery) are back ON.' -f $changed)
+            }
+            if ($failed.Count -gt 0) {
+                Write-Host ('FAILED: these services could not be changed: {0}' -f ($failed -join ', '))
+                Write-Host 'Layanan di atas tidak bisa diubah; detailnya ada di C:\ProgramData\TGOS\toolbox.log.'
+                Write-Log ('ExtraServices {0}: failed for {1}' -f $State, ($failed -join ', '))
+                exit 1
             }
         }
         'Telemetry' {

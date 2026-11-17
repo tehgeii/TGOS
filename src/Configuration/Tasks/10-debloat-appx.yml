@@ -106,8 +106,10 @@ actions:
 
   # --- Opsi: Microsoft Store -------------------------------------------------------
   # Default mati. Tanpa Store, aplikasi Xbox / PC Game Pass dan aplikasi Store lain tidak
-  # bisa dipasang atau diperbarui. App Installer (winget) TIDAK dihapus. Store bisa
-  # dipasang lagi lewat "Reinstall Microsoft Store" di TGOS Toolbox.
+  # bisa dipasang atau diperbarui. App Installer (winget) TIDAK dihapus.
+  # SULIT DIKEMBALIKAN: "Reinstall Microsoft Store" di TGOS Toolbox menjalankan
+  # "wsreset -i", tetapi di uji otomatis Windows 11 Store tidak kembali dalam 5 menit.
+  # Restore point tidak mengembalikan aplikasi yang dihapus.
   # Kedua paket ini ada di daftar dilindungi tools/validate.py dan hanya boleh dihapus
   # dengan opsi ini.
   - !appx: { name: 'Microsoft.WindowsStore*', type: family, option: 'remove-store' }  # Microsoft Store

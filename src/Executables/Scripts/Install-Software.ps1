@@ -21,7 +21,10 @@
          itu (microsoft/winget-pkgs), ditambah nama produk dan versinya. Bila manifest
          versi itu belum terbit, hanya nama produk dan versi yang diperiksa (dicatat).
       3. Tidak pernah menurunkan versi: bila program yang terpasang lebih baru dari file
-         unduhan (dibandingkan untuk 7-Zip dan Firefox), file itu tidak dijalankan.
+         unduhan, file itu tidak dijalankan. Hanya dibandingkan untuk 7-Zip, yang nomor
+         versi installernya sama dengan nomor versi programnya. Installer Firefox membawa
+         nomor versi installer-nya sendiri (mis. 18.5, bukan 160.0), jadi tidak bisa
+         dibandingkan; browser memperbarui dirinya sendiri.
       4. Dijalankan tanpa tampilan (silent).
       5. Hasilnya diperiksa dari file program yang seharusnya ada.
 
@@ -153,8 +156,7 @@ $Catalog = @{
     firefox  = @{
         Name  = 'Mozilla Firefox'
         Files = @(@{ Url = 'https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US'
-                File = 'FirefoxSetup.exe'; Arguments = '/S'; Signer = 'Mozilla Corporation'
-                CompareWith = 'Mozilla Firefox\firefox.exe' })
+                File = 'FirefoxSetup.exe'; Arguments = '/S'; Signer = 'Mozilla Corporation' })
         Test  = { [bool](Get-ProgramPath 'Mozilla Firefox\firefox.exe') }
     }
     '7zip'   = @{
