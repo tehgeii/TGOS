@@ -818,13 +818,18 @@ public static System.Collections.Generic.List<System.IntPtr> Visible() {
             }
             return $result
         }
-        # Membuka satu protokol lewat proses explorer.exe tersendiri (seperti klik
-        # pengguna; dialog modal tidak bisa menahan uji ini) dan mencatat jendela berjudul
-        # yang baru muncul. Jendela itu lalu ditutup.
+        # Membuka satu protokol dengan ShellExecute (jalur yang sama dengan Explorer saat
+        # Win+G) di proses PowerShell anak yang dibuang sesudahnya: dialog modal tidak bisa
+        # menahan uji ini, dan tetap terlihat sebagai jendela berjudul. Lewat "explorer.exe
+        # <protokol>" jendela itu tidak pernah muncul, jadi cara itu tidak dipakai.
         function Test-ProtocolPopup {
             param([string]$Uri)
             $before = Get-TitledWindow
-            try { $null = Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe') -ArgumentList $Uri -PassThru }
+            $child = $null
+            try {
+                $child = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -NoNewWindow -PassThru `
+                    -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-Command', ("Start-Process -FilePath '{0}'" -f $Uri))
+            }
             catch { Write-Host ('   {0} could not be started: {1}' -f $Uri, (Format-LogLine $_.Exception.Message)) }
             $seen = @{}
             for ($attempt = 0; $attempt -lt 14; $attempt++) {
@@ -836,6 +841,10 @@ public static System.Collections.Generic.List<System.IntPtr> Visible() {
             }
             foreach ($handle in @($seen.Keys)) { $null = [TgosCi.Top]::PostMessage([IntPtr]$handle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) }
             Get-Process -Name 'OpenWith' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            if ($child -and -not $child.HasExited) {
+                $seen['child'] = 'powershell (still waiting in ShellExecute after 7 s)'
+                Stop-Process -Id $child.Id -Force -ErrorAction SilentlyContinue
+            }
             Start-Sleep -Milliseconds 800
             # wsl.exe: updater WSL milik image runner (lihat pemantau jendela di atas).
             return @($seen.Values | Where-Object { $_ -notmatch '^wsl ' })
@@ -873,6 +882,28 @@ public static System.Collections.Generic.List<System.IntPtr> Visible() {
             }
         }
         $null = Assert-That (-not @($catalogLeft | Where-Object { $_ -match 'XboxGamingOverlay' }).Count) 'gamebar: no protocol catalog entry points to the removed Game Bar'
+        # Diagnosa: semua sisa rujukan ke ms-gamebar di registry (kunci, nama nilai, data),
+        # di luar penangan pengganti TGOS sendiri. Dicari dengan reg.exe lewat cmd.
+        $hives = @('HKLM\SOFTWARE', 'HKCU') + @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
+                Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+_Classes$' } | ForEach-Object { 'HKU\{0}' -f $_.PSChildName })
+        foreach ($hive in $hives) {
+            $found = @(& cmd.exe /c ('reg query "{0}" /f ms-gamebar /s 2>&1' -f $hive) | ForEach-Object { [string]$_ } |
+                    Where-Object { $_.Trim() -and $_ -notmatch '^End of search' -and $_ -notmatch '\\Classes\\ms-gamebar(\\shell(\\open(\\command)?)?)?$' })
+            Write-Host ('   registry references to ms-gamebar in {0}: {1} line(s)' -f $hive, $found.Count)
+            $found | Select-Object -First 30 | ForEach-Object { Write-Host ('     {0}' -f (Format-LogLine $_)) }
+        }
+        foreach ($root in @('HKLM:\SOFTWARE\RegisteredApplications', 'HKCU:\Software\RegisteredApplications')) {
+            $item = Get-Item -LiteralPath $root -ErrorAction SilentlyContinue
+            if (-not $item) { continue }
+            foreach ($name in $item.GetValueNames()) {
+                $capabilities = [string]$item.GetValue($name)
+                $hive = if ($root -like 'HKLM:*') { 'HKLM:\' } else { 'HKCU:\' }
+                $urls = Get-Item -LiteralPath (Join-Path $hive (Join-Path $capabilities 'URLAssociations')) -ErrorAction SilentlyContinue
+                if ($urls -and @($urls.GetValueNames() | Where-Object { $_ -match '(?i)^ms-gam' }).Count) {
+                    Write-Host ('   registered application claiming ms-gam*: {0} -> {1}' -f $name, $capabilities)
+                }
+            }
+        }
         $catalogLeft | ForEach-Object { Write-Host ('   protocol catalog: {0}' -f (Format-LogLine $_)) }
         # Pengaman di Set-TgosFeature: paket yang masih terpasang punya kunci di
         # PackageRepository\Packages. Dibuktikan dengan satu paket yang pasti terpasang.
