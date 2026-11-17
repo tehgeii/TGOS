@@ -210,21 +210,23 @@ function Remove-TgosChromiumProduct {
 function Get-TgosInstalledBrowsers {
     <#
     .SYNOPSIS
-        Browser selain Edge yang terpasang untuk semua pengguna.
-        Mengembalikan daftar @{ Name; Exe; LinkName }. LinkName adalah nama pintasan di
-        "%ProgramData%\Microsoft\Windows\Start Menu\Programs" yang dibuat installer-nya.
+        Browser selain Edge yang terpasang untuk semua pengguna, dalam urutan tetap
+        (Brave, Chrome, Firefox). Mengembalikan daftar @{ Name; Option; Exe; LinkName }.
+        Option = nama opsi Wizard untuk browser itu. LinkName = nama pintasan yang biasa
+        dibuat installer-nya di "%ProgramData%\Microsoft\Windows\Start Menu\Programs";
+        hanya dipakai bila pintasan tidak bisa ditemukan menurut targetnya.
     #>
     $known = @(
-        @{ Name = 'Brave'; Relative = 'BraveSoftware\Brave-Browser\Application\brave.exe'; LinkName = 'Brave.lnk' },
-        @{ Name = 'Chrome'; Relative = 'Google\Chrome\Application\chrome.exe'; LinkName = 'Google Chrome.lnk' },
-        @{ Name = 'Firefox'; Relative = 'Mozilla Firefox\firefox.exe'; LinkName = 'Firefox.lnk' })
+        @{ Name = 'Brave'; Option = 'browser-brave'; Relative = 'BraveSoftware\Brave-Browser\Application\brave.exe'; LinkName = 'Brave.lnk' },
+        @{ Name = 'Chrome'; Option = 'browser-chrome'; Relative = 'Google\Chrome\Application\chrome.exe'; LinkName = 'Google Chrome.lnk' },
+        @{ Name = 'Firefox'; Option = 'browser-firefox'; Relative = 'Mozilla Firefox\firefox.exe'; LinkName = 'Firefox.lnk' })
     $found = @()
     foreach ($browser in $known) {
         foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
             if (-not $base) { continue }
             $exe = Join-Path $base $browser.Relative
             if (Test-Path -LiteralPath $exe) {
-                $found += @{ Name = $browser.Name; Exe = $exe; LinkName = $browser.LinkName }
+                $found += @{ Name = $browser.Name; Option = $browser.Option; Exe = $exe; LinkName = $browser.LinkName }
                 break
             }
         }
@@ -247,4 +249,53 @@ function Get-TgosUserProfiles {
         }
     }
     return $list
+}
+
+function Get-TgosNativeArchitecture {
+    <#
+    .SYNOPSIS
+        Arsitektur asli Windows (AMD64, ARM64, x86), juga bila PowerShell berjalan lewat
+        emulasi. Dibaca dari variabel lingkungan sistem di registry.
+    #>
+    $key = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
+    $value = (Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue).PROCESSOR_ARCHITECTURE
+    if ($value) { return [string]$value }
+    if ($env:PROCESSOR_ARCHITEW6432) { return $env:PROCESSOR_ARCHITEW6432 }
+    return $env:PROCESSOR_ARCHITECTURE
+}
+
+function ConvertTo-TgosVersion {
+    <#
+    .SYNOPSIS
+        Mengubah teks versi seperti "26.06", "160.0.1", atau "1.2.3.4 beta" menjadi
+        [version]. Mengembalikan $null bila tidak ada angka versi di awal teks.
+    #>
+    param([string]$Text)
+    if (('' + $Text).Trim() -notmatch '^(?<v>\d+(?:\.\d+){0,3})') { return $null }
+    $parts = $Matches['v'] -split '\.'
+    while ($parts.Count -lt 2) { $parts += '0' }
+    try { return [version]($parts -join '.') } catch { return $null }
+}
+
+function Get-TgosManifestSha256 {
+    <#
+    .SYNOPSIS
+        SHA256 untuk satu InstallerUrl dari teks manifest installer winget
+        (microsoft/winget-pkgs). Mengembalikan teks heksadesimal huruf besar, atau $null.
+    #>
+    param([string]$Manifest, [string]$InstallerUrl)
+    $lines = ('' + $Manifest).Replace("`r", '') -split "`n"
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -notmatch '^\s*(?:-\s+)?InstallerUrl:\s*(?<url>\S+)\s*$') { continue }
+        if ($Matches['url'] -ne $InstallerUrl) { continue }
+        # SHA256 ada beberapa baris di bawah, di blok installer yang sama.
+        for ($j = $i + 1; $j -lt $lines.Count -and $j -le $i + 6; $j++) {
+            if ($lines[$j] -match '^\s*-\s') { break }
+            if ($lines[$j] -match '^\s*InstallerSha256:\s*(?<sha>[0-9A-Fa-f]{64})\s*$') {
+                return $Matches['sha'].ToUpperInvariant()
+            }
+        }
+        return $null
+    }
+    return $null
 }

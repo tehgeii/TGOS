@@ -6,10 +6,12 @@
     Dijalankan di akhir playbook, setelah browser terpasang dan aplikasi bawaan dihapus,
     supaya daftar pin sesuai dengan yang benar-benar ada di sistem.
 
-    1. Taskbar. Menulis <folder data TGOS>\TaskbarLayout.xml: File Explorer, browser yang
-       terpasang (Brave/Chrome/Firefox; Edge bila tidak ada browser lain dan Edge masih
-       ada), Microsoft Store (bila tidak dihapus). File itu ditunjuk policy
+    1. Taskbar. Menulis <folder data TGOS>\TaskbarLayout.xml: File Explorer, SATU
+       browser, Microsoft Store (bila tidak dihapus). File itu ditunjuk policy
        "Start Layout" yang dipasang modul antarmuka.
+       Browser yang dipin: yang dipilih di Wizard bila terpasang; bila tidak, browser
+       pertama yang terpasang (Brave, Chrome, Firefox); bila tidak ada, Edge (bila masih
+       ada). Pintasan Start-nya dicari menurut file exe yang ditunjuknya.
     2. Start. Menulis daftar pin lewat policy ConfigureStartPins: File Explorer,
        Settings, Microsoft Store, browser, Notepad, Calculator, Terminal.
     3. Reset paksa. Policy saja tidak mengganti pin yang sudah tersimpan di profil
@@ -24,7 +26,11 @@
     langsung oleh skrip ini bila -RestartExplorer diberikan (dipakai TGOS Toolbox).
 
     -GenerateOnly hanya menulis TaskbarLayout.xml dan StartPins.json ke -DataDirectory,
-    tanpa menyentuh registry atau proses. Dipakai untuk pengujian.
+    tanpa menyentuh registry atau proses. Dipakai untuk pengujian, bersama
+    -BrowserLinkNames: daftar pintasan browser yang dianggap terpasang, dipisah koma
+    (lewat -File PowerShell tidak bisa menerima array), dalam urutan prioritas. Tiap
+    entri boleh berbentuk "opsi=pintasan", mis. "browser-firefox=Firefox.lnk", supaya
+    pilihan browser di install-info.txt ikut teruji.
 
     Tidak fatal: kode keluar selalu 0. Hasilnya diperiksa Test-TgosResult.ps1.
 
@@ -49,22 +55,68 @@ $StartMenuPrograms = '%ALLUSERSPROFILE%\Microsoft\Windows\Start Menu\Programs'
 $StoreAppId = 'Microsoft.WindowsStore_8wekyb3d8bbwe!App'
 $StartPinsProvider = 'B5292708-1619-419B-9923-E5D9F3925E71'
 
+function Find-StartMenuLink {
+    # Pintasan di Start Menu semua pengguna yang menunjuk file exe ini. Mengembalikan
+    # jalurnya relatif terhadap folder Programs (mis. "Brave.lnk"), atau $null.
+    param([string]$Exe, [string]$PreferredName)
+    $programs = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'
+    if (-not (Test-Path -LiteralPath $programs)) { return $null }
+    $shell = New-Object -ComObject WScript.Shell
+    $matching = @()
+    foreach ($link in (Get-ChildItem -LiteralPath $programs -Filter '*.lnk' -Recurse -File -ErrorAction SilentlyContinue)) {
+        try { $target = [string]$shell.CreateShortcut($link.FullName).TargetPath } catch { continue }
+        if ($target -and [string]::Equals($target, $Exe, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $matching += $link.FullName.Substring($programs.Length).TrimStart('\')
+        }
+    }
+    if ($matching.Count -eq 0) {
+        if ($PreferredName -and (Test-Path -LiteralPath (Join-Path $programs $PreferredName))) { return $PreferredName }
+        return $null
+    }
+    $exact = @($matching | Where-Object { $_ -eq $PreferredName })
+    if ($exact.Count -gt 0) { return $exact[0] }
+    return ($matching | Sort-Object { $_.Length } | Select-Object -First 1)
+}
+
 function Get-LayoutFacts {
     # Keadaan sistem yang menentukan isi layout. Parameter uji menggantikan deteksi.
-    $links = @()
-    if ($BrowserLinkNames) {
-        $links = @($BrowserLinkNames)
+    $selected = @()
+    if ($InstallInfoPath -and (Test-Path -LiteralPath $InstallInfoPath)) {
+        $selected = @(Get-Content -LiteralPath $InstallInfoPath |
+                Where-Object { $_ -match '^Option selected\s*:' } |
+                ForEach-Object { ($_ -replace '^Option selected\s*:\s*', '').Trim() })
     }
-    elseif (-not $GenerateOnly) {
-        $programs = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'
-        foreach ($browser in (Get-TgosInstalledBrowsers)) {
-            if (Test-Path -LiteralPath (Join-Path $programs $browser.LinkName)) {
-                $links += $browser.LinkName
+
+    # Kandidat: @{ Option; Link }, dalam urutan Brave, Chrome, Firefox.
+    $candidates = @()
+    if ($BrowserLinkNames) {
+        foreach ($entry in @($BrowserLinkNames | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
+            if ($entry -match '^(?<option>[a-z0-9-]+)=(?<link>.+)$') {
+                $candidates += @{ Option = $Matches['option']; Link = $Matches['link'] }
             }
             else {
-                Write-Output ("WARNING: {0} is installed but its Start Menu shortcut '{1}' was not found; not pinned" -f $browser.Name, $browser.LinkName)
+                $candidates += @{ Option = ''; Link = $entry }
             }
         }
+    }
+    elseif (-not $GenerateOnly) {
+        foreach ($browser in (Get-TgosInstalledBrowsers)) {
+            $link = Find-StartMenuLink -Exe $browser.Exe -PreferredName $browser.LinkName
+            if ($link) {
+                $candidates += @{ Option = $browser.Option; Link = $link }
+            }
+            else {
+                Write-Output ("WARNING: {0} is installed but no Start Menu shortcut points to {1}; not pinned" -f $browser.Name, $browser.Exe)
+            }
+        }
+    }
+
+    # Satu browser: yang dipilih di Wizard bila ada, kalau tidak yang pertama.
+    $links = @()
+    if ($candidates.Count -gt 0) {
+        $chosen = @($candidates | Where-Object { $_.Option -and ($selected -contains $_.Option) }) | Select-Object -First 1
+        if (-not $chosen) { $chosen = $candidates[0] }
+        $links = @($chosen.Link)
     }
 
     $edge = [bool]$EdgeInstalled

@@ -314,13 +314,19 @@ def test_compatibility() -> int:
     return failures
 
 
-# (nama, argumen tambahan, jumlah pin taskbar, potongan yang harus ada, yang tidak boleh ada)
+# (nama, argumen tambahan, jumlah pin taskbar, potongan yang harus ada, yang tidak boleh ada,
+#  [isi install-info.txt])
 SHELL_LAYOUT_CASES = [
     ("Brave terpasang", ["-BrowserLinkNames", "Brave.lnk"], 3, "Programs\\Brave.lnk", "MSEdge"),
     ("hanya Edge", ["-EdgeInstalled"], 3, "MSEdge", ".lnk"),
     ("Edge dan Chrome: Chrome yang dipin", ["-BrowserLinkNames", "Google Chrome.lnk", "-EdgeInstalled"],
      3, "Google Chrome.lnk", "MSEdge"),
     ("tanpa browser, Store dihapus", ["-StoreRemoved"], 1, "Microsoft.Windows.Explorer", "WindowsStore"),
+    ("dua browser: hanya yang pertama dipin", ["-BrowserLinkNames", "Google Chrome.lnk,Firefox.lnk"],
+     3, "Google Chrome.lnk", "Firefox.lnk"),
+    ("dua browser: yang dipilih di Wizard dipin",
+     ["-BrowserLinkNames", "browser-chrome=Google Chrome.lnk,browser-firefox=Firefox.lnk"],
+     3, "Firefox.lnk", "Google Chrome.lnk", "Option selected : browser-firefox\n"),
 ]
 
 
@@ -336,9 +342,11 @@ def test_shell_layout() -> int:
 
     script = ROOT / "src" / "Executables" / "Scripts" / "Set-ShellLayout.ps1"
     failures = 0
-    for name, extra, pin_count, must_have, must_not_have in SHELL_LAYOUT_CASES:
+    for name, extra, pin_count, must_have, must_not_have, *rest in SHELL_LAYOUT_CASES:
         label = f"layout shell: {name}"
         with tempfile.TemporaryDirectory(prefix="tgos-layout-") as tmp:
+            if rest:
+                (Path(tmp) / "install-info.txt").write_text(rest[0], encoding="ascii")
             result = subprocess.run(
                 [shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                  "-File", str(script), "-GenerateOnly", "-DataDirectory", tmp, *extra],
@@ -371,6 +379,128 @@ def test_shell_layout() -> int:
     return failures
 
 
+# Pemindai PowerShell: variabel yang ditulis dengan nama parameter skrip tetapi beda huruf
+# besar-kecil (mis. $state dan parameter $State). PowerShell menganggapnya variabel yang
+# sama, jadi penulisan itu menimpa parameter. Bug ini pernah membuat tombol Toolbox
+# "Extra Services" gagal.
+PS_NAME_CHECK = r"""
+param([string]$Paths)
+$found = 0
+$scanned = 0
+foreach ($path in ($Paths -split ',')) {
+    if (-not (Test-Path -LiteralPath $path)) { Write-Output ('missing file: {0}' -f $path); exit 100 }
+    $scanned++
+    $tokens = $null; $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+    if (-not $ast.ParamBlock) { continue }
+    $params = @($ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
+    $targets = @()
+    $targets += $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] }, $true) |
+        ForEach-Object { $_.Left } | Where-Object { $_ -is [System.Management.Automation.Language.VariableExpressionAst] }
+    $targets += $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.ForEachStatementAst] }, $true) |
+        ForEach-Object { $_.Variable }
+    foreach ($target in $targets) {
+        $name = $target.VariablePath.UserPath
+        foreach ($param in $params) {
+            if ($name -ieq $param -and $name -cne $param) {
+                Write-Output ('{0}:{1}: ${2} overwrites the script parameter ${3}' -f $path, $target.Extent.StartLineNumber, $name, $param)
+                $found++
+            }
+        }
+    }
+}
+Write-Output ('scanned {0}' -f $scanned)
+exit $found
+"""
+
+
+def run_ps_name_check(shell: str, paths: list[str]) -> subprocess.CompletedProcess:
+    with tempfile.TemporaryDirectory(prefix="tgos-names-") as tmp:
+        checker = Path(tmp) / "Check-Names.ps1"
+        checker.write_text(PS_NAME_CHECK, encoding="ascii")
+        return subprocess.run(
+            [shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-File", str(checker), "-Paths", ",".join(paths)],
+            capture_output=True, text=True, errors="replace")
+
+
+def test_ps_variable_names() -> int:
+    shell = find_powershell()
+    if not shell:
+        print("lewat  nama variabel PowerShell: PowerShell tidak terpasang")
+        return 0
+    failures = 0
+
+    # Pemindai harus menangkap contoh yang sengaja salah.
+    with tempfile.TemporaryDirectory(prefix="tgos-names-bad-") as tmp:
+        bad = Path(tmp) / "Bad.ps1"
+        bad.write_text("param([string]$State)\n$state = Get-Date\nforeach ($state in 1..2) { }\n",
+                       encoding="ascii")
+        result = run_ps_name_check(shell, [str(bad)])
+        if result.returncode != 2 or "scanned 1" not in result.stdout:
+            print(f"GAGAL  pemindai nama variabel tidak menangkap contoh salah: {result.stdout.strip()}")
+            failures += 1
+        else:
+            print("lolos  pemindai nama variabel menangkap contoh salah")
+
+    scripts = sorted(str(path) for path in (ROOT / "src").rglob("*.ps1"))
+    scripts += sorted(str(path) for path in (ROOT / "tools").rglob("*.ps1"))
+    # -Paths menerima satu teks dipisah koma; jalur di repo tidak berisi koma.
+    assert not any("," in path for path in scripts)
+    result = run_ps_name_check(shell, scripts)
+    if result.returncode != 0 or f"scanned {len(scripts)}" not in result.stdout:
+        print(f"GAGAL  nama variabel menimpa parameter:\n{result.stdout.strip()}")
+        failures += 1
+    else:
+        print(f"lolos  tidak ada variabel yang menimpa parameter ({len(scripts)} skrip)")
+    return failures
+
+
+# Fungsi bersama di Common.ps1 yang menentukan apakah sebuah unduhan boleh dijalankan.
+COMMON_CASES = r"""
+. $args[0]
+$manifest = Get-Content -LiteralPath $args[1] -Raw
+$url = 'https://github.com/ip7z/7zip/releases/download/26.06/7z2606-x64.exe'
+$checks = @(
+    @('sha256 x64 exe', (Get-TgosManifestSha256 -Manifest $manifest -InstallerUrl $url), '9B697F65ECC2D9B0152F5EE96D72DDE522A7827690349D9307935DACF40F42EC'),
+    @('sha256 x86 exe bukan x64', (Get-TgosManifestSha256 -Manifest $manifest -InstallerUrl 'https://github.com/ip7z/7zip/releases/download/26.06/7z2606.exe'), '5E38F80C3752DE43887E7A99AD10668C14BF64DCC929A636510B54616EA7DEC7'),
+    @('sha256 url tidak ada', [string](Get-TgosManifestSha256 -Manifest $manifest -InstallerUrl 'https://example.invalid/7z.exe'), ''),
+    @('sha256 manifest kosong', [string](Get-TgosManifestSha256 -Manifest '' -InstallerUrl $url), ''),
+    @('versi 26.06 > 23.01', ((ConvertTo-TgosVersion '26.06') -gt (ConvertTo-TgosVersion '23.01')), $true),
+    @('versi 160.0.1 > 160.0', ((ConvertTo-TgosVersion '160.0.1') -gt (ConvertTo-TgosVersion '160.0')), $true),
+    @('versi satu angka', [string](ConvertTo-TgosVersion '160'), '160.0'),
+    @('versi dengan teks', [string](ConvertTo-TgosVersion '26.06 beta'), '26.6'),
+    @('versi tidak terbaca', ($null -eq (ConvertTo-TgosVersion 'unknown')), $true)
+)
+$bad = 0
+foreach ($check in $checks) {
+    if ($check[1] -ne $check[2]) { Write-Output ('GAGAL {0}: dapat "{1}", seharusnya "{2}"' -f $check[0], $check[1], $check[2]); $bad++ }
+}
+Write-Output ('checked {0}' -f $checks.Count)
+exit $bad
+"""
+
+
+def test_common_functions() -> int:
+    shell = find_powershell()
+    if not shell:
+        print("lewat  fungsi Common.ps1: PowerShell tidak terpasang")
+        return 0
+    with tempfile.TemporaryDirectory(prefix="tgos-common-") as tmp:
+        runner = Path(tmp) / "Test-Common.ps1"
+        runner.write_text(COMMON_CASES, encoding="ascii")
+        result = subprocess.run(
+            [shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-File", str(runner), str(ROOT / "src" / "Executables" / "Scripts" / "Common.ps1"),
+             str(ROOT / "tools" / "fixtures" / "7zip.7zip.installer.yaml")],
+            capture_output=True, text=True, errors="replace")
+    if result.returncode != 0 or "checked 9" not in result.stdout:
+        print(f"GAGAL  fungsi Common.ps1:\n{(result.stdout + result.stderr).strip()}")
+        return 1
+    print("lolos  fungsi Common.ps1: checksum manifest winget dan perbandingan versi (9 kasus)")
+    return 0
+
+
 def test_generated_files() -> int:
     """File yang dibuat dari YAML tidak boleh usang."""
     failures = 0
@@ -387,7 +517,8 @@ def test_generated_files() -> int:
 
 
 def main() -> int:
-    failures = test_validator() + test_compatibility() + test_shell_layout() + test_generated_files()
+    failures = (test_validator() + test_compatibility() + test_shell_layout() + test_ps_variable_names()
+                + test_common_functions() + test_generated_files())
     if failures:
         print(f"\nUji diri GAGAL: {failures} kegagalan")
         return 1

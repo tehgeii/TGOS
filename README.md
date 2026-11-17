@@ -3,10 +3,22 @@
 Playbook AME Wizard yang mengubah Windows 11 Pro menjadi OS gaming yang sangat ringan,
 dengan prioritas performa.
 
-> **Status: `0.9.1`, tahap uji.** Semua modul sudah ada dan lolos uji otomatis lewat
-> mesin AME di Windows Server 2025 dan Windows 11 Enterprise 25H2. Versi `0.9.0` sudah
-> diuji sekali di Windows 11 Pro 26H2 (VMware, AME Beta); `0.9.1` berisi perbaikan dari
-> uji itu dan menunggu uji ulang. Pakai hanya di mesin virtual, jangan di komputer utama.
+> **Status: `1.0.0`.** Lolos uji otomatis lewat mesin AME di Windows Server 2025 dan
+> Windows 11 Enterprise 25H2. Versi `0.9.0` dan `0.9.1` sudah diuji pemilik di Windows 11
+> Pro 26H2 (VMware, AME Beta); `1.0.0` berisi perbaikan dari uji itu, pilihan browser, dan
+> opsi baru, dan **belum** diuji ulang di VM. Uji di hardware asli (benchmark, anti-cheat)
+> belum dilakukan. Buat cadangan dulu sebelum memasang di komputer utama.
+
+## Yang dilakukan TGOS
+
+- Menghapus aplikasi bawaan, telemetri, dan layanan yang tidak dibutuhkan untuk gaming.
+- Menerapkan pengaturan performa: power plan, core parking, Game Mode, timer, dan lainnya.
+- Bisa memasang browser pilihan (Brave, Chrome, atau Firefox), 7-Zip, dan runtime game
+  (Visual C++, DirectX) dari sumber resminya, dengan pemeriksaan tanda tangan digital.
+- Merapikan taskbar dan Start menu, memasang wallpaper dan warna TGO.
+- Memasang **TGOS Toolbox** di Desktop untuk membalik keputusan besar (Defender, VBS,
+  mitigasi CPU, update, layanan) dan memasang ulang software.
+- Windows Defender, Firewall, UAC, Secure Boot, dan TPM tidak disentuh saat instalasi.
 
 ## Target
 
@@ -26,7 +38,7 @@ dengan prioritas performa.
 |---|---|
 | `src/` | Sumber playbook: `playbook.conf`, `Configuration/`, `Executables/` |
 | `assets/branding/` | Logo TGO, ikon TGOS, wallpaper |
-| `tools/` | Validasi, skrip build, pembanding potret, pembuat ikon dan dokumen |
+| `tools/` | Validasi, skrip build, pembanding potret, pembuat ikon, gambar opsi, wallpaper, dan dokumen |
 | `.github/workflows/` | Uji otomatis lewat mesin AME di Windows |
 | `docs/` | Dokumen pengujian |
 | `release/` | Hasil build (tidak di-commit) |
@@ -62,8 +74,8 @@ python tools/selftest.py
 ```
 
 Memastikan validator masih menangkap kesalahan, pemeriksaan kompatibilitas memberi kode
-keluar yang benar, dan file turunan (`docs/TWEAKS.md`, `expected-state.json`) sesuai
-dengan playbook. Setelah mengubah YAML, buat ulang file turunan itu:
+keluar yang benar, layout taskbar dan Start yang dihasilkan sah, dan file turunan
+(`docs/TWEAKS.md`, `expected-state.json`) sesuai dengan playbook. Setelah mengubah YAML, buat ulang file turunan itu:
 
 ```bash
 python tools/make-tweaks-doc.py

@@ -47,20 +47,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Browser berbeda di tiap job, supaya ketiganya terpasang lewat mesin AME.
-          # "force" = program yang diunduh ulang sesudahnya: image runner sudah berisi
-          # Chrome, Firefox, dan 7-Zip, jadi tanpa ini unduhannya tidak teruji.
+          # Browser berbeda di tiap job, supaya ketiganya terpasang lewat mesin AME. Browser
+          # pilihan dan 7-Zip yang sudah ada di image runner dicopot dulu oleh
+          # Test-Engine.ps1, jadi pemasangannya oleh playbook benar-benar teruji.
+          # "force" = program yang diunduh dan dipasang ulang sesudahnya lewat skrip
+          # Toolbox, untuk menguji tombol Toolbox dan aturan "versi tidak boleh turun".
           - name: default
             os: windows-2025
             set: default
             options: ''
-            force: '7zip vcredist'
+            force: 'vcredist 7zip'
             experimental: false
           - name: all-options
             os: windows-2025
             set: all
             options: 'mitigations-disable browser-chrome'
-            force: 'chrome directx'
+            force: 'directx chrome'
             experimental: false
           - name: windows-11
             os: windows-11-arm

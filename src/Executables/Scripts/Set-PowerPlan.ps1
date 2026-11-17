@@ -19,6 +19,11 @@
         baterai. Nilai sebelumnya dicatat di <folder data TGOS>\core-parking-previous.txt
         supaya TGOS Toolbox bisa mengembalikannya.
 
+        Pengaturan core parking disembunyikan Windows, dan powercfg /query tidak
+        menampilkan nilai pengaturan yang tersembunyi. Karena itu pengaturan dibuat
+        terlihat dulu dengan "powercfg /attributes ... -ATTRIB_HIDE". Efek sampingnya:
+        "Processor performance core parking min cores" tampil di Advanced power settings.
+
     Tidak fatal: kode keluar selalu 0. Hasilnya diperiksa Test-TgosResult.ps1.
 
     File ini harus tetap ASCII murni dan kompatibel dengan Windows PowerShell 5.1.
@@ -128,6 +133,8 @@ if ($DisableCoreParking) {
         $applied = 0
         foreach ($setting in $CoreParkingSettings) {
             try {
+                # Tanpa ini /query tidak menampilkan nilainya (pengaturan tersembunyi).
+                Invoke-PowerCfg @('/attributes', $ProcessorSubgroup, $setting, '-ATTRIB_HIDE') | Out-Null
                 # Dua angka heksadesimal terakhir di keluaran query adalah nilai AC dan
                 # baterai saat ini; urutan itu sama di semua bahasa Windows.
                 $query = Invoke-PowerCfg @('/query', $scheme, $ProcessorSubgroup, $setting)
@@ -148,6 +155,9 @@ if ($DisableCoreParking) {
         Invoke-PowerCfg @('/setactive', $scheme) | Out-Null
         if ($records.Count -gt 0 -and -not (Test-Path -LiteralPath $previousFile)) {
             Set-Content -LiteralPath $previousFile -Value $records -Encoding ASCII
+        }
+        elseif ($records.Count -eq 0) {
+            Write-Output 'WARNING: the earlier core parking values could not be read, so the Toolbox cannot restore them exactly'
         }
         Write-Output ("TGOS: CPU core parking disabled on the active power plan ({0})" -f $scheme)
     }

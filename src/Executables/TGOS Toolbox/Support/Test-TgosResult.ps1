@@ -350,9 +350,14 @@ function Test-SoftwareResults {
         else {
             Add-Result 'FAIL' 'software' 'Visual C++ Redistributable' 'x64 or x86 runtime missing; retry from the TGOS Toolbox' 'Install-Software.ps1'
         }
+        # Arsitektur asli Windows (bukan arsitektur proses PowerShell ini).
+        $native = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -ErrorAction SilentlyContinue).PROCESSOR_ARCHITECTURE
         $legacy = @('System32', 'SysWOW64') | ForEach-Object { Join-Path $env:SystemRoot ('{0}\d3dx9_43.dll' -f $_) } |
             Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-        if ($legacy) {
+        if ($native -and $native -ne 'AMD64') {
+            Add-Result 'SKIP' 'software' 'DirectX End-User Runtime' ("installed on x64 Windows only (this PC is {0})" -f $native) 'Install-Software.ps1'
+        }
+        elseif ($legacy) {
             Add-Result 'PASS' 'software' 'DirectX End-User Runtime' 'legacy DirectX libraries present' 'Install-Software.ps1'
         }
         else {
@@ -368,7 +373,9 @@ function Test-SoftwareResults {
             Add-Result 'PASS' 'core parking' 'minimum unparked cores' '100% on the active power plan' 'Set-PowerPlan.ps1'
         }
         elseif ($values.Count -lt 2) {
-            Add-Result 'SKIP' 'core parking' 'minimum unparked cores' 'setting not available on this PC' 'Set-PowerPlan.ps1'
+            # Set-PowerPlan.ps1 membuat pengaturan ini terlihat; bila nilainya tetap tidak
+            # terbaca, ada yang tidak beres dan perlu dilihat.
+            Add-Result 'WARN' 'core parking' 'minimum unparked cores' 'value could not be read (powercfg shows no value for this setting)' 'Set-PowerPlan.ps1'
         }
         else {
             Add-Result 'FAIL' 'core parking' 'minimum unparked cores' ("expected 100, found {0}" -f $values[$values.Count - 2]) 'Set-PowerPlan.ps1'

@@ -194,6 +194,12 @@ try {
             }
             $scheme = $Matches[0].ToLower()
 
+            # Pengaturan core parking disembunyikan Windows; powercfg /query baru
+            # menampilkan nilainya setelah dibuat terlihat.
+            foreach ($setting in $settings) {
+                & cmd.exe /c ('powercfg.exe /attributes {0} {1} -ATTRIB_HIDE 2>&1' -f $subgroup, $setting) | Out-Null
+            }
+
             if ($State -eq 'Off') {
                 $lines = @()
                 $applied = 0
@@ -242,8 +248,10 @@ try {
             # Daftar layanan diambil dari expected-state.json (opsi "trim-services"),
             # supaya selalu sama dengan yang dimatikan playbook.
             $statePath = Join-Path $PSScriptRoot 'expected-state.json'
-            $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
-            $names = @($state.checks | Where-Object { $_.type -eq 'service' -and $_.option -eq 'trim-services' } |
+            # Jangan beri nama $state: PowerShell tidak membedakan huruf besar-kecil, jadi
+            # nama itu sama dengan parameter $State.
+            $expected = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+            $names = @($expected.checks | Where-Object { $_.type -eq 'service' -and $_.option -eq 'trim-services' } |
                     ForEach-Object { [string]$_.name })
             if ($names.Count -eq 0) { throw 'no extra services listed in expected-state.json' }
 

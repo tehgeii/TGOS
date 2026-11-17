@@ -4,10 +4,11 @@
 
 .DESCRIPTION
     -Item
-        brave     Brave Browser      (rilis resmi Brave di GitHub)
+        brave     Brave Browser      (rilis resmi Brave di GitHub; installer untuk semua
+                                      pengguna, dengan updater Brave)
         chrome    Google Chrome      (MSI enterprise dari dl.google.com)
         firefox   Mozilla Firefox    (download.mozilla.org)
-        7zip      7-Zip              (www.7-zip.org)
+        7zip      7-Zip              (rilis resmi ip7z/7zip di GitHub)
         vcredist  Visual C++ 2015-2022 Redistributable x64 dan x86 (aka.ms)
         directx   DirectX End-User Runtime, pustaka lama Juni 2010 (download.microsoft.com)
 
@@ -15,10 +16,22 @@
       1. Diunduh lewat HTTPS ke folder sementara.
       2. Tanda tangan digitalnya diperiksa: harus sah dan penerbitnya harus cocok
          (Brave Software, Google, Mozilla, Microsoft). File yang tidak cocok TIDAK
-         dijalankan. Pengecualian: 7-Zip tidak ditandatangani pembuatnya, jadi yang
-         diperiksa info versi filenya (ProductName "7-Zip").
-      3. Dijalankan tanpa tampilan (silent).
-      4. Hasilnya diperiksa dari file program yang seharusnya ada.
+         dijalankan. Pengecualian: 7-Zip tidak ditandatangani pembuatnya, jadi filenya
+         dicocokkan dengan SHA256 yang tercantum di manifest winget Microsoft untuk versi
+         itu (microsoft/winget-pkgs), ditambah nama produk dan versinya. Bila manifest
+         versi itu belum terbit, hanya nama produk dan versi yang diperiksa (dicatat).
+      3. Tidak pernah menurunkan versi: bila program yang terpasang lebih baru dari file
+         unduhan (dibandingkan untuk 7-Zip dan Firefox), file itu tidak dijalankan.
+      4. Dijalankan tanpa tampilan (silent).
+      5. Hasilnya diperiksa dari file program yang seharusnya ada.
+
+    Catatan Brave: installer "BraveBrowserStandaloneSilentSetup.exe" memasang per
+    pengguna; dijalankan oleh playbook (sebagai sistem), Brave masuk ke profil SYSTEM yang
+    tidak terlihat. Yang dipakai di sini "BraveBrowserStandaloneSetup.exe /silent
+    /install", sama dengan manifest winget untuk pemasangan semua pengguna.
+
+    DirectX: installer pustaka DirectX lama hanya dipakai di Windows x64 (target TGOS).
+    Di Windows ARM64 langkah ini dilewati.
 
     Hasil dicatat di <folder data TGOS>\software.txt, satu baris per program:
         brave: requested
@@ -81,27 +94,54 @@ function Test-VcRuntime {
     return $false
 }
 
-function Get-SevenZipUrl {
-    # Halaman unduhan resmi memuat tautan seperti "a/7z2409-x64.exe"; yang pertama
-    # adalah versi stabil terbaru.
+function Get-SevenZipRelease {
+    <#
+    Rilis 7-Zip terbaru dari repo resmi ip7z/7zip (alamat "releases/latest" GitHub tidak
+    pernah menunjuk pre-release). Mengembalikan @{ Version; Url; Sha256 }; Sha256 berisi
+    $null bila manifest winget untuk versi itu belum terbit.
+
+    Sebelumnya versi dibaca dari tautan pertama di halaman 7-zip.org; di uji otomatis itu
+    menghasilkan 7-Zip 23.01 yang lama. Jangan kembali ke cara itu.
+    #>
+    $request = [System.Net.HttpWebRequest]::Create('https://github.com/ip7z/7zip/releases/latest')
+    $request.AllowAutoRedirect = $false
+    $request.UserAgent = $UserAgent
+    $request.Timeout = 30000
+    $response = $request.GetResponse()
+    try { $location = [string]$response.Headers['Location'] }
+    finally { $response.Close() }
+    if ($location -notmatch '/releases/tag/(?<tag>\d{2}\.\d{2})$') {
+        throw ("unexpected 7-Zip latest release address: '{0}'" -f $location)
+    }
+    $tag = $Matches['tag']
+    $release = @{
+        Version = $tag
+        Url     = ('https://github.com/ip7z/7zip/releases/download/{0}/7z{1}-x64.exe' -f $tag, $tag.Replace('.', ''))
+        Sha256  = $null
+    }
+
+    $manifestUrl = 'https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/7/7zip/7zip/{0}/7zip.7zip.installer.yaml' -f $tag
     $client = New-Object System.Net.WebClient
     try {
         $client.Headers['User-Agent'] = $UserAgent
-        $page = $client.DownloadString('https://www.7-zip.org/download.html')
+        $release.Sha256 = Get-TgosManifestSha256 -Manifest $client.DownloadString($manifestUrl) -InstallerUrl $release.Url
+    }
+    catch {
+        # Manifest versi baru biasanya terbit satu-dua hari setelah rilis.
+        $release.Sha256 = $null
     }
     finally { $client.Dispose() }
-    if ($page -match 'href="(?<path>a/7z\d+-x64\.exe)"') {
-        return ('https://www.7-zip.org/{0}' -f $Matches['path'])
-    }
-    throw 'no 64-bit installer link found on www.7-zip.org'
+    return $release
 }
 
 # Katalog. Signer = teks yang harus ada di subjek sertifikat penanda tangan.
 $Catalog = @{
     brave    = @{
         Name  = 'Brave'
-        Files = @(@{ Url = 'https://github.com/brave/brave-browser/releases/latest/download/BraveBrowserStandaloneSilentSetup.exe'
-                File = 'BraveBrowserStandaloneSilentSetup.exe'; Arguments = ''; Signer = 'Brave Software' })
+        # -2147219416 = sudah terpasang (dari manifest winget Brave.Brave).
+        Files = @(@{ Url = 'https://github.com/brave/brave-browser/releases/latest/download/BraveBrowserStandaloneSetup.exe'
+                File = 'BraveBrowserStandaloneSetup.exe'; Arguments = '/silent /install'; Signer = 'Brave Software'
+                SuccessCodes = @(0, -2147219416) })
         Test  = { [bool](Get-ProgramPath 'BraveSoftware\Brave-Browser\Application\brave.exe') }
     }
     chrome   = @{
@@ -113,12 +153,14 @@ $Catalog = @{
     firefox  = @{
         Name  = 'Mozilla Firefox'
         Files = @(@{ Url = 'https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US'
-                File = 'FirefoxSetup.exe'; Arguments = '/S'; Signer = 'Mozilla Corporation' })
+                File = 'FirefoxSetup.exe'; Arguments = '/S'; Signer = 'Mozilla Corporation'
+                CompareWith = 'Mozilla Firefox\firefox.exe' })
         Test  = { [bool](Get-ProgramPath 'Mozilla Firefox\firefox.exe') }
     }
     '7zip'   = @{
         Name  = '7-Zip'
-        Files = @(@{ UrlResolver = { Get-SevenZipUrl }; File = '7z-x64.exe'; Arguments = '/S'; ProductName = '7-Zip' })
+        Files = @(@{ Resolver = { Get-SevenZipRelease }; File = '7z-x64.exe'; Arguments = '/S'; ProductName = '7-Zip'
+                CompareWith = '7-Zip\7z.exe' })
         Test  = { [bool](Get-ProgramPath '7-Zip\7z.exe') }
     }
     vcredist = @{
@@ -159,7 +201,6 @@ function Write-SoftwareRecord {
 
 function Save-Download {
     param([string]$Url, [string]$Path)
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $client = New-Object System.Net.WebClient
     try {
         $client.Headers['User-Agent'] = $UserAgent
@@ -181,7 +222,7 @@ function Save-Download {
 }
 
 function Assert-TrustedFile {
-    param($Spec, [string]$Path)
+    param($Spec, [string]$Path, $Release)
     if ($Spec.Signer) {
         $signature = Get-AuthenticodeSignature -LiteralPath $Path
         $subject = ''
@@ -195,11 +236,22 @@ function Assert-TrustedFile {
         return ('signed by {0}' -f $Spec.Signer)
     }
     if ($Spec.ProductName) {
-        $product = [string](Get-Item -LiteralPath $Path).VersionInfo.ProductName
+        $info = (Get-Item -LiteralPath $Path).VersionInfo
+        $product = [string]$info.ProductName
         if ($product -ne $Spec.ProductName) {
             throw ("unexpected product name '{0}'; the file was not run" -f $product)
         }
-        return ('product {0} {1} (the author does not sign this file)' -f $product, (Get-Item -LiteralPath $Path).VersionInfo.ProductVersion)
+        if ($Release -and $Release.Version -and -not ([string]$info.ProductVersion).StartsWith($Release.Version)) {
+            throw ("version {0} does not match the release {1}; the file was not run" -f $info.ProductVersion, $Release.Version)
+        }
+        if ($Release -and $Release.Sha256) {
+            $hash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
+            if ($hash -ne $Release.Sha256) {
+                throw ("SHA256 {0} does not match the published checksum {1}; the file was not run" -f $hash, $Release.Sha256)
+            }
+            return ('product {0} {1}, SHA256 matches the winget manifest' -f $product, $info.ProductVersion)
+        }
+        return ('product {0} {1}; no published checksum for this version yet (the author does not sign this file)' -f $product, $info.ProductVersion)
     }
     throw 'no trust rule for this file; it was not run'
 }
@@ -207,9 +259,18 @@ function Assert-TrustedFile {
 $exitCode = 1
 $workDirectory = $null
 try {
+    # Windows PowerShell 5.1 tidak memakai TLS 1.2 secara bawaan; GitHub dan situs unduhan
+    # lain mewajibkannya. Dipasang sebelum permintaan jaringan pertama.
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
     $DataDirectory = Get-TgosDataDirectory -Path $DataDirectory
     $entry = $Catalog[$Item]
     Write-SoftwareRecord -State 'requested'
+
+    if ($Item -eq 'directx' -and (Get-TgosNativeArchitecture) -ne 'AMD64') {
+        Write-Output ("TGOS: DirectX End-User Runtime skipped: TGOS installs it on x64 Windows only (this PC is {0})" -f (Get-TgosNativeArchitecture))
+        Write-SoftwareRecord -State 'skipped'
+        exit 0
+    }
 
     if (-not $Force -and (& $entry.Test)) {
         Write-Output ("TGOS: {0} is already installed" -f $entry.Name)
@@ -222,14 +283,34 @@ try {
 
     foreach ($spec in $entry.Files) {
         $url = $spec.Url
+        $release = $null
         if ($UrlOverride) { $url = $UrlOverride }
-        elseif ($spec.UrlResolver) { $url = & $spec.UrlResolver }
+        elseif ($spec.Resolver) {
+            $release = & $spec.Resolver
+            $url = $release.Url
+        }
         $path = Join-Path $workDirectory $spec.File
 
         Write-Output ("TGOS: downloading {0} from {1}" -f $spec.File, ([uri]$url).Host)
         Save-Download -Url $url -Path $path
-        $trust = Assert-TrustedFile -Spec $spec -Path $path
+        $trust = Assert-TrustedFile -Spec $spec -Path $path -Release $release
         Write-Output ("TGOS: {0} verified: {1}, {2:N1} MB" -f $spec.File, $trust, ((Get-Item -LiteralPath $path).Length / 1MB))
+
+        # Jangan pernah menurunkan versi program yang sudah terpasang.
+        if ($spec.CompareWith) {
+            $installedExe = Get-ProgramPath $spec.CompareWith
+            if ($installedExe) {
+                $installedVersion = ConvertTo-TgosVersion (Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion
+                $downloadVersion = ConvertTo-TgosVersion (Get-Item -LiteralPath $path).VersionInfo.ProductVersion
+                if ($installedVersion -and $downloadVersion -and $installedVersion -gt $downloadVersion) {
+                    Write-Output ("TGOS: {0} {1} is already installed, newer than the download ({2}); nothing changed" -f $entry.Name, $installedVersion, $downloadVersion)
+                    continue
+                }
+                if (-not $installedVersion -or -not $downloadVersion) {
+                    Write-Output ("TGOS: the versions of {0} could not be compared; installing the download" -f $entry.Name)
+                }
+            }
+        }
 
         if ($spec.Msi) {
             $file = Join-Path $env:SystemRoot 'System32\msiexec.exe'
@@ -253,7 +334,7 @@ try {
 
     # Sebagian installer selesai sebelum semua filenya tertulis.
     $installed = $false
-    for ($attempt = 0; $attempt -lt 30 -and -not $installed; $attempt++) {
+    for ($attempt = 0; $attempt -lt 60 -and -not $installed; $attempt++) {
         $installed = [bool](& $entry.Test)
         if (-not $installed) { Start-Sleep -Seconds 2 }
     }

@@ -7,8 +7,8 @@ pilihan sadar pengguna, bukan sesuatu yang terjadi diam-diam.
 
 | | |
 |---|---|
-| Status dokumen | Draf v5 — semua modul sudah dibuat; sudah diuji sekali di Windows 11 Pro 26H2 |
-| Versi playbook saat ini | `0.9.1` — perbaikan dari uji VM pertama; lolos uji mesin AME di Windows Server 2025 dan Windows 11 Enterprise 25H2; menunggu uji ulang di VM Windows 11 Pro |
+| Status dokumen | v6 — `1.0.0` |
+| Versi playbook saat ini | `1.0.0` — perbaikan dari uji VM `0.9.1`, pilihan browser, opsi baru; lolos uji mesin AME di Windows Server 2025 dan Windows 11 Enterprise 25H2; menunggu uji ulang di VM Windows 11 Pro; belum diuji di hardware asli |
 | Target OS | Windows 11 **Pro**, 22H2 sampai 26H2 |
 | Cara pasang | File `.apbx` dibuka di AME Wizard |
 
@@ -60,9 +60,15 @@ Angka target ini tebakan awal yang masuk akal, **bukan** hasil pengukuran.
 Hasil ukur pertama (`0.9.0`, Windows 11 Pro 26H2 di VMware, semua opsi dicentang):
 proses −18%, RAM −30%, layanan berjalan −15%, disk −5,3 GB. Target RAM tercapai; target
 proses dan layanan **belum**. Potret "sesudah" diambil sekitar 2,5 menit setelah boot,
-jadi angka itu indikatif. `0.9.1` menambah 3 layanan dan 12 tugas terjadwal dari potret
-itu; selisihnya baru terukur di uji ulang. Rincian di
-[docs/TESTING.md](docs/TESTING.md#catatan-hasil).
+jadi angka itu indikatif.
+
+Hasil ukur kedua (`0.9.1`, VM yang sama, semua opsi): proses 149 → 120 (−19%), RAM
+3.345 → 2.285 MB (−32%), layanan berjalan 97 → 84 (−13%), disk 30,0 → 24,5 GB. Target
+RAM tercapai; target proses (−35%) dan layanan (−30%) **tidak**, dan dengan cara yang
+dipakai TGOS (mematikan, bukan mencabut komponen Windows) kecil kemungkinan tercapai:
+sebagian besar proses dan layanan yang tersisa adalah inti Windows, driver, Defender, dan
+VMware Tools. Opsi *Trim extra services* di `1.0.0` mematikan sekitar 6 layanan lagi.
+Rincian di [docs/TESTING.md](docs/TESTING.md#catatan-hasil).
 
 ---
 
@@ -355,7 +361,7 @@ penyebab masalah.
 | `NoAntivirus` | Ya (mulai `0.1.0`) | Antivirus pihak ketiga mengganggu modifikasi sistem. |
 | `NoPendingUpdates` | Ya (mulai `0.1.0`) | Update yang menggantung bisa menimpa perubahan atau merusak servicing. |
 | `PluggedIn` | Ya (sudah di Fase 0) | Mencegah laptop mati di tengah proses. |
-| `Internet` | Tidak (0.1.0) | Belum ada yang diunduh. Ditambahkan bila nanti memasang software. |
+| `Internet` | Tidak | Mulai `1.0.0` playbook bisa mengunduh software pilihan, tetapi internet tidak diwajibkan: tanpa internet unduhan dilewati, playbook tetap selesai, dan pemasangan bisa diulang dari Toolbox. |
 | `Activation` | Tidak | Tidak relevan untuk uji VM. Dipertimbangkan untuk rilis. |
 
 ### 7.3 Halaman opsi (FeaturePages)
@@ -364,37 +370,40 @@ Batas dari Wizard: satu halaman maksimal 4 opsi; 3 bila halaman punya `TopLine` 
 `BottomLine`; 2 bila punya keduanya. Default checkbox lewat `IsChecked`, default radio
 lewat `DefaultOption`. Kolom "Nama opsi" dipakai di filter `option:` pada YAML.
 
-**Halaman 1 — Komponen** (`CheckboxPage`)
+Susunan `1.0.0` (✔ = bawaan tercentang):
 
-| Pilihan | Nama opsi | Default |
-|---|---|---|
-| Remove Copilot and Widgets | `remove-ai-widgets` | ✔ |
-| Remove OneDrive | `remove-onedrive` | ✔ |
-| Remove Xbox app and Game Bar | `remove-xbox` | ✘ |
-| Remove Microsoft Edge (experimental) | `remove-edge` | ✘ |
+| # | Halaman | Pilihan | Nama opsi | Default |
+|---|---|---|---|---|
+| 1 | Komponen (`CheckboxPage`) | Remove Copilot and Widgets | `remove-ai-widgets` | ✔ |
+| | | Remove OneDrive | `remove-onedrive` | ✔ |
+| | | Remove Xbox app and Game Bar | `remove-xbox` | ✘ |
+| | | Remove Microsoft Store | `remove-store` | ✘ |
+| 2 | Browser (`RadioImagePage`) | Brave | `browser-brave` | bawaan |
+| | | Chrome | `browser-chrome` | |
+| | | Firefox | `browser-firefox` | |
+| | | None | (tidak mengirim opsi) | |
+| 3 | Software (`CheckboxPage`) | Install 7-Zip | `install-7zip` | ✔ |
+| | | Install game runtimes (VC++, DirectX) | `install-runtimes` | ✔ |
+| | | Remove Microsoft Edge | `remove-edge` | ✘ |
+| 4 | Daya (`CheckboxPage`) | Ultimate Performance plan (not for laptops) | `disable-power-saving` | ✔ |
+| | | Disable CPU core parking (not for laptops) | `disable-core-parking` | ✔ |
+| | | Disable hibernation and Fast Startup | `disable-hibernation` | ✔ |
+| | | Disable search indexing | `disable-indexing` | ✔ |
+| 5 | Sistem (`CheckboxPage`) | Disable Core Isolation (VBS) | `disable-vbs` | ✔ |
+| | | Disable animations | `disable-animations` | ✔ |
+| | | Trim extra services (printing, discovery) | `trim-services` | ✘ |
+| 6 | Tampilan (`CheckboxPage`) | Classic right-click menu | `classic-context-menu` | ✔ |
+| | | Taskbar icons on the left | `taskbar-left` | ✘ |
+| 7 | Mitigasi CPU (`RadioPage`, wajib) | Keep default / Disable | `mitigations-default` / `mitigations-disable` | default |
+| 8 | Update Windows (`RadioPage`, wajib) | Manual / Automatic | `updates-manual` / `updates-default` | manual |
 
-**Halaman 2 — Performa** (`CheckboxPage`)
+Halaman browser memakai `RadioImagePage`: satu gambar PNG setinggi 128 piksel per opsi
+di folder `Images/` playbook, di atas gradasi dua warna, dan opsi `None="true"` yang tidak
+punya nama. Gambarnya dibuat `tools/make-option-images.py` (inisial browser di dalam
+lingkaran), bukan logo resmi, karena logo itu merek dagang pemiliknya.
 
-| Pilihan | Nama opsi | Default |
-|---|---|---|
-| Ultimate Performance power plan | `disable-power-saving` | ✔ |
-| Disable hibernation and Fast Startup | `disable-hibernation` | ✔ |
-| Disable Core Isolation (VBS) | `disable-vbs` | ✔ |
-| Disable search indexing | `disable-indexing` | ✔ |
-
-**Halaman 3 — Mitigasi CPU** (`RadioPage`, wajib): `mitigations-default` (bawaan) atau
-`mitigations-disable`.
-
-**Halaman 4 — Windows Update** (`RadioPage`, wajib): `updates-manual` (bawaan) atau
-`updates-default`.
-
-Tidak ada halaman Defender: Defender tetap aktif selama dan sesudah instalasi, dan hanya
-bisa dimatikan pengguna lewat TGOS Toolbox. Recall dan analisis data AI selalu dimatikan
-lewat policy, tanpa opsi.
-
-Setiap opsi yang dipilih dicatat ke `install-info.txt` oleh `90-finalize.yml`; validator
-menolak playbook bila ada opsi yang tidak dicatat, karena pemeriksaan diri bergantung
-pada catatan itu.
+Yang sengaja tidak dijadikan opsi: telemetri (selalu dimatikan sejauh mungkin, tanpa
+memblokir jaringan) dan Windows Defender (tidak disentuh playbook; hanya lewat Toolbox).
 
 ---
 
@@ -590,18 +599,64 @@ Dua temuan dari uji `0.9.0` di Windows 11 Pro 26H2:
   (`runas: currentUser`) Windows menampilkan prompt UAC di tengah instalasi, jadi
   sejak `0.9.1` dipakai `runas: currentUserElevated`.
 
+Hasil uji `0.9.1` di VM yang sama: Edge **terhapus** pada cara pertama (kode keluar 19),
+OneDrive terhapus dalam 10 detik tanpa prompt. Label "experimental" pada opsi Edge
+dicabut di `1.0.0`; update Windows tetap bisa memasang Edge kembali.
+
+Temuan dari uji `0.9.1`, ditangani di `1.0.0`:
+
+- **Copilot bukan paket Store di 26H2.** Paket `Microsoft.Copilot` tidak ada. Copilot
+  adalah program biasa di `%ProgramFiles(x86)%\Microsoft\Copilot` (1,7 GB), terdaftar di
+  `...\Uninstall\Microsoft Copilot` dengan
+  `copilot_setup.exe --uninstall --mscopilot --channel=stable --system-level`. Identitas
+  aplikasinya di Start dan taskbar adalah paket `Microsoft.MicrosoftOfficeHub`
+  (`CopilotAppHost`). `0.9.1` menghapus paket itu sebagai "Microsoft 365" dan
+  meninggalkan programnya. `1.0.0`: `Remove-Copilot.ps1` menjalankan uninstaller-nya
+  lebih dulu, dengan teknik yang sama seperti Edge, dan paket OfficeHub pindah ke opsi
+  Copilot. Belum terbukti: runner uji tidak punya program itu.
+- **Pengaman browser.** Sejak `1.0.0` playbook bisa memasang browser. Bila browser yang
+  dipilih tidak terpasang (mis. unduhan gagal), `Remove-Edge.ps1` tidak menghapus Edge.
+
+Software pilihan (`05-software.yml`, `Install-Software.ps1`) diunduh dari sumber resmi:
+Brave (rilis GitHub Brave), Chrome (MSI enterprise `dl.google.com`), Firefox
+(`download.mozilla.org`), Visual C++ (`aka.ms`), DirectX (`download.microsoft.com`),
+7-Zip (`www.7-zip.org`). Tanda tangan Authenticode tiap file harus sah dan penerbitnya
+harus cocok sebelum dijalankan. Pengecualian: installer 7-Zip tidak ditandatangani
+pembuatnya, jadi yang diperiksa hanya info versi filenya; perlindungannya sebatas HTTPS
+ke situs resmi.
+
 ### 8.8 Antarmuka (`80-interface.yml`)
 
 Mode gelap, File Explorer membuka "This PC", ekstensi file ditampilkan. Wallpaper dan
 mode gelap baru tampil setelah restart.
 
-Taskbar (sejak `0.9.1`): pin bawaan diganti lewat policy layout taskbar Windows
-(`StartLayoutFile` menunjuk `%ProgramData%\TGOS\TaskbarLayout.xml`,
-`PinListPlacement="Replace"`) menjadi File Explorer, Edge, Microsoft Store. Ini
-menghilangkan pin Copilot yang tertinggal setelah aplikasinya dihapus. Pencarian jadi
-ikon (`SearchboxTaskbarMode = 1`), tombol Task View disembunyikan
-(`ShowTaskViewButton = 0`). Tombol Widgets tidak ditulis (nilainya dilindungi Windows);
-Widgets dimatikan lewat policy. Menu klik kanan klasik tidak dikerjakan.
+Taskbar: pencarian jadi ikon (`SearchboxTaskbarMode = 1`), tombol Task View
+disembunyikan (`ShowTaskViewButton = 0`). Tombol Widgets tidak ditulis (nilainya
+dilindungi Windows); Widgets dimatikan lewat policy.
+
+Pin taskbar dan Start (`Set-ShellLayout.ps1`, sejak `1.0.0`). Di `0.9.1` pin hanya diatur
+lewat policy layout taskbar (`StartLayoutFile`, `PinListPlacement="Replace"`), dan uji VM
+menunjukkan itu **tidak** membuang pin yang sudah tersimpan di profil: pin Copilot yang
+mati tetap tampil sebagai kotak abu-abu. Pin itu tidak punya file pintasan; ia tersimpan
+di registry `HKCU\...\Explorer\Taskband`. Jadi sekarang:
+
+- Layout taskbar ditulis saat instalasi sesuai keadaan: File Explorer, browser yang
+  terpasang (Edge bila tidak ada yang lain), Microsoft Store (bila tidak dihapus).
+- Pin Start ditulis lewat policy `ConfigureStartPins`: File Explorer, Settings, Store,
+  browser, Notepad, Calculator, Terminal.
+- Explorer dihentikan, kunci `Taskband` dan file `start*.bin` tiap profil dihapus, lalu
+  Explorer dijalankan lagi, sehingga Windows menyusun keduanya dari layout di atas.
+  **Pin buatan pengguna ikut hilang** (keputusan pemilik).
+- Bagian Recent/rekomendasi di Start disembunyikan.
+
+Belum terbukti: runner uji tidak punya kunci `Taskband`, dan satu sumber menyebut policy
+pin Start tidak berlaku untuk profil yang sudah ada (itu sebabnya `start*.bin` dihapus).
+Hasilnya baru terlihat di uji VM.
+
+Opsi tampilan (`1.0.0`): menu klik kanan klasik (kunci kosong
+`{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32`) dan taskbar rata kiri
+(`TaskbarAl = 0`). Warna aksen Windows dijadikan biru TGO, dan Settings > About
+menampilkan "TGOS".
 
 Di uji otomatis Windows 11, Windows menolak satu penulisan registry langsung
 (`UnauthorizedAccessException`; paling mungkin salah satu dari dua nilai taskbar itu), lalu
@@ -763,8 +818,8 @@ menunggu hardware asli.
 |---|---|---|---|
 | 0. Kerangka | `0.0.1`–`0.0.2` | `playbook.conf`, cek kompatibilitas, pencatat info instalasi, branding, skrip build & validasi | **Lolos** di AME Beta, 14 Nov 2026 |
 | 1–4. Semua modul | `0.9.0`–`0.9.1` | Aplikasi bawaan, privasi, layanan, tugas terjadwal, performa, opsi keamanan, komponen, tampilan, TGOS Toolbox, pemeriksaan diri, uji otomatis. **`0.9.0` diuji di VM 16 Nov 2026: 139 lolos, 1 gagal (Edge), beberapa cacat tampilan. `0.9.1` memperbaikinya.** | Uji ulang `0.9.1` di VM Windows 11 Pro 26H2 tanpa temuan |
-| 5. Beta hardware asli | `0.9.x` | Benchmark, uji anti-cheat, uji 22H2/23H2, keputusan [8.5](#85-kandidat-yang-butuh-bukti-benchmark-dulu) | Data benchmark tercatat, tidak ada bug kritis |
-| 6. Rilis | `1.0.0` | Dokumentasi pengguna, paket distribusi | Disetujui pemilik proyek |
+| 5. Rilis | `1.0.0` | Perbaikan dari uji `0.9.1` (Copilot, taskbar, Start), pilihan browser, software, opsi baru, Toolbox lengkap. **Diberi label `1.0.0` atas keputusan pemilik.** | Uji ulang di VM Windows 11 Pro 26H2 tanpa temuan |
+| 6. Hardware asli | `1.0.x` | Benchmark, uji anti-cheat, uji 22H2/23H2, keputusan [8.5](#85-kandidat-yang-butuh-bukti-benchmark-dulu). **Belum dilakukan**: semua uji sejauh ini di VM dan runner uji. | Data benchmark tercatat, tidak ada bug kritis |
 
 Fase 1 sampai 4 semula direncanakan bertahap. Atas keputusan pemilik semuanya digabung ke
 satu rilis, dan pengujian berulangnya dipindah ke uji otomatis

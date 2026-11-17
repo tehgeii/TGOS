@@ -39,16 +39,25 @@ opsi itu dicentang di AME Wizard; `build: ...` berarti hanya di build Windows te
 
 ## Yang tidak pernah disentuh
 
-Windows Firewall, UAC, Secure Boot, TPM, layanan audio, jaringan, Windows Update, Store,
-Bluetooth, dan printer. Windows Defender tidak disentuh saat instalasi; hanya bisa diubah
-pengguna lewat TGOS Toolbox sesudahnya.
+Windows Firewall, UAC, Secure Boot, TPM, layanan audio, jaringan, Windows Update, dan
+Bluetooth. Windows Defender tidak disentuh saat instalasi; hanya bisa diubah pengguna
+lewat TGOS Toolbox sesudahnya.
+
+Dua hal hanya disentuh bila pengguna sendiri mencentang opsinya, dan keduanya default
+mati: Microsoft Store (opsi *Remove Microsoft Store*) dan layanan printer (opsi *Trim
+extra services*).
 
 ## Cara mengembalikan
 
 | Jenis | Cara |
 |---|---|
 | Aplikasi yang dihapus | Pasang lagi dari Microsoft Store (cari namanya), atau `winget install <nama>`. |
-| Defender, VBS, mitigasi CPU, update otomatis, indexing, hibernasi | File *Turn ON* di **TGOS Toolbox** (pintasan di Desktop). |
+| Defender, VBS, mitigasi CPU, update otomatis, indexing, hibernasi, core parking, layanan ekstra, pengumpul telemetri | File *Turn ON* di **TGOS Toolbox** (pintasan di Desktop). |
+| Microsoft Store | *Reinstall Microsoft Store* di TGOS Toolbox (butuh internet). |
+| Browser, 7-Zip, runtime game | Program biasa: hapus lewat Settings > Apps > Installed apps. Pasang lagi lewat TGOS Toolbox. |
+| Copilot, Edge | Unduh lagi dari situs Microsoft. Policy yang mencegah pemasangan ulang otomatis ada di `HKLM\\SOFTWARE\\Policies\\Microsoft\\EdgeUpdate` (nilai `Install{{...}}`); hapus nilainya dulu. |
+| Pin taskbar dan Start | Pin sendiri seperti biasa. *Reset Taskbar and Start* di TGOS Toolbox mengembalikan set TGOS. |
+| Menu klik kanan klasik | Hapus kunci `HKCU\\Software\\Classes\\CLSID\\{{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}}`, lalu restart Explorer. |
 | Layanan | `services.msc` > klik dua kali layanan > ubah *Startup type*. |
 | Tugas terjadwal | Task Scheduler > cari tugasnya > *Enable*. |
 | Power plan | Control Panel > Power Options > pilih skema lain. Skema lama tidak dihapus. |
@@ -138,6 +147,7 @@ def read_module(path: Path, validator) -> list[tuple[str, list[tuple[object, str
 
 MODULE_TITLES = {
     "00-preflight.yml": "Persiapan",
+    "05-software.yml": "Software pilihan",
     "10-debloat-appx.yml": "Aplikasi bawaan",
     "20-privacy.yml": "Privasi",
     "30-services.yml": "Layanan",
