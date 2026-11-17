@@ -45,6 +45,18 @@ FEATURES = [
     ("Lock Screen", "LockScreen", "Turn OFF", "Turn ON"),
     ("Xbox Game Bar", "GameBar", "Turn OFF", "Turn ON"),
     ("TGO Login Screen", "LoginTheme", "Turn OFF", "Turn ON"),
+    ("Reserved Storage", "ReservedStorage", "Turn OFF", "Turn ON"),
+]
+
+# Tombol di folder utama Toolbox yang menjalankan satu skrip Support (nama file, rem, skrip,
+# argumen, baris echo sebelum skrip jalan).
+SCRIPT_BUTTONS = [
+    ("Deep Clean.cmd", "clean temporary files, update caches, error reports and old components",
+     "Invoke-DeepClean.ps1", "",
+     ["Deep clean: removes temporary files, Windows Update caches, error reports, crash",
+      "dumps and replaced Windows components, and turns reserved storage off. It takes",
+      "a few minutes. Your files, games and the Recycle Bin are not touched.",
+      "Membersihkan file sementara dan sampah Windows. File pribadi tidak disentuh."]),
 ]
 
 # (teks menu, item Install-Software.ps1 yang dipasang berurutan)
@@ -81,6 +93,17 @@ def feature_file(label: str, feature: str, verb: str, state: str) -> tuple[Path,
         "pause",
     ]
     return FEATURE_DIR / f"{label} - {verb}.cmd", "\r\n".join(lines) + "\r\n"
+
+
+def script_button(rem: str, script: str, arguments: str, notes: list[str]) -> str:
+    lines = ["@echo off", f"rem TGOS Toolbox - {rem}"] + ELEVATE + [f"echo {note}" for note in notes] + [
+        "echo.",
+        "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "
+        f"\"%~dp0Support\\{script}\"" + (f" {arguments}" if arguments else ""),
+        "echo.",
+        "pause",
+    ]
+    return "\r\n".join(lines) + "\r\n"
 
 
 def menu_file() -> str:
@@ -147,6 +170,11 @@ def expected_files() -> dict[Path, str]:
             if name not in items:
                 problems.append(f"program '{name}' ({text}) tidak ada di ValidateSet Install-Software.ps1")
     files[MENU] = menu_file()
+    for name, rem, script, arguments, notes in SCRIPT_BUTTONS:
+        source = ROOT / "src" / "Executables" / "Scripts" / script
+        if not source.is_file():
+            problems.append(f"skrip '{script}' untuk tombol '{name}' tidak ada di src/Executables/Scripts")
+        files[TOOLBOX / name] = script_button(rem, script, arguments, notes)
     if problems:
         raise SystemExit("\n".join(problems))
     return files

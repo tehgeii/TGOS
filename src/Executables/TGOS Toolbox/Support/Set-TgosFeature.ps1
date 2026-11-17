@@ -29,6 +29,7 @@
                    semuanya; aplikasi Game Bar sendiri dipasang lagi dari Microsoft Store.
       LoginTheme   gambar layar kunci/login TGO ("On" = gambar TGO, "Off" = bawaan
                    Windows). Satu-satunya fitur yang "On"-nya berarti pengaturan TGOS.
+      ReservedStorage ruang disk yang dicadangkan Windows untuk update (DISM).
 
     Harus dijalankan sebagai Administrator. Sebagian besar perubahan baru berlaku
     setelah restart.
@@ -43,7 +44,7 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('Defender', 'Vbs', 'Mitigations', 'AutoUpdate', 'Indexing', 'Hibernation',
         'CoreParking', 'ExtraServices', 'Telemetry', 'UpdatePause', 'DriverUpdates',
-        'BackgroundApps', 'LockScreen', 'GameBar', 'LoginTheme')]
+        'BackgroundApps', 'LockScreen', 'GameBar', 'LoginTheme', 'ReservedStorage')]
     [string]$Feature,
 
     [Parameter(Mandatory = $true)]
@@ -478,6 +479,28 @@ try {
                 Write-Host 'The TGOS Game Bar blocks are removed.'
                 Write-Host 'If the Xbox Game Bar app was removed, install it again from the Microsoft Store.'
             }
+        }
+        'ReservedStorage' {
+            if ($State -eq 'Off') { $value = 'Disabled' } else { $value = 'Enabled' }
+            $dism = Join-Path $env:SystemRoot 'System32\dism.exe'
+            $output = (& cmd.exe /c ('"{0}" /Online /Set-ReservedStorageState /State:{1} 2>&1' -f $dism, $value) | Out-String)
+            $code = $LASTEXITCODE
+            if ($output -match '(?i)not supported|0x80070032') {
+                Write-Host 'Reserved storage is not supported on this PC. Nothing was changed.'
+                Write-Log ('ReservedStorage {0}: not supported' -f $State)
+                exit 3
+            }
+            if ($code -ne 0) {
+                # Contoh: Windows sedang memakai cadangan itu untuk update yang belum selesai.
+                throw ('DISM returned {0}: {1}' -f $code, (($output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 2) -join ' '))
+            }
+            if ($State -eq 'Off') {
+                Write-Host 'Reserved storage is now OFF: the space Windows kept for updates is free again.'
+            }
+            else {
+                Write-Host 'Reserved storage is now ON: Windows keeps some space for updates again.'
+            }
+            $restart = $false
         }
         'LoginTheme' {
             $csp = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'

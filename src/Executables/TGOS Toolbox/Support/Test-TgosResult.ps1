@@ -572,6 +572,39 @@ function Test-ScriptResults {
         }
     }
 
+    if ((Test-Option 'deep-clean') -or (Test-Option 'deep-clean-plus')) {
+        # Ditulis Invoke-DeepClean.ps1. Langkah yang gagal (mis. file terkunci) dicatat
+        # sebagai WARNING di file itu; bersih-bersih tetap tidak fatal.
+        $record = Join-Path $dataDirectory 'deep-clean.txt'
+        if (-not (Test-Path -LiteralPath $record)) {
+            Add-Result 'FAIL' 'deep clean' 'deep-clean.txt' 'missing: the deep clean did not run' 'Invoke-DeepClean.ps1'
+        }
+        else {
+            $content = @(Get-Content -LiteralPath $record)
+            $done = @($content | Where-Object { $_ -match 'completed:' }) | Select-Object -Last 1
+            $warnings = @($content | Where-Object { $_ -match 'WARNING' })
+            if ($done -and $warnings.Count -eq 0) {
+                Add-Result 'PASS' 'deep clean' 'deep-clean.txt' $done.Trim() 'Invoke-DeepClean.ps1'
+            }
+            elseif ($done) {
+                Add-Result 'WARN' 'deep clean' 'deep-clean.txt' ('{0}; {1}' -f $done.Trim(), $warnings[0].Trim()) 'Invoke-DeepClean.ps1'
+            }
+            else {
+                Add-Result 'WARN' 'deep clean' 'deep-clean.txt' 'did not finish; run Deep Clean in the TGOS Toolbox' 'Invoke-DeepClean.ps1'
+            }
+        }
+        $reserved = (& cmd.exe /c ('"{0}" /Online /Get-ReservedStorageState 2>&1' -f (Join-Path $env:SystemRoot 'System32\dism.exe')) | Out-String)
+        if ($reserved -match '(?i)reserved storage is disabled') {
+            Add-Result 'PASS' 'deep clean' 'reserved storage' 'off' 'Invoke-DeepClean.ps1'
+        }
+        elseif ($reserved -match '(?i)reserved storage is enabled') {
+            Add-Result 'WARN' 'deep clean' 'reserved storage' 'still on (Windows may be using it for an update); use Reserved Storage - Turn OFF in the Toolbox later' 'Invoke-DeepClean.ps1'
+        }
+        else {
+            Add-Result 'SKIP' 'deep clean' 'reserved storage' 'state could not be read on this PC' 'Invoke-DeepClean.ps1'
+        }
+    }
+
     if (Test-Option 'updates-pause') {
         # Ditulis Set-TgosFeature.ps1 -Feature UpdatePause -State Off. Tombol "Resume
         # updates" di Settings menghapusnya, jadi FAIL di sini bisa juga berarti pengguna

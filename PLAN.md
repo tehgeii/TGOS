@@ -370,32 +370,50 @@ Batas dari Wizard: satu halaman maksimal 4 opsi; 3 bila halaman punya `TopLine` 
 `BottomLine`; 2 bila punya keduanya. Default checkbox lewat `IsChecked`, default radio
 lewat `DefaultOption`. Kolom "Nama opsi" dipakai di filter `option:` pada YAML.
 
-Susunan `1.0.0` (✔ = bawaan tercentang):
+Susunan `1.0.0` (revisi kedua; ✔ = bawaan tercentang):
 
 | # | Halaman | Pilihan | Nama opsi | Default |
 |---|---|---|---|---|
 | 1 | Komponen (`CheckboxPage`) | Remove Copilot and Widgets | `remove-ai-widgets` | ✔ |
 | | | Remove OneDrive | `remove-onedrive` | ✔ |
-| | | Remove Xbox app and Game Bar | `remove-xbox` | ✘ |
+| | | Remove Xbox app and turn Game Bar off | `remove-xbox` | ✘ |
 | | | Remove Microsoft Store (hard to undo) | `remove-store` | ✘ |
 | 2 | Browser (`RadioImagePage`) | Brave | `browser-brave` | bawaan |
 | | | Chrome | `browser-chrome` | |
 | | | Firefox | `browser-firefox` | |
 | | | None | (tidak mengirim opsi) | |
 | 3 | Software (`CheckboxPage`) | Install 7-Zip | `install-7zip` | ✔ |
-| | | Install game runtimes (VC++, DirectX) | `install-runtimes` | ✔ |
+| | | Install game runtimes (VC++, DirectX, XNA) | `install-runtimes` | ✔ |
+| | | Install .NET for older games and tools | `install-dotnet` | ✔ |
 | | | Remove Microsoft Edge | `remove-edge` | ✘ |
-| 4 | Daya (`CheckboxPage`) | Ultimate Performance plan (not for laptops) | `disable-power-saving` | ✔ |
+| 4 | Launcher game (`CheckboxPage`) | Steam | `install-steam` | ✘ |
+| | | Epic Games Launcher | `install-epic` | ✘ |
+| | | EA app | `install-ea` | ✘ |
+| | | Ubisoft Connect | `install-ubisoft` | ✘ |
+| 5 | Aplikasi (`CheckboxPage`, per pengguna) | Discord | `install-discord` | ✘ |
+| | | Spotify | `install-spotify` | ✘ |
+| 6 | Daya (`CheckboxPage`) | Ultimate Performance plan (not for laptops) | `disable-power-saving` | ✔ |
 | | | Disable CPU core parking (not for laptops) | `disable-core-parking` | ✔ |
 | | | Disable hibernation and Fast Startup | `disable-hibernation` | ✔ |
 | | | Disable search indexing | `disable-indexing` | ✔ |
-| 5 | Sistem (`CheckboxPage`) | Disable Core Isolation (VBS) | `disable-vbs` | ✔ |
+| 7 | Sistem (`CheckboxPage`) | Disable Core Isolation (VBS) | `disable-vbs` | ✔ |
 | | | Disable animations | `disable-animations` | ✔ |
 | | | Trim extra services (printing, discovery) | `trim-services` | ✘ |
-| 6 | Tampilan (`CheckboxPage`) | Classic right-click menu | `classic-context-menu` | ✔ |
+| | | Block background apps (Store apps) | `block-background-apps` | ✔ |
+| 8 | Tampilan (`CheckboxPage`) | Classic right-click menu | `classic-context-menu` | ✔ |
 | | | Taskbar icons on the left | `taskbar-left` | ✘ |
-| 7 | Mitigasi CPU (`RadioPage`, wajib) | Keep default / Disable | `mitigations-default` / `mitigations-disable` | default |
-| 8 | Update Windows (`RadioPage`, wajib) | Manual / Automatic | `updates-manual` / `updates-default` | manual |
+| | | Add End task to the taskbar menu | `taskbar-end-task` | ✔ |
+| | | Skip the lock screen (sign-in stays) | `skip-lock-screen` | ✘ |
+| 9 | Bersih-bersih (`CheckboxPage`) | Deep clean at the end | `deep-clean` | ✔ |
+| | | Deep clean+: Windows.old and ResetBase | `deep-clean-plus` | ✘ |
+| | | Block driver updates from Windows Update | `block-driver-updates` | ✘ |
+| 10 | Mitigasi CPU (`RadioPage`, wajib) | Keep default / Disable | `mitigations-default` / `mitigations-disable` | default |
+| 11 | Update Windows (`RadioPage`, wajib) | Pause / Manual / Automatic | `updates-pause` / `updates-manual` / `updates-default` | pause |
+
+Keputusan pemilik untuk revisi kedua: Pause jadi bawaan dan ditahan sampai dilanjutkan
+sendiri (~10 tahun); Game Bar dimatikan total hanya bila opsi Xbox dicentang; semua
+launcher dan aplikasi bawaan tidak tercentang; lewati layar kunci bawaan tidak
+tercentang; Deep clean+ dipisah dari Deep clean karena tidak bisa dibatalkan.
 
 Halaman browser memakai `RadioImagePage`: satu gambar PNG setinggi 128 piksel per opsi
 di folder `Images/` playbook, di atas gradasi dua warna, dan opsi `None="true"` yang tidak

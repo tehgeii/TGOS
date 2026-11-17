@@ -458,6 +458,15 @@ $windowLog = Join-Path $artifacts 'visible-windows.txt'
 Set-Content -LiteralPath $windowLog -Value @() -Encoding ASCII
 $watcher = Start-Job -ArgumentList $windowLog -ScriptBlock {
     param($Path)
+    # Ukuran jendela ikut dicatat: installer seperti WiX Burn (VC++ 2012/2013) dan updater
+    # Brave membuat jendela pesan tanpa judul yang secara teknis "visible" tetapi tidak
+    # tampil bagi pengguna.
+    Add-Type -Namespace TgosCi -Name Win -MemberDefinition @'
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+public struct Rect { public int Left; public int Top; public int Right; public int Bottom; }
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool GetWindowRect(System.IntPtr hWnd, out Rect rect);
+'@
     $known = @{}
     foreach ($process in @(Get-Process -ErrorAction SilentlyContinue)) {
         if ($process.MainWindowHandle -ne [IntPtr]::Zero) { $known[$process.Id] = $true }
@@ -466,7 +475,9 @@ $watcher = Start-Job -ArgumentList $windowLog -ScriptBlock {
         foreach ($process in @(Get-Process -ErrorAction SilentlyContinue)) {
             if ($process.MainWindowHandle -ne [IntPtr]::Zero -and -not $known.ContainsKey($process.Id)) {
                 $known[$process.Id] = $true
-                Add-Content -LiteralPath $Path -Value ('{0} | {1}' -f $process.ProcessName, $process.MainWindowTitle) -Encoding ASCII
+                $rect = New-Object TgosCi.Win+Rect
+                $null = [TgosCi.Win]::GetWindowRect($process.MainWindowHandle, [ref]$rect)
+                Add-Content -LiteralPath $Path -Value ('{0} | {1} | {2}x{3}' -f $process.ProcessName, $process.MainWindowTitle, ($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top)) -Encoding ASCII
             }
         }
         Start-Sleep -Milliseconds 300
@@ -489,14 +500,28 @@ Remove-Job -Job $watcher -Force -ErrorAction SilentlyContinue
 # Bagian shell Windows yang memang muncul lagi saat TGOS menjalankan ulang Explorer.
 $shellProcesses = '^(explorer|ShellExperienceHost|StartMenuExperienceHost|SearchHost|SearchApp|TextInputHost|ApplicationFrameHost|LockApp|ShellHost) \|'
 $newWindows = @(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue | Where-Object { $_ })
-$unexpected = @($newWindows | Where-Object { $_ -notmatch $shellProcesses })
+# Pelanggaran: jendela berjudul, atau jendela tanpa judul yang ukurannya nyata (bukan
+# jendela pesan kosong), dari proses selain shell Windows.
+$unexpected = @($newWindows | Where-Object {
+        $parts = $_ -split ' \| '
+        $titled = $parts.Count -ge 2 -and $parts[1].Trim()
+        $large = $false
+        if ($parts.Count -ge 3 -and $parts[2] -match '^(-?\d+)x(-?\d+)$') { $large = ([int]$Matches[1] -ge 50 -and [int]$Matches[2] -ge 50) }
+        ($_ -notmatch $shellProcesses) -and ($titled -or $large)
+    })
 if ($watcherWorks) {
-    $null = Assert-That ($unexpected.Count -eq 0) ('pass: no window appeared during the playbook ({0} shell window(s) from the Explorer restart ignored)' -f ($newWindows.Count - $unexpected.Count))
+    $null = Assert-That ($unexpected.Count -eq 0) ('pass: no visible window appeared during the playbook ({0} window(s) seen; shell windows and empty message windows are not counted)' -f $newWindows.Count)
+    $unexpected | ForEach-Object { Write-Host ('   VISIBLE: {0}' -f (Format-LogLine $_)) }
 }
 else {
     Write-Host '   INFO: the window watcher could not see the Notepad control window; the no-window check is inconclusive'
 }
 $newWindows | Select-Object -First 15 | ForEach-Object { Write-Host ('   window: {0}' -f (Format-LogLine $_)) }
+
+# Diagnosa: paket framework yang dijaga compare-snapshots.py, tepat setelah playbook. Bila
+# nanti hilang sebelum potret "after", log AppX Windows menunjukkan siapa yang mencabutnya.
+$frameworks = @(Get-AppxPackage -AllUsers -Name 'Microsoft.NET.Native.*' -ErrorAction SilentlyContinue | ForEach-Object { $_.Name } | Select-Object -Unique)
+Write-Host ('   .NET Native frameworks right after the playbook: {0}' -f $(if ($frameworks.Count) { $frameworks -join ', ' } else { 'none' }))
 $ok = Assert-That (-not $pass.TimedOut) 'pass: the engine did not hang'
 $ok = (Assert-That ($pass.Output -notmatch 'YAML Error|Fatal Playbook Error') 'pass: no YAML or fatal error') -and $ok
 $ok = (Assert-That ($pass.Output -match 'Playbook completed successfully') 'pass: the engine reported "Playbook completed successfully."') -and $ok
@@ -516,8 +541,13 @@ if (Test-Path -LiteralPath $engineOutput) {
     Write-Host '   TGOS script results in the engine log:'
     Get-Content -LiteralPath $engineOutput |
         Where-Object { $_ -match 'TGOS: (?!recorded option|task disabled:|task not present)|PASSED:|REJECTED:|SUMMARY:' -or $_ -match 'WARNING: ' } |
-        ForEach-Object { ($_ -replace '^.*?(TGOS: |PASSED:|REJECTED:|SUMMARY:|WARNING: )', '$1') } |
-        Select-Object -First 80 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+        ForEach-Object {
+            # Jam dari log mesin AME ikut ditampilkan, supaya langkah yang lama terlihat.
+            $time = ''
+            if ($_ -match '\| (\d{2}:\d{2}:\d{2})\]') { $time = $Matches[1] + ' ' }
+            $time + ($_ -replace '^.*?(TGOS: |PASSED:|REJECTED:|SUMMARY:|WARNING: )', '$1')
+        } |
+        Select-Object -First 120 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
 }
 
 Write-Host '   install-info.txt:'
@@ -727,6 +757,26 @@ if ($plannedOptions -contains 'updates-pause') {
 }
 
 # =======================================================================================
+Write-Section 'Deep clean'
+if ($plannedOptions -contains 'deep-clean' -or $plannedOptions -contains 'deep-clean-plus') {
+    $cleanRecord = Join-Path $env:ProgramData 'TGOS\deep-clean.txt'
+    if (Assert-That (Test-Path -LiteralPath $cleanRecord) 'deep clean: deep-clean.txt was written') {
+        $cleanLines = @(Get-Content -LiteralPath $cleanRecord)
+        $cleanLines | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+        $null = Assert-That ([bool](@($cleanLines -match 'completed:').Count)) 'deep clean: finished (completed line present)'
+        if ($plannedOptions -contains 'deep-clean-plus') {
+            $null = Assert-That ([bool](@($cleanLines -match 'ResetBase').Count)) 'deep clean: Deep clean+ ran the ResetBase step'
+        }
+    }
+    # Folder playbook yang sedang berjalan tidak boleh tersentuh (langkah sesudahnya masih
+    # memakai skripnya).
+    $null = Assert-That (Test-Path -LiteralPath (Join-Path $playbookPass 'Executables\Scripts\Set-ShellLayout.ps1')) 'deep clean: the running playbook folder was left alone'
+}
+else {
+    Write-Host '   deep clean not selected in this job'
+}
+
+# =======================================================================================
 Write-Section 'Self-verification'
 $installedSupport = Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox\Support'
 $verifyScript = Join-Path $installedSupport 'Test-TgosResult.ps1'
@@ -771,7 +821,9 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
         @{ Feature = 'BackgroundApps'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'; Name = 'LetAppsRunInBackground'; Off = 2; On = $null },
         @{ Feature = 'LockScreen'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'; Name = 'NoLockScreen'; Off = 1; On = $null },
         @{ Feature = 'GameBar'; Path = 'HKLM:\SOFTWARE\Classes\ms-gamebar'; Name = 'NoOpenWith'; Off = ''; On = $null },
-        @{ Feature = 'LoginTheme'; Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'; Name = 'LockScreenImageStatus'; Off = $null; On = 1 }
+        @{ Feature = 'LoginTheme'; Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'; Name = 'LockScreenImageStatus'; Off = $null; On = 1 },
+        # DISM; diperiksa lewat kode keluarnya (3 = tidak didukung di runner ini).
+        @{ Feature = 'ReservedStorage'; Path = $null; Name = 'exit code'; Off = $null; On = $null }
     )
 
     function Get-Value {
@@ -862,8 +914,8 @@ if ($result.Errors.Trim()) {
     $debugCopy = Join-Path $toolboxRoot 'menu-debug.cmd'
     (Get-Content -LiteralPath (Join-Path $toolboxRoot 'Install Software.cmd') -Raw).Replace('@echo off', '@echo on') |
         Set-Content -LiteralPath $debugCopy -Encoding ASCII -NoNewline
-    $debug = Invoke-ToolboxButton -Relative 'menu-debug.cmd' -Path $debugCopy -InputLines @('0')
-    $debug.Output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 25 | ForEach-Object { Write-Host ('   debug | ' + (Format-LogLine $_)) }
+    $debug = Invoke-ToolboxButton -Relative 'menu-debug.cmd' -Path $debugCopy -InputLines @('4', '', '0')
+    $debug.Output -split "`r?`n" | Where-Object { $_.Trim() -and $_ -notmatch '^\s*(\| |TGOS:)' } | Select-Object -Last 30 | ForEach-Object { Write-Host ('   debug | ' + (Format-LogLine $_)) }
     Write-Host ('   debug stderr: {0}' -f (Format-LogLine $debug.Errors))
     Remove-Item -LiteralPath $debugCopy -Force -ErrorAction SilentlyContinue
 }
@@ -893,6 +945,17 @@ $python = Get-Command python -CommandType Application -ErrorAction SilentlyConti
 $after = Get-ChildItem -LiteralPath (Join-Path $artifacts 'report') -Filter 'TGOS-snapshot-*.json' -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($python -and $after) {
     Write-Section 'Before / after'
+$frameworks = @(Get-AppxPackage -AllUsers -Name 'Microsoft.NET.Native.*' -ErrorAction SilentlyContinue | ForEach-Object { $_.Name } | Select-Object -Unique)
+Write-Host ('   .NET Native frameworks now: {0}' -f $(if ($frameworks.Count) { $frameworks -join ', ' } else { 'none' }))
+try {
+    Get-WinEvent -LogName 'Microsoft-Windows-AppXDeploymentServer/Operational' -MaxEvents 4000 -ErrorAction Stop |
+        Where-Object { $_.Message -match 'NET\.Native' -and $_.Message -match '(?i)remov|deprovision|uninstall' } |
+        Select-Object -First 6 |
+        ForEach-Object { Write-Host ('   appx event {0:HH:mm:ss} id {1}: {2}' -f $_.TimeCreated, $_.Id, (Format-LogLine $_.Message)) }
+}
+catch {
+    Write-Host ('   appx events not readable: {0}' -f (Format-LogLine $_.Exception.Message))
+}
     $command = '"{0}" "{1}" "{2}" "{3}" 2>&1' -f $python.Source, (Join-Path $repoRoot 'tools\compare-snapshots.py'), (Join-Path $artifacts 'TGOS-snapshot-before.json'), $after.FullName
     $compare = & cmd.exe /c ('"{0}"' -f $command) | Out-String
     $compareExit = $LASTEXITCODE

@@ -24,7 +24,7 @@
         ea        EA app              (installer resmi Electronic Arts)
         ubisoft   Ubisoft Connect     (installer resmi Ubisoft)
         discord   Discord             (discord.com) - PER PENGGUNA
-        spotify   Spotify             (download.scdn.co) - PER PENGGUNA
+        spotify   Spotify             (installer lengkap, download.scdn.co) - PER PENGGUNA
 
     Program PER PENGGUNA dipasang ke profil akun yang menjalankan skrip ini (playbook
     menjalankannya sebagai pengguna yang login). Installer Spotify menolak hak
@@ -425,8 +425,11 @@ $Catalog = @{
     }
     spotify  = @{
         Name  = 'Spotify'
-        Files = @(@{ Url = 'https://download.scdn.co/SpotifySetup.exe'
-                File = 'SpotifySetup.exe'; Arguments = '/silent'; Signer = 'Spotify'; DropAdmin = $true })
+        # Installer lengkap: installer web (SpotifySetup.exe) menampilkan jendela unduhan
+        # walaupun diberi /silent, dan di uji otomatis menggantung sampai batas waktu.
+        Files = @(@{ Url = 'https://download.scdn.co/SpotifyFullSetup.exe'
+                File = 'SpotifyFullSetup.exe'; Arguments = '/silent'; Signer = 'Spotify'; DropAdmin = $true })
+        TimeoutMinutes = 5
         Test  = { Test-Path -LiteralPath (Join-Path $env:APPDATA 'Spotify\Spotify.exe') }
         CloseAfter = @('Spotify')
         PerUser = $true
@@ -616,12 +619,14 @@ try {
             $file = $path
             $arguments = [string]$spec.Arguments
         }
-        $run = Invoke-Installer -File $file -Arguments $arguments -TimeoutMilliseconds $InstallTimeoutMilliseconds -CloseAfter $entry.CloseAfter -DropAdmin:([bool]$spec.DropAdmin)
+        $timeout = $InstallTimeoutMilliseconds
+        if ($entry.TimeoutMinutes) { $timeout = [int]$entry.TimeoutMinutes * 60000 }
+        $run = Invoke-Installer -File $file -Arguments $arguments -TimeoutMilliseconds $timeout -CloseAfter $entry.CloseAfter -DropAdmin:([bool]$spec.DropAdmin)
         $code = $run.Code
         if ($run.Closed.Count -gt 0) {
             Write-Output ("TGOS: closed the window the installer opened: {0}" -f ($run.Closed -join ', '))
         }
-        if ($null -eq $code) { throw ("the installer {0} did not finish within 15 minutes" -f $label) }
+        if ($null -eq $code) { throw ("the installer {0} did not finish within {1} minutes" -f $label, ($timeout / 60000)) }
         $accepted = @(0, 3010)
         if ($spec.SuccessCodes) { $accepted = @($spec.SuccessCodes) }
         if ($accepted -notcontains $code) {

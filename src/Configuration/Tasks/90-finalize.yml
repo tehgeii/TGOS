@@ -58,12 +58,39 @@ actions:
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "taskbar-left"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'taskbar-left' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "taskbar-end-task"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'taskbar-end-task' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "skip-lock-screen"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'skip-lock-screen' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "deep-clean"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'deep-clean' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "deep-clean-plus"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'deep-clean-plus' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "block-driver-updates"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'block-driver-updates' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "mitigations-default"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'mitigations-default' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "mitigations-disable"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'mitigations-disable' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "updates-pause"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'updates-pause' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "updates-manual"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'updates-manual' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "updates-default"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'updates-default' }
+
+  # Opsi Deep clean / Deep clean+: bersih-bersih disk sesudah semua program terpasang,
+  # sebelum Explorer dijalankan ulang. Rinciannya di Scripts\Invoke-DeepClean.ps1;
+  # hasilnya di %ProgramData%\TGOS\deep-clean.txt. Bila keduanya dipilih, langkah
+  # pertama melihat catatan opsi di atas dan menyerahkan semuanya ke langkah kedua.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Invoke-DeepClean.ps1" -Playbook'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 30
+    showOutput: true
+    showError: true
+    option: 'deep-clean'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Invoke-DeepClean.ps1" -Playbook -Plus'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 40
+    showOutput: true
+    showError: true
+    option: 'deep-clean-plus'
 
   # Menyusun ulang pin taskbar dan Start menjadi set TGOS. Dijalankan setelah opsi
   # tercatat (skrip membaca opsi "remove-store" dari install-info.txt) dan setelah
