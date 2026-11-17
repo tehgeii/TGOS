@@ -42,15 +42,19 @@ berbeda di tiap job, supaya Brave, Chrome, dan Firefox semuanya terpasang lewat 
    browser yang diminta tidak terpasang.
 4. **Uji lolos.** Salinan sementara playbook dengan edisi dan arsitektur runner
    diizinkan harus selesai dengan "Playbook completed successfully." Tugas terjadwal di
-   daftar diaktifkan dulu, supaya penonaktifannya benar-benar teruji.
-5. **Software.** Browser yang dipilih dan 7-Zip harus ada sesudahnya. Image runner
-   sudah berisi Chrome, Firefox, dan 7-Zip, jadi program itu juga diunduh dan dipasang
-   ulang lewat skrip di Toolbox (`-Force`), supaya unduhan dan pemeriksaan tanda
-   tangannya benar-benar teruji.
+   daftar diaktifkan dulu, supaya penonaktifannya benar-benar teruji. Image runner sudah
+   berisi Chrome, Firefox, dan 7-Zip; browser yang dipilih job itu dan 7-Zip **dicopot
+   dulu**, supaya pemasangannya oleh playbook (sebagai sistem) benar-benar teruji.
+5. **Software.** Browser yang dipilih dan 7-Zip harus terpasang di Program Files
+   sesudahnya. Lalu beberapa program dipasang ulang lewat skrip di Toolbox (`-Force`):
+   unduhan, tanda tangan atau checksum, dan installer-nya harus benar-benar jalan, dan
+   versi program tidak boleh turun.
 6. **Pemeriksaan diri.** `Test-TgosResult.ps1` tidak boleh melaporkan `FAIL`.
 7. **Toolbox.** Tiap fitur dimatikan lalu dinyalakan lagi, dan nilai registrinya dicek.
    Di Windows 11, *Defender OFF* harus **ditolak** selama Tamper Protection aktif.
 8. **Pengumpul laporan** harus menghasilkan `TGOS-report.zip` yang lengkap.
+9. **Pasang ulang Microsoft Store** (job Windows 11 semua opsi, hanya informasi):
+   `wsreset -i` dijalankan, lalu ditunggu sampai 5 menit apakah Store kembali.
 
 Yang dibuktikan runner Windows 11 dan tidak bisa dibuktikan Windows Server: aplikasi
 bawaan benar-benar terhapus lewat aksi `!appx`, restore point bisa dibuat dari dalam
@@ -139,7 +143,8 @@ Hanya bila ingin menguji lebih jauh. Buat snapshot VMware dulu.
   restart, lalu cek Windows Security. Setelah itu *Turn ON* dan cek lagi.
 - **Opsi yang defaultnya mati:** *Remove Xbox app and Game Bar* (perhatikan popup
   `ms-gamebar` saat menekan Win+G), *Remove Microsoft Edge*, *Remove Microsoft Store*
-  (lalu coba *Reinstall Microsoft Store* di Toolbox), *Trim extra services*, dan
+  (lalu coba *Reinstall Microsoft Store* di Toolbox; tidak dijamin berhasil, jadi buat
+  snapshot VMware dulu), *Trim extra services*, dan
   *Taskbar icons on the left*.
 
 ## Catatan hasil
@@ -290,9 +295,53 @@ Semuanya ditangani di `1.0.0`.
 
 | Lapis | Tanggal | Hasil | Catatan |
 |---|---|---|---|
-| 1. Uji bentuk | 17 Nov 2026 | Lolos | 86 pemeriksaan di `tools/selftest.py` |
-| 2. Mesin AME | 17 Nov 2026 | @@LAPIS2@@ | Rincian di bawah |
+| 1. Uji bentuk | 17 Nov 2026 | Lolos | 91 pemeriksaan di `tools/selftest.py` |
+| 2. Mesin AME | 17 Nov 2026 | Lolos di kelima job | Rincian di bawah |
 | 3. VM pemilik | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
 | Hardware asli | | Belum | Benchmark dan anti-cheat belum diuji |
 
-@@HASIL@@
+Lapis 2, runner command-line AME versi 0.8.4 (run terakhir sebelum rilis):
+
+| Runner | Opsi, browser | Pemeriksaan diri | Pemeriksaan CI |
+|---|---|---|---|
+| Windows Server 2025, build 26100, x64 | bawaan, Brave | 188 PASS, 0 FAIL, 1 WARN, 43 SKIP | 48 dari 48 |
+| Windows Server 2025, build 26100, x64 | semua, Chrome | 214 PASS, 0 FAIL, 1 WARN, 18 SKIP | 49 dari 49 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan, Brave | 198 PASS, 0 FAIL, 0 WARN, 34 SKIP | 47 dari 47 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua, Firefox | 224 PASS, 0 FAIL, 0 WARN, 9 SKIP | 46 dari 46 |
+
+`WARN` di Server adalah restore point, yang memang tidak didukung Windows Server.
+
+Yang terlihat di log:
+
+- **Software dipasang oleh playbook sendiri** (sebagai sistem, lewat mesin AME): Brave
+  157.1.99.57 di `C:\Program Files\BraveSoftware` (dua job), Chrome 157.0.8103.79 dan
+  Firefox 160.0 setelah versi bawaan runner dicopot, 7-Zip 26.06 di keempat job
+  (checksum cocok dengan manifest winget), DirectX di Server x64. Di ARM64 DirectX
+  dilewati dengan pesan jelas.
+- Pemasangan ulang lewat Toolbox (VC++, 7-Zip, Chrome, Firefox, DirectX) berhasil, dan
+  versi tidak pernah turun.
+- Pin taskbar: satu browser, yaitu yang dipilih (`Brave.lnk`, `Google Chrome.lnk`,
+  `Firefox.lnk`), ditemukan dari target pintasannya. Explorer dijalankan lagi.
+- Store terhapus pada opsi *Remove Microsoft Store*; Edge terhapus pada opsi Edge karena
+  browser pilihan sudah terpasang.
+- Toolbox: semua tombol ON/OFF lolos bolak-balik, termasuk core parking, layanan ekstra,
+  dan pengumpul telemetri. *Defender OFF* ditolak di Windows 11 selama Tamper
+  Protection aktif.
+- **Pasang ulang Microsoft Store tidak berhasil di runner:** `wsreset -i` keluar dengan
+  kode 0, tetapi Store tidak kembali dalam 5 menit. Karena itu opsinya diberi label
+  *hard to undo* di Wizard, dan Toolbox menyebut bahwa itu tidak dijamin.
+
+Masalah yang ditemukan uji ini sebelum rilis, dan sudah diperbaiki: Brave terpasang ke
+profil SYSTEM (installer per pengguna), 7-Zip turun ke versi 23.01 (tautan pertama di
+7-zip.org), tombol *Extra Services* gagal (nama variabel bentrok dengan parameter, lalu
+kunci registry layanan yang ditolak untuk Administrator), nilai core parking tidak
+terbaca (pengaturan tersembunyi), aturan versi salah untuk installer Firefox, dan
+DirectX di ARM64.
+
+Yang **tidak** bisa dibuktikan uji otomatis, jadi baru terlihat di uji VM:
+
+- Program Copilot terhapus (runner tidak punya program itu).
+- Kotak abu-abu di taskbar hilang (runner tidak punya daftar pin tersimpan).
+- Start menu berisi set TGOS tanpa ubin promosi dan tanpa Recent.
+- Halaman browser bergambar tampil benar di Wizard.
+- Semua yang di atas di Windows 11 **Pro** build 26300 x64.

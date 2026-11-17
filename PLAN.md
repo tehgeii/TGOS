@@ -647,6 +647,13 @@ Pelajaran dari uji otomatis sebelum rilis `1.0.0` (semuanya diperbaiki sebelum r
 - **Konteks pemasangan.** Image runner uji sudah berisi Chrome, Firefox, dan 7-Zip,
   sehingga pemasangan oleh playbook (sebagai sistem) untuk ketiganya semula tidak
   teruji. Uji sekarang mencopot program itu dulu.
+- **Tombol Toolbox *Extra Services*.** Menulis nilai `Start` langsung ke registry
+  ditolak untuk Administrator di sebagian layanan ("Requested registry access is not
+  allowed"); playbook tidak terkena karena berjalan sebagai TrustedInstaller. Toolbox
+  sekarang memakai `sc.exe config` (Service Control Manager), menangani tiap layanan
+  sendiri, dan menyebut yang gagal.
+- **Microsoft Store.** `wsreset -i` di runner Windows 11 keluar dengan kode 0 tetapi
+  Store tidak kembali dalam 5 menit. Opsi hapus Store diberi label *hard to undo*.
 - **DirectX** hanya dipasang di Windows x64. Di runner uji Windows 11 ARM64 installernya
   gagal (kode -9); di PC sungguhan TGOS sudah menolak ARM64 di langkah pertama.
 
