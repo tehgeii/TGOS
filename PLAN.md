@@ -788,10 +788,27 @@ diperbarui saat pause (uji otomatis: `MpCmdRun -SignatureUpdate` keluar 0).
 
 **Game Bar** (bersama `remove-xbox`): `UseNexusForGameBarEnabled=0`,
 `GamepadNexusChordEnabled=0` (nama nilai kedua dari satu sumber forum, dicek di VM),
-`AllowGameDVR=0`, dan penangan pengganti `systray.exe` untuk `ms-gamebar`,
-`ms-gamebarservices`, `ms-gamingoverlay`. Di Windows 11 penangan di HKLM saja tidak cukup:
-uji otomatis menangkap jendela "Pick an app". Karena itu penangan juga ditulis per
-pengguna, dan pilihan aplikasi lama (`UrlAssociations\<protokol>`) dicabut.
+`AllowGameDVR=0`, penangan pengganti `systray.exe` untuk `ms-gamebar`,
+`ms-gamebarservices`, `ms-gamingoverlay`, dan Win+G diblokir lewat `DisabledHotkeys`
+Explorer (huruf `G` ditambahkan ke isi yang sudah ada; dicabut lagi oleh Toolbox *Turn
+ON*). Riwayat temuan di uji otomatis Windows 11 25H2: penangan pengganti saja tidak cukup
+("Pick an app" tetap muncul); `AssocQueryString` menjawab "no application is associated"
+untuk `ms-gamebar`, sama dengan protokol yang tidak ada, sedangkan protokol buatan sendiri
+dengan penangan yang sama bekerja. Penyebabnya dua catatan AppX yang masih menunjuk ke
+paket Game Bar yang sudah dihapus: katalog `PackageRepository\Extensions\windows.protocol`
+dan cache `AppModel\StateRepository\Cache\Protocol`. Menghapus entri katalog sudah dicoba
+dan tidak mengubah jawaban Windows; cache StateRepository adalah data internal layanan
+Windows yang bisa dibangun ulang dari databasenya, jadi tidak disentuh. Karena itu
+pemicunya (Win+G) yang dimatikan. Di Server 2025 (tanpa Game Bar sejak awal) penangan
+pengganti langsung dipakai Windows.
+
+**Framework AppX yang dibuang Windows.** Dengan *Remove Microsoft Store*, Store adalah
+pemakai terakhir .NET Native 2.2 di Windows Server, dan Windows kadang langsung membuang
+framework itu (log AppX: operasi Remove biasa). Itu bukan kerusakan: tidak ada aplikasi
+tersisa yang memakainya, dan aplikasi yang dipasang lagi membawa framework-nya. Potret
+sistem sekarang mencatat dependensi tiap aplikasi, dan `compare-snapshots.py` hanya
+menandai BAHAYA bila framework hilang padahal masih ada aplikasi yang memakainya (atau
+datanya tidak ada).
 
 **Launcher dan aplikasi.** Semua dari alamat "latest" resmi, tanda tangan diperiksa
 (Valve, Epic Games, Electronic Arts, Ubisoft, Discord), dipasang senyap. Program yang

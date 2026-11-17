@@ -128,7 +128,8 @@ Laporan otomatis tidak bisa menilai hal berikut. Cukup jawab ya/tidak:
 - [ ] Windows Security > Virus & threat protection > Protection updates > "Check for
       updates" tetap bisa memperbarui definisi saat update Windows di-pause.
 - [ ] Settings > Gaming > Game Bar: kedua toggle (controller dan View + Menu) Off; Win+G
-      tidak memunculkan jendela apa pun (opsi Xbox).
+      tidak memunculkan jendela apa pun, juga setelah restart (opsi Xbox). Satu game
+      dijalankan: tidak ada jendela "Pick an app" / "ms-gamingoverlay".
 - [ ] Gambar layar kunci dan latar layar login bertema TGO.
 - [ ] Bila "Skip the lock screen" dicentang: setelah restart langsung ke kotak
       password/PIN.
@@ -158,8 +159,9 @@ Hanya bila ingin menguji lebih jauh. Buat snapshot VMware dulu.
 - **Defender.** Klik dua kali *Windows Defender - Turn OFF*. Skrip seharusnya berhenti
   dan meminta Tamper Protection dimatikan. Matikan di Windows Security, jalankan lagi,
   restart, lalu cek Windows Security. Setelah itu *Turn ON* dan cek lagi.
-- **Opsi yang defaultnya mati:** *Remove Xbox app and Game Bar* (perhatikan popup
-  `ms-gamebar` saat menekan Win+G), *Remove Microsoft Edge*, *Remove Microsoft Store*
+- **Opsi yang defaultnya mati:** *Remove Xbox app and turn Game Bar off* (Win+G tidak
+  memunculkan apa pun; *Xbox Game Bar - Turn ON* di Toolbox mengembalikan Win+G setelah
+  sign out/in), *Remove Microsoft Edge*, *Remove Microsoft Store*
   (lalu coba *Reinstall Microsoft Store* di Toolbox; tidak dijamin berhasil, jadi buat
   snapshot VMware dulu), *Trim extra services*, dan
   *Taskbar icons on the left*.

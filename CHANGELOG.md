@@ -15,9 +15,13 @@ proses −25%, layanan berjalan −22%. Permintaan pemilik dan tambahan di revis
   cadangan update otomatis juga dimatikan, jadi bila Windows mengabaikan pause hasilnya
   tetap Manual. Tombol Toolbox *Windows Updates - Pause / Resume*.
 - **Game Bar mati total bersama opsi Xbox**: tombol Xbox di controller dan View + Menu
-  tidak membuka Game Bar, policy perekaman dimatikan, dan protokol `ms-gamebar` diberi
-  penangan pengganti supaya Win+G tidak memunculkan jendela "Pick an app" (jendela itu
-  tertangkap uji otomatis Windows 11). Game Mode tetap aktif.
+  tidak membuka Game Bar, policy perekaman dimatikan, dan **Win+G diblokir**
+  (`DisabledHotkeys` Explorer). Alasannya ditemukan uji otomatis Windows 11 25H2: sesudah
+  aplikasi Game Bar dihapus, cache AppX Windows masih mengaitkan `ms-gamebar` dengan paket
+  yang sudah tidak ada, sehingga Win+G memunculkan jendela "Pick an app" walaupun
+  protokolnya diberi penangan pengganti. Cache itu bagian dalam Windows, jadi TGOS tidak
+  mengubahnya; pemicunya yang dimatikan. Game Mode tetap aktif. Tombol Toolbox *Xbox Game
+  Bar - Turn ON* mengembalikan semuanya.
 - **Halaman launcher game**: Steam, Epic Games Launcher, EA app, Ubisoft Connect; dan
   **halaman aplikasi** per pengguna: Discord dan Spotify. Semua bawaan tidak tercentang,
   versi terbaru dari alamat resmi, tanda tangan diperiksa, dipasang senyap; jendela yang
