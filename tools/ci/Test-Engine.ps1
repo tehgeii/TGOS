@@ -435,6 +435,21 @@ foreach ($entry in (Get-Content -LiteralPath $taskList | ForEach-Object { $_.Tri
 }
 Write-Host ('   {0} listed task(s) enabled before the run' -f $enabledTasks.Count)
 
+# DiagTrack harus berjalan sebelum playbook, supaya penghentiannya oleh TGOS teruji (uji
+# VM v1.0.0: selama DiagTrack masih jalan, nilai perekam telemetri hilang setelah restart).
+$diagTrack = Get-Service -Name 'DiagTrack' -ErrorAction SilentlyContinue
+if ($diagTrack -and [string]$diagTrack.Status -ne 'Running') {
+    try {
+        Set-Service -Name 'DiagTrack' -StartupType Automatic
+        Start-Service -Name 'DiagTrack'
+    }
+    catch {
+        Write-Host ('   could not start DiagTrack for the test: {0}' -f (Format-LogLine $_.Exception.Message))
+    }
+}
+if ($diagTrack) { Write-Host ('   DiagTrack before the run: {0}' -f (Get-Service -Name 'DiagTrack').Status) }
+else { Write-Host '   DiagTrack is not on this runner' }
+
 $pass = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbookPass -OptionList $optionList -Name 'pass'
 $ok = Assert-That (-not $pass.TimedOut) 'pass: the engine did not hang'
 $ok = (Assert-That ($pass.Output -notmatch 'YAML Error|Fatal Playbook Error') 'pass: no YAML or fatal error') -and $ok
@@ -461,6 +476,15 @@ if (Test-Path -LiteralPath $engineOutput) {
 
 Write-Host '   install-info.txt:'
 Show-Excerpt -Path $installInfo -Limit 20
+
+if ($diagTrack) {
+    $status = [string](Get-Service -Name 'DiagTrack').Status
+    $null = Assert-That ($status -eq 'Stopped') ('pass: DiagTrack was stopped by the playbook (status {0})' -f $status)
+}
+foreach ($logger in @('AutoLogger-Diagtrack-Listener', 'SQMLogger')) {
+    $value = (Get-ItemProperty -LiteralPath ('HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\{0}' -f $logger) -Name 'Start' -ErrorAction SilentlyContinue).Start
+    $null = Assert-That ($value -eq 0) ('pass: autologger {0} Start = 0 after DiagTrack stopped (found {1})' -f $logger, $value)
+}
 
 if ($enabledTasks.Count -gt 0) {
     $stillEnabled = @($enabledTasks | Where-Object {
@@ -503,12 +527,53 @@ function Get-InstalledVersion {
     if (-not $exe) { return $null }
     return (ConvertTo-TgosVersion (Get-Item -LiteralPath $exe).VersionInfo.ProductVersion)
 }
+# Jendela yang terlihat, dicari dari nama proses atau judul jendelanya.
+function Get-VisibleWindow {
+    param([string]$Pattern)
+    @(Get-Process -ErrorAction SilentlyContinue |
+        Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and ($_.ProcessName -match $Pattern -or $_.MainWindowTitle -match $Pattern) } |
+        ForEach-Object { '{0} "{1}"' -f $_.ProcessName, $_.MainWindowTitle })
+}
 foreach ($item in @($ForceItems -split '\s+' | Where-Object { $_ })) {
     $before = $null
     if ($versionedExe.ContainsKey($item)) { $before = Get-InstalledVersion $versionedExe[$item] }
     $command = 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -Item {1} -Force 2>&1' -f $toolboxInstaller, $item
-    $output = & cmd.exe /c $command | Out-String
-    $exit = $LASTEXITCODE
+    if ($item -eq 'directx') {
+        # Uji VM v1.0.0: installer web DirectX menampilkan jendela "Installing Microsoft
+        # DirectX". Selama pemasangan, jendela installer DirectX yang terlihat dicari.
+        # Kontrol dulu: jendela Notepad harus terdeteksi oleh cara yang sama; bila tidak,
+        # runner ini tidak bisa melihat jendela dan hasilnya hanya dicatat.
+        $null = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\notepad.exe') -PassThru
+        $controlSeen = $false
+        for ($attempt = 0; $attempt -lt 30 -and -not $controlSeen; $attempt++) {
+            Start-Sleep -Milliseconds 500
+            $controlSeen = (Get-VisibleWindow '(?i)^notepad$').Count -gt 0
+        }
+        Get-Process -Name 'notepad' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        $outFile = Join-Path $artifacts 'force-directx.txt'
+        $process = Start-Process -FilePath 'cmd.exe' -ArgumentList ('/c ' + $command) -RedirectStandardOutput $outFile -NoNewWindow -PassThru
+        $null = $process.Handle
+        $windows = @()
+        while (-not $process.HasExited) {
+            $windows += Get-VisibleWindow '(?i)directx|dxsetup|dxwebsetup'
+            Start-Sleep -Milliseconds 500
+        }
+        $process.WaitForExit()
+        $exit = $process.ExitCode
+        $output = ''
+        if (Test-Path -LiteralPath $outFile) { $output = Get-Content -LiteralPath $outFile -Raw }
+        if ($controlSeen) {
+            $null = Assert-That ($windows.Count -eq 0) 'software: no DirectX installer window was visible (control: the Notepad window was detected)'
+            @($windows | Select-Object -Unique -First 5) | ForEach-Object { Write-Host ('   visible: {0}' -f $_) }
+        }
+        else {
+            Write-Host '   INFO: this runner does not expose windows (the Notepad control was not detected); the visible-window check is inconclusive'
+        }
+    }
+    else {
+        $output = & cmd.exe /c $command | Out-String
+        $exit = $LASTEXITCODE
+    }
     $ok = ($exit -eq 0) -and ($output -match 'verified:') -and ($output -match 'TGOS: .+ installed')
     # Hanya 7-Zip yang boleh dilewati karena versi terpasang lebih baru.
     $ok = $ok -and ($item -eq '7zip' -or $output -notmatch 'nothing changed')

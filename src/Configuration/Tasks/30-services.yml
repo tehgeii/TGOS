@@ -27,6 +27,22 @@ actions:
   # --- Telemetri dan diagnostik ----------------------------------------------------
   # Connected User Experiences and Telemetry: pengirim utama data telemetri.
   - !service: { name: 'DiagTrack', operation: change, startup: 4 }
+  # DiagTrack dihentikan sekarang, bukan baru saat restart. Selama masih berjalan ia
+  # menulis ulang konfigurasi perekam telemetrinya sendiri ketika dimatikan saat
+  # shutdown, sehingga nilai di bawah hilang lagi (terlihat di uji VM v1.0.0).
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Stop-DisabledServices.ps1" -Names DiagTrack'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 1
+    showOutput: true
+    showError: true
+  # Perekam otomatis yang menampung data telemetri sejak boot tidak dijalankan. Ditulis
+  # sesudah DiagTrack berhenti (lihat di atas).
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\AutoLogger-Diagtrack-Listener', value: 'Start', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\SQMLogger', value: 'Start', data: '0', type: REG_DWORD }
   # Perutean pesan push WAP untuk telemetri perangkat.
   - !service: { name: 'dmwappushservice', operation: change, startup: 4 }
   # Pengumpul data untuk Diagnostics Hub (alat profiling pengembang).

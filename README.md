@@ -37,7 +37,7 @@ dengan prioritas performa.
 | Folder | Isi |
 |---|---|
 | `src/` | Sumber playbook: `playbook.conf`, `Configuration/`, `Executables/` |
-| `assets/branding/` | Logo TGO, ikon TGOS, wallpaper |
+| `assets/branding/` | Logo TGO, ikon TGOS, wallpaper, logo browser untuk halaman pilihan browser |
 | `tools/` | Validasi, skrip build, pembanding potret, pembuat ikon, gambar opsi, wallpaper, dan dokumen |
 | `.github/workflows/` | Uji otomatis lewat mesin AME di Windows |
 | `docs/` | Dokumen pengujian |

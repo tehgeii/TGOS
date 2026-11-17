@@ -5,6 +5,35 @@ Semua perubahan penting pada TGOS dicatat di sini. Nomor versi mengikuti roadmap
 
 ## 1.0.0 — pilihan browser, opsi baru, dan perbaikan dari uji 0.9.1
 
+**Direvisi setelah uji VM build pertama 1.0.0** (nomor versi tetap). Build pertama diuji
+pemilik di VMware (Windows 11 Pro 26H2, semua opsi, Chrome): Copilot, kotak abu-abu
+taskbar, Start, dan Edge sudah beres; RAM −35%, thread −39%, proses −24%. Pemeriksaan
+diri 225 PASS / 1 FAIL saat instalasi dan 224 PASS / 2 FAIL setelah restart. Yang
+diperbaiki di revisi ini:
+
+- **Logo browser asli** di halaman pilihan browser (Brave, Chrome, Firefox), di atas
+  kotak gelap TGO yang seragam, menggantikan ikon huruf.
+- **DirectX tanpa jendela.** Installer web `dxwebsetup.exe` tetap menampilkan jendela
+  "Installing Microsoft DirectX" walaupun diberi `/Q`, lalu macet sampai batas 15 menit
+  (FAIL). Sekarang dipakai paket lengkap resmi `directx_Jun2010_redist.exe`: diekstrak
+  tanpa tampilan (`/Q:A /C /T:`), lalu `DXSETUP.exe /silent`. Tanda tangan Microsoft
+  diperiksa pada paket dan pada `DXSETUP.exe`, dan SHA256 paket harus sama dengan
+  checksum yang dikunci. Uji otomatis sekarang memantau jendela yang terlihat selama
+  pemasangan DirectX (dengan kontrol Notepad untuk membuktikan pemantaunya bekerja); uji
+  itu sempat menangkap jendela progres pengekstrak saat masih memakai `/Q` saja.
+  Instalasi juga jadi jauh lebih cepat.
+- **Perekam telemetri bertahan setelah restart.** Nilai `Start` perekam
+  `AutoLogger-Diagtrack-Listener` hilang setelah restart (FAIL kedua): layanan DiagTrack
+  masih berjalan selama instalasi dan menulis ulang konfigurasinya saat shutdown.
+  DiagTrack sekarang dihentikan saat itu juga (`Stop-DisabledServices.ps1`), dan nilai
+  perekam ditulis sesudahnya.
+- **Ikon TGOS Toolbox tidak lagi di tengah Desktop.** Pintasannya dibuat paling akhir,
+  setelah Explorer hidup lagi.
+- **Pin taskbar bersih.** Reset pin juga menghapus file pintasan pin lama, sehingga
+  tidak ada lagi `File Explorer (2).lnk` ganda.
+
+Rilis 1.0.0 seperti semula:
+
 Versi `0.9.1` diuji pemilik di VMware (Windows 11 Pro 26H2 build 26300, AME Beta 0.8.4,
 semua opsi): 163 pemeriksaan lolos, 0 gagal; Edge terhapus di edisi Pro; RAM −32%. Tiga
 hal masih salah dan diperbaiki di sini. Lolos uji otomatis; belum diuji ulang di VM, dan
@@ -25,7 +54,8 @@ uji di hardware asli (benchmark, anti-cheat) belum dilakukan.
 
 **Baru**
 
-- **Halaman pilihan browser** bergambar: Brave (bawaan), Chrome, Firefox, atau None.
+- **Halaman pilihan browser** dengan logo resmi: Brave (bawaan), Chrome, Firefox, atau
+  None.
 - **Software**: 7-Zip dan runtime game (Visual C++ x64/x86, DirectX). Semuanya diunduh
   dari sumber resmi dan tanda tangan digitalnya diperiksa sebelum dijalankan; 7-Zip, yang
   tidak ditandatangani pembuatnya, dicocokkan dengan checksum di manifest winget

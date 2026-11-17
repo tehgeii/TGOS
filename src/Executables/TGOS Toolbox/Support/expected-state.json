@@ -801,31 +801,9 @@
   },
   {
    "type": "registry",
-   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\AutoLogger-Diagtrack-Listener",
-   "value": "Start",
-   "source": "20-privacy.yml:107",
-   "option": null,
-   "builds": null,
-   "absent": false,
-   "data": "0",
-   "regType": "REG_DWORD"
-  },
-  {
-   "type": "registry",
-   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\SQMLogger",
-   "value": "Start",
-   "source": "20-privacy.yml:108",
-   "option": null,
-   "builds": null,
-   "absent": false,
-   "data": "0",
-   "regType": "REG_DWORD"
-  },
-  {
-   "type": "registry",
    "path": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\CompatTelRunner.exe",
    "value": "Debugger",
-   "source": "20-privacy.yml:117",
+   "source": "20-privacy.yml:116",
    "option": null,
    "builds": null,
    "absent": false,
@@ -836,7 +814,7 @@
    "type": "registry",
    "path": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\DeviceCensus.exe",
    "value": "Debugger",
-   "source": "20-privacy.yml:118",
+   "source": "20-privacy.yml:117",
    "option": null,
    "builds": null,
    "absent": false,
@@ -847,7 +825,7 @@
    "type": "registry",
    "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
    "value": "DisableAIDataAnalysis",
-   "source": "20-privacy.yml:122",
+   "source": "20-privacy.yml:121",
    "option": null,
    "builds": [
     ">=26100"
@@ -860,7 +838,7 @@
    "type": "registry",
    "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
    "value": "AllowRecallEnablement",
-   "source": "20-privacy.yml:123",
+   "source": "20-privacy.yml:122",
    "option": null,
    "builds": [
     ">=26100"
@@ -873,7 +851,7 @@
    "type": "registry",
    "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Dsh",
    "value": "AllowNewsAndInterests",
-   "source": "20-privacy.yml:128",
+   "source": "20-privacy.yml:127",
    "option": "remove-ai-widgets",
    "builds": null,
    "absent": false,
@@ -884,7 +862,7 @@
    "type": "registry",
    "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
    "value": "DisableClickToDo",
-   "source": "20-privacy.yml:131",
+   "source": "20-privacy.yml:130",
    "option": "remove-ai-widgets",
    "builds": [
     ">=26100"
@@ -897,7 +875,7 @@
    "type": "registry",
    "path": "HKCU\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsCopilot",
    "value": "TurnOffWindowsCopilot",
-   "source": "20-privacy.yml:134",
+   "source": "20-privacy.yml:133",
    "option": "remove-ai-widgets",
    "builds": [
     "<26100"
@@ -910,7 +888,7 @@
    "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
    "value": "ShowCopilotButton",
-   "source": "20-privacy.yml:135",
+   "source": "20-privacy.yml:134",
    "option": "remove-ai-widgets",
    "builds": [
     "<26100"
@@ -928,10 +906,32 @@
    "builds": null
   },
   {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\AutoLogger-Diagtrack-Listener",
+   "value": "Start",
+   "source": "30-services.yml:44",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\SQMLogger",
+   "value": "Start",
+   "source": "30-services.yml:45",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
    "type": "service",
    "name": "dmwappushservice",
    "startup": 4,
-   "source": "30-services.yml:31",
+   "source": "30-services.yml:47",
    "option": null,
    "builds": null
   },
@@ -939,7 +939,7 @@
    "type": "service",
    "name": "diagnosticshub.standardcollector.service",
    "startup": 4,
-   "source": "30-services.yml:33",
+   "source": "30-services.yml:49",
    "option": null,
    "builds": null
   },
@@ -947,7 +947,7 @@
    "type": "service",
    "name": "WerSvc",
    "startup": 4,
-   "source": "30-services.yml:35",
+   "source": "30-services.yml:51",
    "option": null,
    "builds": null
   },
@@ -955,7 +955,7 @@
    "type": "service",
    "name": "wisvc",
    "startup": 4,
-   "source": "30-services.yml:37",
+   "source": "30-services.yml:53",
    "option": null,
    "builds": null
   },
@@ -963,7 +963,7 @@
    "type": "service",
    "name": "InventorySvc",
    "startup": 4,
-   "source": "30-services.yml:40",
+   "source": "30-services.yml:56",
    "option": null,
    "builds": null
   },
@@ -971,7 +971,7 @@
    "type": "service",
    "name": "whesvc",
    "startup": 4,
-   "source": "30-services.yml:43",
+   "source": "30-services.yml:59",
    "option": null,
    "builds": null
   },
@@ -979,7 +979,7 @@
    "type": "service",
    "name": "SysMain",
    "startup": 4,
-   "source": "30-services.yml:48",
+   "source": "30-services.yml:64",
    "option": null,
    "builds": null
   },
@@ -987,7 +987,7 @@
    "type": "service",
    "name": "MapsBroker",
    "startup": 4,
-   "source": "30-services.yml:50",
+   "source": "30-services.yml:66",
    "option": null,
    "builds": null
   },
@@ -995,7 +995,7 @@
    "type": "service",
    "name": "RetailDemo",
    "startup": 4,
-   "source": "30-services.yml:52",
+   "source": "30-services.yml:68",
    "option": null,
    "builds": null
   },
@@ -1003,7 +1003,7 @@
    "type": "service",
    "name": "WpcMonSvc",
    "startup": 4,
-   "source": "30-services.yml:54",
+   "source": "30-services.yml:70",
    "option": null,
    "builds": null
   },
@@ -1011,7 +1011,7 @@
    "type": "service",
    "name": "TrkWks",
    "startup": 4,
-   "source": "30-services.yml:56",
+   "source": "30-services.yml:72",
    "option": null,
    "builds": null
   },
@@ -1019,7 +1019,7 @@
    "type": "service",
    "name": "Fax",
    "startup": 4,
-   "source": "30-services.yml:59",
+   "source": "30-services.yml:75",
    "option": null,
    "builds": null
   },
@@ -1027,7 +1027,7 @@
    "type": "service",
    "name": "RemoteRegistry",
    "startup": 4,
-   "source": "30-services.yml:61",
+   "source": "30-services.yml:77",
    "option": null,
    "builds": null
   },
@@ -1035,7 +1035,7 @@
    "type": "service",
    "name": "AJRouter",
    "startup": 4,
-   "source": "30-services.yml:63",
+   "source": "30-services.yml:79",
    "option": null,
    "builds": null
   },
@@ -1043,7 +1043,7 @@
    "type": "service",
    "name": "WalletService",
    "startup": 4,
-   "source": "30-services.yml:65",
+   "source": "30-services.yml:81",
    "option": null,
    "builds": null
   },
@@ -1051,7 +1051,7 @@
    "type": "service",
    "name": "SEMgrSvc",
    "startup": 4,
-   "source": "30-services.yml:66",
+   "source": "30-services.yml:82",
    "option": null,
    "builds": null
   },
@@ -1059,7 +1059,7 @@
    "type": "service",
    "name": "WMPNetworkSvc",
    "startup": 4,
-   "source": "30-services.yml:68",
+   "source": "30-services.yml:84",
    "option": null,
    "builds": null
   },
@@ -1067,7 +1067,7 @@
    "type": "service",
    "name": "WSAIFabricSvc",
    "startup": 3,
-   "source": "30-services.yml:73",
+   "source": "30-services.yml:89",
    "option": "remove-ai-widgets",
    "builds": null
   },
@@ -1075,7 +1075,7 @@
    "type": "service",
    "name": "WSearch",
    "startup": 4,
-   "source": "30-services.yml:78",
+   "source": "30-services.yml:94",
    "option": "disable-indexing",
    "builds": null
   },
@@ -1083,7 +1083,7 @@
    "type": "service",
    "name": "Spooler",
    "startup": 4,
-   "source": "30-services.yml:87",
+   "source": "30-services.yml:103",
    "option": "trim-services",
    "builds": null
   },
@@ -1091,7 +1091,7 @@
    "type": "service",
    "name": "PrintNotify",
    "startup": 4,
-   "source": "30-services.yml:88",
+   "source": "30-services.yml:104",
    "option": "trim-services",
    "builds": null
   },
@@ -1099,7 +1099,7 @@
    "type": "service",
    "name": "PrintScanBrokerService",
    "startup": 4,
-   "source": "30-services.yml:89",
+   "source": "30-services.yml:105",
    "option": "trim-services",
    "builds": null
   },
@@ -1107,7 +1107,7 @@
    "type": "service",
    "name": "PrintDeviceConfigurationService",
    "startup": 4,
-   "source": "30-services.yml:90",
+   "source": "30-services.yml:106",
    "option": "trim-services",
    "builds": null
   },
@@ -1115,7 +1115,7 @@
    "type": "service",
    "name": "DPS",
    "startup": 4,
-   "source": "30-services.yml:93",
+   "source": "30-services.yml:109",
    "option": "trim-services",
    "builds": null
   },
@@ -1123,7 +1123,7 @@
    "type": "service",
    "name": "WdiServiceHost",
    "startup": 4,
-   "source": "30-services.yml:94",
+   "source": "30-services.yml:110",
    "option": "trim-services",
    "builds": null
   },
@@ -1131,7 +1131,7 @@
    "type": "service",
    "name": "WdiSystemHost",
    "startup": 4,
-   "source": "30-services.yml:95",
+   "source": "30-services.yml:111",
    "option": "trim-services",
    "builds": null
   },
@@ -1139,7 +1139,7 @@
    "type": "service",
    "name": "PcaSvc",
    "startup": 4,
-   "source": "30-services.yml:96",
+   "source": "30-services.yml:112",
    "option": "trim-services",
    "builds": null
   },
@@ -1147,7 +1147,7 @@
    "type": "service",
    "name": "SSDPSRV",
    "startup": 4,
-   "source": "30-services.yml:100",
+   "source": "30-services.yml:116",
    "option": "trim-services",
    "builds": null
   },
@@ -1155,7 +1155,7 @@
    "type": "service",
    "name": "upnphost",
    "startup": 4,
-   "source": "30-services.yml:101",
+   "source": "30-services.yml:117",
    "option": "trim-services",
    "builds": null
   },
@@ -1163,7 +1163,7 @@
    "type": "service",
    "name": "fdPHost",
    "startup": 4,
-   "source": "30-services.yml:102",
+   "source": "30-services.yml:118",
    "option": "trim-services",
    "builds": null
   },
@@ -1171,7 +1171,7 @@
    "type": "service",
    "name": "FDResPub",
    "startup": 4,
-   "source": "30-services.yml:103",
+   "source": "30-services.yml:119",
    "option": "trim-services",
    "builds": null
   },
@@ -1179,7 +1179,7 @@
    "type": "service",
    "name": "lmhosts",
    "startup": 4,
-   "source": "30-services.yml:104",
+   "source": "30-services.yml:120",
    "option": "trim-services",
    "builds": null
   },

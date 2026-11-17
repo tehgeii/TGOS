@@ -118,7 +118,11 @@ Laporan otomatis tidak bisa menilai hal berikut. Cukup jawab ya/tidak:
 - [ ] Di Wizard tidak ada teks yang terpotong dengan "...": deskripsi playbook, teks
       kecil di kiri, deskripsi tiap halaman opsi, dan status saat instalasi.
 - [ ] Selama instalasi tidak muncul jendela "Yes/No" (UAC) untuk Microsoft OneDrive.
-- [ ] Halaman browser di Wizard tampil benar: tiga kotak bergambar (B, C, F) dan None.
+- [ ] Selama instalasi tidak muncul jendela installer apa pun (mis. "Installing
+      Microsoft DirectX"); semua berjalan di latar belakang.
+- [ ] Halaman browser di Wizard tampil benar: logo asli Brave, Chrome, Firefox di atas
+      kotak gelap, dan None.
+- [ ] Ikon TGOS Toolbox di Desktop berada di deretan ikon kiri, bukan di tengah.
 - [ ] Taskbar: tidak ada kotak abu-abu; pencarian berupa ikon; tombol Task View tidak
       ada; yang tersisa Start, Search, File Explorer, browser pilihan, Store.
 - [ ] Start menu: pin berisi File Explorer, Settings, Store, browser, Notepad,
@@ -297,22 +301,34 @@ Semuanya ditangani di `1.0.0`.
 |---|---|---|---|
 | 1. Uji bentuk | 17 Nov 2026 | Lolos | 91 pemeriksaan di `tools/selftest.py` |
 | 2. Mesin AME | 17 Nov 2026 | Lolos di kelima job | Rincian di bawah |
-| 3. VM pemilik | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
+| 3. VM pemilik, build pertama | 17 Nov 2026 | 225 PASS, 1 FAIL; setelah restart 224 PASS, 2 FAIL | Rincian di bawah; dua FAIL itu diperbaiki di revisi |
+| 3. VM pemilik, revisi | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
 | Hardware asli | | Belum | Benchmark dan anti-cheat belum diuji |
 
 Lapis 2, runner command-line AME versi 0.8.4 (run terakhir sebelum rilis):
 
 | Runner | Opsi, browser | Pemeriksaan diri | Pemeriksaan CI |
 |---|---|---|---|
-| Windows Server 2025, build 26100, x64 | bawaan, Brave | 188 PASS, 0 FAIL, 1 WARN, 43 SKIP | 48 dari 48 |
-| Windows Server 2025, build 26100, x64 | semua, Chrome | 214 PASS, 0 FAIL, 1 WARN, 18 SKIP | 49 dari 49 |
-| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan, Brave | 198 PASS, 0 FAIL, 0 WARN, 34 SKIP | 47 dari 47 |
-| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua, Firefox | 224 PASS, 0 FAIL, 0 WARN, 9 SKIP | 46 dari 46 |
+| Windows Server 2025, build 26100, x64 | bawaan, Brave | 188 PASS, 0 FAIL, 1 WARN, 43 SKIP | 51 dari 51 |
+| Windows Server 2025, build 26100, x64 | semua, Chrome | 214 PASS, 0 FAIL, 1 WARN, 18 SKIP | 53 dari 53 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan, Brave | 198 PASS, 0 FAIL, 0 WARN, 34 SKIP | 50 dari 50 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua, Firefox | 224 PASS, 0 FAIL, 0 WARN, 9 SKIP | 49 dari 49 |
 
 `WARN` di Server adalah restore point, yang memang tidak didukung Windows Server.
 
 Yang terlihat di log:
 
+- **Revisi setelah uji VM.** DirectX dipasang playbook sendiri (lewat mesin AME) dari
+  paket lengkap di kedua job Server: SHA256 cocok dengan checksum yang dikunci,
+  `DXSETUP.exe` bertanda tangan Microsoft dan keluar dengan kode 0. Selama pemasangan
+  DirectX, pemantau jendela **tidak melihat jendela DirectX apa pun**, dan kontrolnya
+  (jendela Notepad) terdeteksi, jadi pemantaunya terbukti bekerja. Satu run sebelumnya,
+  saat masih memakai `/Q` saja, pemantau yang sama menangkap jendela progres
+  pengekstrak "DirectX June 2010 SDK"; itu sebabnya sekarang `/Q:A`.
+- DiagTrack berjalan sebelum playbook dan dihentikan playbook di keempat job; nilai
+  `Start` kedua perekam telemetri tetap 0 sesudahnya.
+- Reset pin menghapus 1-2 pintasan pin lama di job Server; Explorer hidup lagi sebelum
+  pintasan TGOS Toolbox dibuat.
 - **Software dipasang oleh playbook sendiri** (sebagai sistem, lewat mesin AME): Brave
   157.1.99.57 di `C:\Program Files\BraveSoftware` (dua job), Chrome 157.0.8103.79 dan
   Firefox 160.0 setelah versi bawaan runner dicopot, 7-Zip 26.06 di keempat job
@@ -338,10 +354,46 @@ kunci registry layanan yang ditolak untuk Administrator), nilai core parking tid
 terbaca (pengaturan tersembunyi), aturan versi salah untuk installer Firefox, dan
 DirectX di ARM64.
 
-Yang **tidak** bisa dibuktikan uji otomatis, jadi baru terlihat di uji VM:
+Lapis 3, uji pemilik build pertama `1.0.0`: Windows 11 Pro 26H2 build 26300.9974 di
+VMware, AME Beta 0.8.4, semua opsi dicentang, browser Chrome.
 
-- Program Copilot terhapus (runner tidak punya program itu).
-- Kotak abu-abu di taskbar hilang (runner tidak punya daftar pin tersimpan).
-- Start menu berisi set TGOS tanpa ubin promosi dan tanpa Recent.
-- Halaman browser bergambar tampil benar di Wizard.
-- Semua yang di atas di Windows 11 **Pro** build 26300 x64.
+| | Sebelum | Sesudah | Target `PLAN.md` |
+|---|---|---|---|
+| Proses | 149 | 113 (−24%) | −35%, tidak tercapai |
+| Thread | 1.931 | 1.172 (−39%) | tanpa target |
+| RAM terpakai | 3.345 MB | 2.165 MB (−35%) | −30%, tercapai |
+| Layanan berjalan | 97 | 77 (−21%) | −30%, tidak tercapai |
+| Disk terpakai | 30,0 GB | 24,2 GB | tanpa target |
+| Paket AppX | 108 | 80 | |
+
+Yang terbukti beres di VM: program Copilot terhapus (uninstaller-nya keluar 20, tidak
+ada lagi di Installed apps); kotak abu-abu di taskbar hilang; Start berisi File Explorer,
+Settings, Google Chrome, Notepad, Calculator, Terminal, tanpa ubin promosi dan tanpa
+Recent; Edge terhapus (kode keluar 19) karena Chrome terpasang; Chrome dipasang playbook;
+Defender tetap aktif dengan Tamper Protection.
+
+Yang masih salah, dan penyebabnya (dari log dan screenshot):
+
+- **Jendela "Installing Microsoft DirectX" muncul** di tengah instalasi, lalu macet;
+  TGOS menghentikannya setelah 15 menit dan DirectX tidak terpasang (FAIL). Installer web
+  `dxwebsetup.exe` tetap menampilkan jendelanya walaupun diberi `/Q`. Instalasi jadi
+  makan sekitar 30 menit.
+- **Nilai `Start` perekam `AutoLogger-Diagtrack-Listener` hilang setelah restart**
+  (FAIL kedua; saat instalasi masih PASS). DiagTrack masih berjalan selama instalasi dan
+  menulis ulang konfigurasi perekamnya saat dimatikan ketika shutdown.
+- Ikon TGOS Toolbox muncul di tengah Desktop: pintasannya dibuat sebelum Explorer
+  dihentikan untuk reset pin.
+- Ada `File Explorer (2).lnk` ganda di folder pin taskbar (tidak terlihat di taskbar).
+- Ikon halaman browser berupa huruf; pemilik meminta logo asli.
+
+Catatan: entri "Microsoft Windows Application Compatibility Fix Database" di Installed
+apps bukan dari TGOS.
+
+Semuanya ditangani di revisi `1.0.0` (lihat CHANGELOG).
+
+Yang **tidak** bisa dibuktikan uji otomatis, jadi baru terlihat di uji ulang VM:
+
+- Logo browser tampil benar di Wizard.
+- Tidak ada jendela installer yang muncul selama instalasi di Windows 11 Pro.
+- Nilai perekam telemetri bertahan setelah restart (uji otomatis tidak bisa restart).
+- Ikon TGOS Toolbox tidak di tengah Desktop, dan tidak ada pintasan pin ganda.
