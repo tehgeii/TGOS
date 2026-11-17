@@ -936,6 +936,18 @@ def validate_executables(report: Report) -> None:
             report.error(f"{rel(path)}:{line}",
                          "karakter non-ASCII; Windows PowerShell 5.1 dan cmd salah membacanya")
 
+    # TGOS tidak pernah menjalankan WSL. Uji otomatis mengabaikan jendela
+    # "wsl.exe --update" milik image runner Windows 11; aturan ini menjamin pengecualian itu
+    # tidak bisa menyembunyikan jendela yang dibuat TGOS sendiri.
+    for path in sorted(SRC.rglob("*")):
+        if not path.is_file() or path.suffix.lower() not in {".ps1", ".psm1", ".cmd", ".bat", ".yml", ".yaml", ".txt", ".conf", ".json"}:
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for number, line in enumerate(text.splitlines(), start=1):
+            if re.search(r"(?i)\bwsl(\.exe)?\b", line):
+                report.error(f"{rel(path)}:{number}",
+                             "TGOS tidak boleh menjalankan WSL (wsl.exe); uji otomatis mengabaikan jendela WSL milik runner")
+
 
 # --------------------------------------------------------------------------- #
 # Ikon

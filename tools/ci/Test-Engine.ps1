@@ -471,6 +471,9 @@ public static extern bool GetWindowRect(System.IntPtr hWnd, out Rect rect);
     foreach ($process in @(Get-Process -ErrorAction SilentlyContinue)) {
         if ($process.MainWindowHandle -ne [IntPtr]::Zero) { $known[$process.Id] = $true }
     }
+    # Tanda siap: jendela kontrol baru dibuka sesudah daftar awal ini dibuat (job PowerShell
+    # bisa butuh belasan detik untuk mulai di runner yang lambat).
+    Add-Content -LiteralPath $Path -Value 'READY' -Encoding ASCII
     while ($true) {
         foreach ($process in @(Get-Process -ErrorAction SilentlyContinue)) {
             if ($process.MainWindowHandle -ne [IntPtr]::Zero -and -not $known.ContainsKey($process.Id)) {
@@ -493,14 +496,24 @@ public static extern bool GetWindowRect(System.IntPtr hWnd, out Rect rect);
         Start-Sleep -Milliseconds 300
     }
 }
-Start-Sleep -Seconds 3
+for ($attempt = 0; $attempt -lt 120; $attempt++) {
+    if (@(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue) -contains 'READY') { break }
+    Start-Sleep -Milliseconds 500
+}
 $null = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\notepad.exe') -PassThru
 $watcherWorks = $false
-for ($attempt = 0; $attempt -lt 30 -and -not $watcherWorks; $attempt++) {
+for ($attempt = 0; $attempt -lt 40 -and -not $watcherWorks; $attempt++) {
     Start-Sleep -Milliseconds 500
     $watcherWorks = [bool](@(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue) -match '^notepad \|').Count
 }
 Get-Process -Name 'notepad' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+# Jendela yang sudah muncul sebelum playbook dijalankan (milik runner, bukan TGOS).
+@(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue | Where-Object { $_ -and $_ -ne 'READY' -and $_ -notmatch '^notepad \|' }) |
+    ForEach-Object { Write-Host ('   window before the playbook: {0}' -f (Format-LogLine $_)) }
+$wslTasks = @(Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object { @($_.Actions | Where-Object { [string]$_.Execute -match '(?i)wsl' }).Count } |
+        ForEach-Object { '{0}{1}' -f $_.TaskPath, $_.TaskName })
+Write-Host ('   runner scheduled tasks that start wsl.exe: {0}' -f $(if ($wslTasks.Count) { $wslTasks -join ', ' } else { 'none' }))
+Write-Host ('   wsl.exe processes before the playbook: {0}' -f @(Get-Process -Name 'wsl' -ErrorAction SilentlyContinue).Count)
 Set-Content -LiteralPath $windowLog -Value @() -Encoding ASCII
 
 $pass = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbookPass -OptionList $optionList -Name 'pass'
@@ -510,6 +523,13 @@ Remove-Job -Job $watcher -Force -ErrorAction SilentlyContinue
 # Bagian shell Windows yang memang muncul lagi saat TGOS menjalankan ulang Explorer.
 $shellProcesses = '^(explorer|ShellExperienceHost|StartMenuExperienceHost|SearchHost|SearchApp|TextInputHost|ApplicationFrameHost|LockApp|ShellHost) \|'
 $newWindows = @(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue | Where-Object { $_ })
+# Image runner Windows 11 membuka "wsl.exe --update --confirm --prompt-before-exit" tiap
+# 90 detik sepanjang job (juga saat uji Game Bar, sesudah playbook selesai). TGOS tidak
+# pernah menjalankan WSL: validate.py menolak "wsl" di seluruh src/.
+$runnerNoise = '^wsl \|.*\| (?i:C:\\Windows\\system32\\wsl\.exe) --update --confirm --prompt-before-exit\s*$'
+$noise = @($newWindows | Where-Object { $_ -match $runnerNoise })
+$newWindows = @($newWindows | Where-Object { $_ -notmatch $runnerNoise })
+if ($noise.Count) { Write-Host ('   ignored {0} runner window(s): wsl.exe --update (WSL updater of the runner image)' -f $noise.Count) }
 # Pelanggaran: jendela berjudul, atau jendela tanpa judul yang ukurannya nyata (bukan
 # jendela pesan kosong), dari proses selain shell Windows.
 $unexpected = @($newWindows | Where-Object {
@@ -783,15 +803,39 @@ public static extern int AssocQueryString(int flags, int str, string assoc, stri
         }
         $null = Assert-That ($popups.Count -eq 0) 'gamebar: opening ms-gamebar: and ms-gamingoverlay: shows no window (control: the Notepad window was detected)'
         if ($popups.Count) {
-            # Diagnosa lanjutan (hanya informasi; hasil di atas yang menentukan).
-            foreach ($key in @(
-                    'HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\ms-gamebar',
-                    'HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\ms-gamingoverlay',
-                    'HKCR\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\ms-gamebar',
-                    'HKCR\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\ms-gamingoverlay')) {
-                $lines = @(& reg.exe query $key /s 2>&1 | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() })
-                Write-Host ('   reg {0}: {1} line(s)' -f $key, $lines.Count)
-                $lines | Select-Object -First 8 | ForEach-Object { Write-Host ('     {0}' -f (Format-LogLine $_)) }
+            # Diagnosa lanjutan (hanya informasi; hasil di atas yang menentukan). reg.exe
+            # dijalankan lewat cmd supaya kunci yang tidak ada tidak menghentikan skrip.
+            function Show-RegistryTree {
+                param([string]$Key, [int]$Max = 12)
+                $lines = @(& cmd.exe /c ('reg query "{0}" /s 2>&1' -f $Key) | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() })
+                if ($lines.Count -and $lines[0] -match '^ERROR:') { Write-Host ('   reg {0}: (missing)' -f $Key); return }
+                Write-Host ('   reg {0}: {1} line(s)' -f $Key, $lines.Count)
+                $lines | Select-Object -First $Max | ForEach-Object { Write-Host ('     {0}' -f (Format-LogLine $_)) }
+            }
+            function Show-ProtocolTest {
+                param([string]$Label, [string[]]$Uris = @('ms-gamebar:', 'ms-gamingoverlay:'))
+                foreach ($uri in $Uris) {
+                    $name = $uri.TrimEnd(':')
+                    $windows = @(Test-ProtocolPopup $uri | Where-Object { $_ -notmatch '^wsl ' }) -join ' ; '
+                    if (-not $windows) { $windows = 'no window' }
+                    Write-Host ('   experiment {0}, {1}: shell command {2} -> {3}' -f $Label, $uri, (Get-ProtocolAssoc $name 1), (Format-LogLine $windows))
+                }
+            }
+            foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
+                Show-RegistryTree ('HKCU\Software\Classes\{0}' -f $protocol)
+                Show-RegistryTree ('HKLM\SOFTWARE\Classes\{0}' -f $protocol)
+                Show-RegistryTree ('HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\{0}' -f $protocol)
+                Show-RegistryTree ('HKLM\SOFTWARE\Microsoft\Windows\Shell\Associations\UrlAssociations\{0}' -f $protocol)
+                Show-RegistryTree ('HKCR\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\{0}' -f $protocol)
+            }
+            $contract = 'HKCU:\Software\Classes\Extensions\ContractId\Windows.Protocol\PackageId'
+            $contractLeft = @(Get-ChildItem -LiteralPath $contract -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '(?i)xbox|gaming' } | ForEach-Object { $_.PSChildName })
+            Write-Host ('   protocol contracts left for Xbox/gaming packages: {0}' -f $(if ($contractLeft.Count) { $contractLeft -join ', ' } else { 'none' }))
+            $oem = Join-Path $env:SystemRoot 'System32\OEMDefaultAssociations.xml'
+            if (Test-Path -LiteralPath $oem) {
+                $oemLines = @(Get-Content -LiteralPath $oem -ErrorAction SilentlyContinue | Where-Object { $_ -match '(?i)gam' })
+                Write-Host ('   OEMDefaultAssociations.xml lines about gaming: {0}' -f $oemLines.Count)
+                $oemLines | Select-Object -First 5 | ForEach-Object { Write-Host ('     {0}' -f (Format-LogLine $_.Trim())) }
             }
             $toasts = Get-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts' -ErrorAction SilentlyContinue
             if ($toasts) { $toasts.GetValueNames() | Where-Object { $_ -match '(?i)gam' } | ForEach-Object { Write-Host ('   association toast: {0}' -f $_) } }
@@ -800,35 +844,44 @@ public static extern int AssocQueryString(int flags, int str, string assoc, stri
             $allGaming = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)xbox|gaming' } | ForEach-Object { $_.Name })
             Write-Host ('   installed Xbox/gaming packages: {0}' -f $(if ($allGaming.Count) { $allGaming -join ', ' } else { 'none' }))
 
-            # Percobaan (informasi): protokol buatan sendiri dengan penangan yang sama. Bila
-            # ini juga memunculkan jendela, Windows ini bertanya untuk SEMUA protokol lama
-            # tanpa pilihan tersimpan, bukan khusus Game Bar.
+            # Percobaan (informasi). Masing-masing dibiarkan berlaku untuk percobaan
+            # berikutnya, jadi urutannya bertahap.
+            # 1. Protokol buatan sendiri dengan penangan yang sama: apakah Windows ini masih
+            #    memakai penangan protokol "lama" (HKCR\<protokol>\shell\open\command)?
             $probe = 'HKCU:\Software\Classes\tgos-probe'
             New-Item -Path (Join-Path $probe 'shell\open\command') -Force | Out-Null
             Set-ItemProperty -LiteralPath $probe -Name '(default)' -Value 'URL:tgos-probe'
             Set-ItemProperty -LiteralPath $probe -Name 'URL Protocol' -Value ''
             Set-ItemProperty -LiteralPath (Join-Path $probe 'shell\open\command') -Name '(default)' -Value ('"{0}"' -f $systray)
-            Write-Host ('   experiment tgos-probe: (custom protocol, REG_SZ handler) -> {0}' -f ((@(Test-ProtocolPopup 'tgos-probe:') -join ' ; ') -replace '^$', 'no window'))
+            Show-ProtocolTest 'custom protocol' @('tgos-probe:')
             Remove-Item -LiteralPath $probe -Recurse -Force -ErrorAction SilentlyContinue
-
-            # Percobaan: penangan sebagai REG_SZ dengan jalur lengkap (bukan REG_EXPAND_SZ).
+            # 2. Tanpa NoOpenWith.
             foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
-                Set-ItemProperty -LiteralPath ('HKCU:\Software\Classes\{0}\shell\open\command' -f $protocol) -Name '(default)' -Value ('"{0}"' -f $systray) -Type String
+                foreach ($root in @('HKCU:\Software\Classes', 'HKLM:\SOFTWARE\Classes')) {
+                    Remove-ItemProperty -LiteralPath (Join-Path $root $protocol) -Name 'NoOpenWith' -ErrorAction SilentlyContinue
+                }
             }
-            foreach ($uri in @('ms-gamebar:', 'ms-gamingoverlay:')) {
-                Write-Host ('   experiment REG_SZ handler, {0} -> {1}' -f $uri, ((@(Test-ProtocolPopup $uri) -join ' ; ') -replace '^$', 'no window'))
+            Show-ProtocolTest 'without NoOpenWith'
+            # 3. Penangan REG_SZ dengan jalur lengkap (bukan REG_EXPAND_SZ).
+            foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
+                foreach ($root in @('HKCU:\Software\Classes', 'HKLM:\SOFTWARE\Classes')) {
+                    Set-ItemProperty -LiteralPath ('{0}\{1}\shell\open\command' -f $root, $protocol) -Name '(default)' -Value ('"{0}"' -f $systray) -Type String
+                }
             }
-
-            # Percobaan: policy "Do not show the new application installed notification".
+            Show-ProtocolTest 'REG_SZ handler'
+            # 4. Pilihan aplikasi per pengguna dibuang total (termasuk UserChoiceLatest).
+            foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
+                Remove-Item -LiteralPath ('HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\{0}' -f $protocol) -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            Show-ProtocolTest 'UrlAssociations removed'
+            # 5. Policy "Do not show the new application installed notification".
             $explorerPolicy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer'
             if (-not (Test-Path -LiteralPath $explorerPolicy)) { New-Item -Path $explorerPolicy -Force | Out-Null }
             Set-ItemProperty -LiteralPath $explorerPolicy -Name 'NoNewAppAlert' -Value 1 -Type DWord
-            foreach ($uri in @('ms-gamebar:', 'ms-gamingoverlay:')) {
-                Write-Host ('   experiment NoNewAppAlert, {0} -> {1}' -f $uri, ((@(Test-ProtocolPopup $uri) -join ' ; ') -replace '^$', 'no window'))
-            }
+            Show-ProtocolTest 'NoNewAppAlert'
             Remove-ItemProperty -LiteralPath $explorerPolicy -Name 'NoNewAppAlert' -ErrorAction SilentlyContinue
             foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
-                Write-Host ('   after experiments, shell resolves {0}: command {1}' -f $protocol, (Get-ProtocolAssoc $protocol 1))
+                Show-RegistryTree ('HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\{0}' -f $protocol)
             }
             Get-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts' -ErrorAction SilentlyContinue |
                 ForEach-Object { $_.GetValueNames() } | Where-Object { $_ -match '(?i)gam|tgos' } | ForEach-Object { Write-Host ('   association toast after: {0}' -f $_) }
@@ -990,10 +1043,13 @@ function Invoke-ToolboxButton {
     $process = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', ('"{0}"' -f $Path)) -RedirectStandardInput $inputFile -RedirectStandardOutput $outputFile -RedirectStandardError $errorFile -NoNewWindow -PassThru
     $null = $process.Handle
     if (-not $process.WaitForExit(600000)) { try { $process.Kill() } catch { } }
+    # Get-Content -Raw pada file kosong tidak mengembalikan apa pun (bukan string kosong).
     $text = ''
     if (Test-Path -LiteralPath $outputFile) { $text = Get-Content -LiteralPath $outputFile -Raw }
+    if ($null -eq $text) { $text = '' }
     $errors = ''
     if (Test-Path -LiteralPath $errorFile) { $errors = Get-Content -LiteralPath $errorFile -Raw }
+    if ($null -eq $errors) { $errors = '' }
     return @{ Exit = $process.ExitCode; Output = [string]$text; Errors = [string]$errors }
 }
 $lockKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'

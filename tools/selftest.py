@@ -43,6 +43,8 @@ TINY_PNG = bytes.fromhex(
 
 # (nama, file, teks lama, teks baru, potongan pesan yang harus muncul)
 MUTATIONS = [
+    ("TGOS menjalankan WSL", FINALIZE, "Write-InstallInfo.ps1", "Write-InstallInfo.ps1 -Note wsl.exe",
+     "TGOS tidak boleh menjalankan WSL"),
     ("fitur Toolbox salah ketik", SECURITY, "-Feature UpdatePause -State Off", "-Feature UpdatePauze -State Off",
      "-Feature UpdatePauze tidak ada di ValidateSet"),
     ("properti salah ketik", PREFLIGHT, "exeDir: true", "exedir: true",
