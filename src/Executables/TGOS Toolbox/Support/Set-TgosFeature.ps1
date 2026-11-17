@@ -473,6 +473,8 @@ try {
                 $catalogRoots = @('HKLM:\SOFTWARE\Classes') + @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
                         Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+_Classes$' } |
                         ForEach-Object { 'Registry::HKEY_USERS\{0}' -f $_.PSChildName })
+                $catalogSeen = 0
+                $catalogKept = @()
                 $catalogRemoved = 0
                 $catalogFailed = 0
                 foreach ($catalogRoot in $catalogRoots) {
@@ -481,15 +483,19 @@ try {
                         foreach ($entry in @(Get-ChildItem -LiteralPath $catalog -ErrorAction SilentlyContinue)) {
                             $packages = @($entry.GetValueNames() | Where-Object { $_ })
                             if (-not $packages.Count) { continue }
-                            $stale = $true
+                            $catalogSeen++
+                            $reason = ''
                             foreach ($package in $packages) {
-                                if ($package -notmatch '^Microsoft\.XboxGamingOverlay_') { $stale = $false }
-                                elseif ($installedOverlay -contains $package) { $stale = $false }
-                                elseif (Test-Path -LiteralPath (Join-Path (Join-Path $repository 'Packages') $package)) { $stale = $false }
+                                if ($package -notmatch '^Microsoft\.XboxGamingOverlay_') { $reason = 'other package' }
+                                elseif ($installedOverlay -contains $package) { $reason = 'installed' }
+                                elseif (Test-Path -LiteralPath (Join-Path (Join-Path $repository 'Packages') $package)) { $reason = 'still in the package repository' }
                             }
                             # Tanpa daftar paket AppX yang bisa dibaca, entri tidak disentuh.
-                            if (-not $appxKnown) { $stale = $false }
-                            if (-not $stale) { continue }
+                            if (-not $appxKnown) { $reason = 'package list unavailable' }
+                            if ($reason) {
+                                $catalogKept += ('{0} ({1})' -f $protocol, $reason)
+                                continue
+                            }
                             try {
                                 Remove-Item -LiteralPath $entry.PSPath -Recurse -Force -ErrorAction Stop
                                 $catalogRemoved++
@@ -500,7 +506,7 @@ try {
                 }
                 if ($catalogRemoved) { Write-Host ('Removed {0} leftover Game Bar protocol registration(s).' -f $catalogRemoved) }
                 if ($catalogFailed) { Write-Host ('WARNING: {0} leftover Game Bar protocol registration(s) could not be removed; Win+G may still show "Pick an app".' -f $catalogFailed) }
-                Write-Log ('GameBar Off: protocol catalog entries removed {0}, failed {1}' -f $catalogRemoved, $catalogFailed)
+                Write-Log ('GameBar Off: protocol catalog entries seen {0}, removed {1}, failed {2}, kept {3}' -f $catalogSeen, $catalogRemoved, $catalogFailed, ($catalogKept -join '; '))
                 Write-Host 'Xbox Game Bar is now OFF: the controller buttons and Win+G no longer open it.'
             }
             else {

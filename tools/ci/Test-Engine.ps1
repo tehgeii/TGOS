@@ -747,6 +747,18 @@ if ($plannedOptions -contains 'remove-xbox') {
     }
     $overlay = @(Get-AppxPackage -AllUsers -Name '*XboxGamingOverlay*' -ErrorAction SilentlyContinue | ForEach-Object { $_.PackageFullName })
     Write-Host ('   Game Bar packages left: {0}' -f $(if ($overlay.Count) { $overlay -join ', ' } else { 'none' }))
+    # Diagnosa katalog protokol AppX (dicetak sebelum membuka protokol).
+    $repositoryRoot = 'HKLM:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository'
+    $repositoryOverlay = @(Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'Packages') -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^Microsoft\.XboxGamingOverlay_' } | ForEach-Object { $_.PSChildName })
+    Write-Host ('   Game Bar in PackageRepository\Packages: {0}' -f $(if ($repositoryOverlay.Count) { $repositoryOverlay -join ', ' } else { 'none' }))
+    foreach ($catalogRoot in @('HKLM:\SOFTWARE\Classes') + @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
+                Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+_Classes$' } | ForEach-Object { 'Registry::HKEY_USERS\{0}' -f $_.PSChildName })) {
+        $catalog = '{0}\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\ms-gamebar' -f $catalogRoot
+        $entries = @(Get-ChildItem -LiteralPath $catalog -ErrorAction SilentlyContinue | ForEach-Object { '{0} -> {1}' -f $_.PSChildName, (@($_.GetValueNames()) -join ', ') })
+        Write-Host ('   ms-gamebar catalog in {0}: {1}' -f ($catalogRoot -replace '^Registry::', ''), $(if ($entries.Count) { $entries -join ' ; ' } else { 'none' }))
+    }
+    Get-Content -LiteralPath (Join-Path $env:ProgramData 'TGOS\toolbox.log') -ErrorAction SilentlyContinue | Where-Object { $_ -match 'GameBar' } |
+        Select-Object -First 4 | ForEach-Object { Write-Host ('   toolbox.log: {0}' -f (Format-LogLine $_)) }
     if (Test-WindowControl) {
         # Diagnosa: bagaimana shell Windows sendiri menerjemahkan protokol itu
         # (AssocQueryString, sama dengan yang dipakai ShellExecute).
@@ -821,8 +833,6 @@ public static extern int AssocQueryString(int flags, int str, string assoc, stri
         }
         $null = Assert-That (-not @($catalogLeft | Where-Object { $_ -match 'XboxGamingOverlay' }).Count) 'gamebar: no protocol catalog entry points to the removed Game Bar'
         $catalogLeft | ForEach-Object { Write-Host ('   protocol catalog: {0}' -f (Format-LogLine $_)) }
-        Get-Content -LiteralPath (Join-Path $env:ProgramData 'TGOS\toolbox.log') -ErrorAction SilentlyContinue | Where-Object { $_ -match 'GameBar' } |
-            Select-Object -First 4 | ForEach-Object { Write-Host ('   toolbox.log: {0}' -f (Format-LogLine $_)) }
         # Pengaman di Set-TgosFeature: paket yang masih terpasang punya kunci di
         # PackageRepository\Packages. Dibuktikan dengan satu paket yang pasti terpasang.
         $sample = Get-AppxPackage -Name 'Microsoft.WindowsCalculator' -ErrorAction SilentlyContinue | Select-Object -First 1
