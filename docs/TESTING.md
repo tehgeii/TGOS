@@ -123,6 +123,20 @@ Laporan otomatis tidak bisa menilai hal berikut. Cukup jawab ya/tidak:
 - [ ] Halaman browser di Wizard tampil benar: logo asli Brave, Chrome, Firefox di atas
       kotak gelap, dan None.
 - [ ] Ikon TGOS Toolbox di Desktop berada di deretan ikon kiri, bukan di tengah.
+- [ ] Settings > Windows Update menampilkan "Updates paused until ..." (pilihan Pause),
+      dan masih begitu setelah restart. Tombol "Resume updates" ada.
+- [ ] Windows Security > Virus & threat protection > Protection updates > "Check for
+      updates" tetap bisa memperbarui definisi saat update Windows di-pause.
+- [ ] Settings > Gaming > Game Bar: kedua toggle (controller dan View + Menu) Off; Win+G
+      tidak memunculkan jendela apa pun, juga setelah restart (opsi Xbox). Satu game
+      dijalankan: tidak ada jendela "Pick an app" / "ms-gamingoverlay".
+- [ ] Gambar layar kunci dan latar layar login bertema TGO.
+- [ ] Bila "Skip the lock screen" dicentang: setelah restart langsung ke kotak
+      password/PIN.
+- [ ] Klik kanan aplikasi di taskbar: ada "End task".
+- [ ] Launcher dan aplikasi yang dicentang terpasang dan terbuka normal; tidak ada
+      jendelanya yang muncul selama instalasi.
+- [ ] `%ProgramData%\TGOS\deep-clean.txt` berisi ruang yang dibebaskan.
 - [ ] Taskbar: tidak ada kotak abu-abu; pencarian berupa ikon; tombol Task View tidak
       ada; yang tersisa Start, Search, File Explorer, browser pilihan, Store.
 - [ ] Start menu: pin berisi File Explorer, Settings, Store, browser, Notepad,
@@ -145,8 +159,9 @@ Hanya bila ingin menguji lebih jauh. Buat snapshot VMware dulu.
 - **Defender.** Klik dua kali *Windows Defender - Turn OFF*. Skrip seharusnya berhenti
   dan meminta Tamper Protection dimatikan. Matikan di Windows Security, jalankan lagi,
   restart, lalu cek Windows Security. Setelah itu *Turn ON* dan cek lagi.
-- **Opsi yang defaultnya mati:** *Remove Xbox app and Game Bar* (perhatikan popup
-  `ms-gamebar` saat menekan Win+G), *Remove Microsoft Edge*, *Remove Microsoft Store*
+- **Opsi yang defaultnya mati:** *Remove Xbox app and turn Game Bar off* (Win+G tidak
+  memunculkan apa pun; *Xbox Game Bar - Turn ON* di Toolbox mengembalikan Win+G setelah
+  sign out/in), *Remove Microsoft Edge*, *Remove Microsoft Store*
   (lalu coba *Reinstall Microsoft Store* di Toolbox; tidak dijamin berhasil, jadi buat
   snapshot VMware dulu), *Trim extra services*, dan
   *Taskbar icons on the left*.
@@ -299,10 +314,12 @@ Semuanya ditangani di `1.0.0`.
 
 | Lapis | Tanggal | Hasil | Catatan |
 |---|---|---|---|
-| 1. Uji bentuk | 17 Nov 2026 | Lolos | 91 pemeriksaan di `tools/selftest.py` |
+| 1. Uji bentuk | 17 Nov 2026 | Lolos | 91 pemeriksaan di `tools/selftest.py`; revisi kedua 97 |
 | 2. Mesin AME | 17 Nov 2026 | Lolos di kelima job | Rincian di bawah |
+| 2. Mesin AME, revisi kedua | 17 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
 | 3. VM pemilik, build pertama | 17 Nov 2026 | 225 PASS, 1 FAIL; setelah restart 224 PASS, 2 FAIL | Rincian di bawah; dua FAIL itu diperbaiki di revisi |
-| 3. VM pemilik, revisi | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
+| 3. VM pemilik, revisi pertama | 17 Nov 2026 | Setelah restart 226 PASS, 0 FAIL, 0 WARN | Rincian di bawah |
+| 3. VM pemilik, revisi kedua | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
 | Hardware asli | | Belum | Benchmark dan anti-cheat belum diuji |
 
 Lapis 2, runner command-line AME versi 0.8.4 (run terakhir sebelum rilis):
@@ -397,3 +414,65 @@ Yang **tidak** bisa dibuktikan uji otomatis, jadi baru terlihat di uji ulang VM:
 - Tidak ada jendela installer yang muncul selama instalasi di Windows 11 Pro.
 - Nilai perekam telemetri bertahan setelah restart (uji otomatis tidak bisa restart).
 - Ikon TGOS Toolbox tidak di tengah Desktop, dan tidak ada pintasan pin ganda.
+
+Lapis 3, uji pemilik revisi pertama `1.0.0`: Windows 11 Pro 26H2 build 26300.9974 di
+VMware, AME Beta 0.8.4, semua opsi, browser Brave. Instalasi sekitar 10 menit (build
+pertama sekitar 30 menit). Setelah restart: **226 PASS, 0 FAIL, 0 WARN, 7 SKIP**.
+
+| | Sebelum | Sesudah |
+|---|---|---|
+| Proses | 149 | 111 (−25%) |
+| Thread | 1.931 | 1.225 (−37%) |
+| RAM terpakai | 3.345 MB | 2.181 MB (−35%) |
+| Layanan berjalan | 97 | 76 (−22%) |
+| Disk terpakai | 30,0 GB | 24,9 GB |
+| Paket AppX | 108 | 80 |
+
+Terbukti beres di VM: DirectX terpasang tanpa jendela (checksum terkunci cocok); nilai
+perekam telemetri bertahan setelah restart; ikon TGOS Toolbox di deretan kiri; satu
+pintasan pin lama terhapus; Copilot dan Edge terhapus; restore point dibuat; Defender
+aktif dengan Tamper Protection.
+
+Masukan pemilik untuk revisi kedua: opsi Pause Windows update; Game Bar masih aktif di
+Settings > Gaming (toggle controller dan View + Menu) walaupun aplikasinya dihapus; ide
+tambahan. Sisa kecil yang dicatat apa adanya: "Click to Do" dan "Get Started" masih di All
+apps (komponen sistem); baris error Widgets di log AME adalah upaya mesin AME sendiri pada
+file terkunci, dan skrip TGOS sesudahnya tidak menemukan sisa folder.
+
+Lapis 2, revisi kedua (runner command-line AME versi 0.8.4, run terakhir sebelum rilis):
+
+| Runner | Opsi, browser | Pemeriksaan diri | Pemeriksaan CI |
+|---|---|---|---|
+| Windows Server 2025, build 26100, x64 | bawaan, Brave | 212 PASS, 0 FAIL, 1 WARN, 73 SKIP | 74 dari 74 |
+| Windows Server 2025, build 26100, x64 | semua, Chrome | 273 PASS, 0 FAIL, 1 WARN, 19 SKIP | 85 dari 85 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan, Brave | 209 PASS, 0 FAIL, 0 WARN, 77 SKIP | 73 dari 73 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua, Firefox | 263 PASS, 0 FAIL, 0 WARN, 30 SKIP | 75 dari 75 |
+
+`WARN` di Server tetap restore point (tidak didukung Windows Server). Yang terbukti:
+
+- **Pause update**: nilai pause tertulis (sampai 2036) dan Windows 11 sendiri mencatat
+  `PausedFeatureStatus = 1` dan `PausedQualityStatus = 1`. Definisi Defender tetap bisa
+  diperbarui saat pause (`MpCmdRun -SignatureUpdate` keluar 0).
+- **Launcher dan aplikasi** (Server x64): Steam, Epic Games Launcher, EA app, Ubisoft
+  Connect terpasang untuk semua pengguna; Discord dan Spotify terpasang di profil pengguna
+  yang login. Semua bertanda tangan penerbitnya. Di runner ARM64 dilewati (TGOS x64 saja).
+- **Runtime**: Visual C++ 2005-2013 dan XNA 4.0 (x64), DirectX dari paket lengkap,
+  .NET Framework 3.5 lewat DISM (juga di ARM64; sekitar 6 menit), .NET Desktop Runtime 10.
+- **Tanpa jendela**: pemantau jendela tidak menangkap satu pun jendela dari TGOS selama
+  seluruh playbook di keempat job (kontrol Notepad terdeteksi). Satu-satunya jendela di
+  runner Windows 11 adalah updater WSL milik image runner (`wsl.exe --update`, sudah
+  berjalan sebelum playbook); TGOS sendiri tidak pernah menjalankan WSL (dijaga validator).
+- **Deep clean**: sekitar 6 GB dibebaskan di Windows 11, hampir semuanya dari Reserved
+  Storage; Deep clean+ menjalankan ResetBase; folder playbook yang sedang berjalan tidak
+  tersentuh.
+- **Toolbox**: semua fitur baru bolak-balik ON/OFF; tombol `.cmd` di subfolder bekerja;
+  menu *Install Software* memasang 7-Zip, keluar dengan 0, dan menolak ketikan aneh
+  (tanda kutip, `&`) tanpa error.
+- **Game Bar**: blok Win+G tertulis (`DisabledHotkeys` berisi `G`) dan diperiksa
+  pemeriksaan diri. Efeknya **tidak bisa dibuktikan di runner**: bahkan tanpa blok, Win+G
+  yang dikirim uji tidak memunculkan jendela apa pun di runner, jadi hasil itu tidak
+  dihitung. Bukti akhirnya di VM (checklist di atas).
+- **.NET Native di Server dengan *Remove Microsoft Store***: Windows kadang langsung
+  membuang .NET Native 2.2 karena Store adalah pemakai terakhirnya. Perbandingan potret
+  sekarang membedakan ini (framework tanpa pemakai) dari framework yang hilang padahal
+  masih dipakai.

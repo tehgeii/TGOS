@@ -3,21 +3,28 @@
 Playbook AME Wizard yang mengubah Windows 11 Pro menjadi OS gaming yang sangat ringan,
 dengan prioritas performa.
 
-> **Status: `1.0.0`.** Lolos uji otomatis lewat mesin AME di Windows Server 2025 dan
-> Windows 11 Enterprise 25H2. Versi `0.9.0` dan `0.9.1` sudah diuji pemilik di Windows 11
-> Pro 26H2 (VMware, AME Beta); `1.0.0` berisi perbaikan dari uji itu, pilihan browser, dan
-> opsi baru, dan **belum** diuji ulang di VM. Uji di hardware asli (benchmark, anti-cheat)
-> belum dilakukan. Buat cadangan dulu sebelum memasang di komputer utama.
+> **Status: `1.0.0` (revisi kedua).** Lolos uji otomatis lewat mesin AME di Windows Server
+> 2025 dan Windows 11 Enterprise 25H2. Revisi pertama `1.0.0` sudah diuji pemilik di
+> Windows 11 Pro 26H2 (VMware, AME Beta): 226 pemeriksaan lolos, 0 gagal setelah restart.
+> Revisi kedua (Pause update, launcher, opsi baru, deep clean) **belum** diuji ulang di VM.
+> Uji di hardware asli (benchmark, anti-cheat) belum dilakukan. Buat cadangan dulu sebelum
+> memasang di komputer utama.
 
 ## Yang dilakukan TGOS
 
 - Menghapus aplikasi bawaan, telemetri, dan layanan yang tidak dibutuhkan untuk gaming.
 - Menerapkan pengaturan performa: power plan, core parking, Game Mode, timer, dan lainnya.
-- Bisa memasang browser pilihan (Brave, Chrome, atau Firefox), 7-Zip, dan runtime game
-  (Visual C++, DirectX) dari sumber resminya, dengan pemeriksaan tanda tangan digital.
+- Bisa memasang browser pilihan (Brave, Chrome, atau Firefox), 7-Zip, runtime game
+  (Visual C++ 2005-2022, DirectX, XNA), .NET, launcher game (Steam, Epic, EA app, Ubisoft
+  Connect), dan Discord dari sumber resminya, dengan pemeriksaan tanda tangan digital,
+  tanpa jendela installer.
+- Windows Update bisa di-pause (bawaan), manual, atau otomatis; update driver bisa
+  diblokir.
+- Bersih-bersih disk di akhir instalasi (Deep clean, dan Deep clean+ yang lebih dalam).
 - Merapikan taskbar dan Start menu, memasang wallpaper dan warna TGO.
 - Memasang **TGOS Toolbox** di Desktop untuk membalik keputusan besar (Defender, VBS,
-  mitigasi CPU, update, layanan) dan memasang ulang software.
+  mitigasi CPU, update, layanan, Game Bar, layar kunci, dan lainnya), memasang software
+  lewat satu menu, dan menjalankan Deep Clean kapan saja.
 - Windows Defender, Firewall, UAC, Secure Boot, dan TPM tidak disentuh saat instalasi.
 
 ## Target

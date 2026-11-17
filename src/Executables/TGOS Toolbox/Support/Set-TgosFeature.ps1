@@ -17,6 +17,19 @@
                    "Trim extra services")
       Telemetry    program pengumpul data Windows (CompatTelRunner, DeviceCensus) dan
                    perekam telemetri otomatis. Nyalakan sebelum upgrade fitur Windows.
+      UpdatePause  "Off" = Windows Update di-pause lewat fitur pause bawaan Settings
+                   (batas pause 3650 hari, ditahan 10 tahun); "On" = dilanjutkan.
+                   Sama dengan tombol "Resume updates" di Settings > Windows Update.
+      DriverUpdates  driver dari Windows Update ("Off" = tidak ikut update).
+      BackgroundApps aplikasi Store berjalan di latar belakang.
+      LockScreen   layar kunci bergambar sebelum kotak login ("Off" = dilewati;
+                   password/PIN tetap diminta).
+      GameBar      Xbox Game Bar: tombol controller, View + Menu, policy perekaman, dan
+                   penangan pengganti protokol ms-gamebar dari TGOS. "On" mencabut
+                   semuanya; aplikasi Game Bar sendiri dipasang lagi dari Microsoft Store.
+      LoginTheme   gambar layar kunci/login TGO ("On" = gambar TGO, "Off" = bawaan
+                   Windows). Satu-satunya fitur yang "On"-nya berarti pengaturan TGOS.
+      ReservedStorage ruang disk yang dicadangkan Windows untuk update (DISM).
 
     Harus dijalankan sebagai Administrator. Sebagian besar perubahan baru berlaku
     setelah restart.
@@ -30,7 +43,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('Defender', 'Vbs', 'Mitigations', 'AutoUpdate', 'Indexing', 'Hibernation',
-        'CoreParking', 'ExtraServices', 'Telemetry')]
+        'CoreParking', 'ExtraServices', 'Telemetry', 'UpdatePause', 'DriverUpdates',
+        'BackgroundApps', 'LockScreen', 'GameBar', 'LoginTheme', 'ReservedStorage')]
     [string]$Feature,
 
     [Parameter(Mandatory = $true)]
@@ -46,6 +60,14 @@ function Set-Dword {
         New-Item -Path $Path -Force | Out-Null
     }
     Set-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -Type DWord
+}
+
+function Set-Text {
+    param([string]$Path, [string]$Name, [string]$Value, [string]$Type = 'String')
+    if (-not (Test-Path -LiteralPath $Path)) {
+        New-Item -Path $Path -Force | Out-Null
+    }
+    Set-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -Type $Type
 }
 
 function Remove-Value {
@@ -331,6 +353,196 @@ try {
                 Write-Host 'Windows telemetry collectors are now ON (allowed to run).'
                 Write-Host 'This is needed for Windows feature upgrades. Turn them OFF again afterwards.'
             }
+        }
+        'UpdatePause' {
+            # Nilai yang ditulis halaman Settings > Windows Update saat tombol pause
+            # diklik. FlightSettingsMaxPauseDays menaikkan batas pause (bawaan 35 hari).
+            $ux = 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings'
+            $startNames = @('PauseFeatureUpdatesStartTime', 'PauseQualityUpdatesStartTime', 'PauseUpdatesStartTime')
+            $endNames = @('PauseFeatureUpdatesEndTime', 'PauseQualityUpdatesEndTime', 'PauseUpdatesExpiryTime')
+            if ($State -eq 'Off') {
+                $days = 3650
+                $now = [DateTime]::UtcNow
+                $until = $now.AddDays($days)
+                $format = "yyyy-MM-dd'T'HH:mm:ss'Z'"
+                $culture = [Globalization.CultureInfo]::InvariantCulture
+                Set-Dword -Path $ux -Name 'FlightSettingsMaxPauseDays' -Value $days
+                foreach ($name in $startNames) { Set-Text -Path $ux -Name $name -Value $now.ToString($format, $culture) }
+                foreach ($name in $endNames) { Set-Text -Path $ux -Name $name -Value $until.ToString($format, $culture) }
+                Write-Host ('Windows updates are now PAUSED until {0}.' -f $until.ToString('yyyy-MM-dd', $culture))
+                Write-Host 'To get updates again, click "Resume updates" in Settings > Windows Update,'
+                Write-Host 'or run "Windows Updates - Resume" in the TGOS Toolbox.'
+                Write-Host 'Update Windows di-pause. Untuk update lagi, klik "Resume updates" di Settings.'
+            }
+            else {
+                foreach ($name in ($startNames + $endNames + @('FlightSettingsMaxPauseDays'))) {
+                    Remove-Value -Path $ux -Name $name
+                }
+                Write-Host 'Windows updates are no longer paused.'
+                $manual = (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -ErrorAction SilentlyContinue).NoAutoUpdate
+                if ($manual -eq 1) {
+                    Write-Host 'Updates stay manual: Windows installs them when you click "Check for updates".'
+                    Write-Host 'For automatic updates, also run "Automatic Updates - Turn ON".'
+                }
+            }
+            $restart = $false
+        }
+        'DriverUpdates' {
+            $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate'
+            if ($State -eq 'Off') {
+                Set-Dword -Path $policy -Name 'ExcludeWUDriversInQualityUpdate' -Value 1
+                Write-Host 'Windows Update no longer installs drivers. Your own GPU driver stays.'
+            }
+            else {
+                Remove-Value -Path $policy -Name 'ExcludeWUDriversInQualityUpdate'
+                Write-Host 'Windows Update may install drivers again.'
+            }
+            $restart = $false
+        }
+        'BackgroundApps' {
+            $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'
+            if ($State -eq 'Off') {
+                Set-Dword -Path $policy -Name 'LetAppsRunInBackground' -Value 2
+                Write-Host 'Microsoft Store apps can no longer run in the background.'
+            }
+            else {
+                Remove-Value -Path $policy -Name 'LetAppsRunInBackground'
+                Write-Host 'Microsoft Store apps may run in the background again.'
+            }
+        }
+        'LockScreen' {
+            $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'
+            if ($State -eq 'Off') {
+                Set-Dword -Path $policy -Name 'NoLockScreen' -Value 1
+                Write-Host 'The lock screen is now skipped. Your password or PIN is still required.'
+            }
+            else {
+                Remove-Value -Path $policy -Name 'NoLockScreen'
+                Write-Host 'The lock screen is back.'
+            }
+            $restart = $false
+        }
+        'GameBar' {
+            $gameBar = 'HKCU:\SOFTWARE\Microsoft\GameBar'
+            $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR'
+            $protocols = @('ms-gamebar', 'ms-gamebarservices', 'ms-gamingoverlay')
+            $handler = '"%SystemRoot%\System32\systray.exe"'
+            # Tempat penangan protokol: HKLM (semua pengguna) dan kelas tiap profil yang
+            # sedang dimuat (di Windows 11 kunci per pengguna menimpa HKLM).
+            $classRoots = @('HKLM:\SOFTWARE\Classes')
+            $userRoots = @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
+                    Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+$' } |
+                    ForEach-Object { 'Registry::HKEY_USERS\{0}' -f $_.PSChildName })
+            foreach ($userRoot in $userRoots) { $classRoots += ('{0}\Software\Classes' -f $userRoot) }
+            if ($State -eq 'Off') {
+                Set-Dword -Path $gameBar -Name 'UseNexusForGameBarEnabled' -Value 0
+                Set-Dword -Path $gameBar -Name 'GamepadNexusChordEnabled' -Value 0
+                Set-Dword -Path $policy -Name 'AllowGameDVR' -Value 0
+                foreach ($protocol in $protocols) {
+                    foreach ($classRoot in $classRoots) {
+                        $key = '{0}\{1}' -f $classRoot, $protocol
+                        Set-Text -Path $key -Name '(default)' -Value ('URL:{0}' -f $protocol)
+                        Set-Text -Path $key -Name 'URL Protocol' -Value ''
+                        Set-Text -Path $key -Name 'NoOpenWith' -Value ''
+                        Set-Text -Path (Join-Path $key 'shell\open\command') -Name '(default)' -Value $handler -Type 'ExpandString'
+                    }
+                    # Pilihan aplikasi yang masih menunjuk ke Game Bar yang sudah dihapus
+                    # membuat Windows bertanya "Pick an app"; dicabut supaya penangan di
+                    # atas yang dipakai.
+                    foreach ($userRoot in $userRoots) {
+                        $choice = '{0}\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\{1}' -f $userRoot, $protocol
+                        if (Test-Path -LiteralPath $choice) {
+                            Remove-Item -LiteralPath $choice -Recurse -Force -ErrorAction SilentlyContinue
+                        }
+                    }
+                }
+                # Win+G dimatikan lewat DisabledHotkeys Explorer (huruf G ditambahkan ke isi yang
+                # sudah ada). Di Windows 11 25H2, sesudah aplikasi Game Bar dihapus, cache AppX
+                # Windows masih mengaitkan ms-gamebar dengan paket yang sudah tidak ada, jadi
+                # Win+G memunculkan "Pick an app" walaupun penangan di atas sudah terpasang
+                # (cache itu bagian dalam Windows dan tidak diubah TGOS). Berlaku setelah
+                # Explorer dijalankan ulang (TGOS melakukannya di akhir instalasi).
+                foreach ($userRoot in $userRoots) {
+                    $advanced = '{0}\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -f $userRoot
+                    $hotkeys = ''
+                    if (Test-Path -LiteralPath $advanced) { $hotkeys = [string](Get-ItemProperty -LiteralPath $advanced -ErrorAction SilentlyContinue).DisabledHotkeys }
+                    if (-not $hotkeys.Contains('G')) { Set-Text -Path $advanced -Name 'DisabledHotkeys' -Value ($hotkeys + 'G') }
+                }
+                Write-Host 'Xbox Game Bar is now OFF: the controller buttons no longer open it, and Win+G is'
+                Write-Host 'blocked from the next sign-in (or the next Explorer restart).'
+            }
+            else {
+                Remove-Value -Path $gameBar -Name 'UseNexusForGameBarEnabled'
+                foreach ($userRoot in $userRoots) {
+                    $advanced = '{0}\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -f $userRoot
+                    $hotkeys = ''
+                    if (Test-Path -LiteralPath $advanced) { $hotkeys = [string](Get-ItemProperty -LiteralPath $advanced -ErrorAction SilentlyContinue).DisabledHotkeys }
+                    if ($hotkeys.Contains('G')) {
+                        $rest = $hotkeys.Replace('G', '')
+                        if ($rest) { Set-Text -Path $advanced -Name 'DisabledHotkeys' -Value $rest }
+                        else { Remove-Value -Path $advanced -Name 'DisabledHotkeys' }
+                    }
+                }
+                Remove-Value -Path $gameBar -Name 'GamepadNexusChordEnabled'
+                Remove-Value -Path $policy -Name 'AllowGameDVR'
+                foreach ($protocol in $protocols) {
+                    foreach ($classRoot in $classRoots) {
+                        # Hanya penangan pengganti buatan TGOS yang dicabut.
+                        $key = '{0}\{1}' -f $classRoot, $protocol
+                        $command = Join-Path $key 'shell\open\command'
+                        $current = ''
+                        if (Test-Path -LiteralPath $command) {
+                            $current = [string](Get-Item -LiteralPath $command).GetValue('', '', 'DoNotExpandEnvironmentNames')
+                        }
+                        if ($current -match '(?i)systray\.exe') {
+                            Remove-Item -LiteralPath $key -Recurse -Force
+                        }
+                    }
+                }
+                Write-Host 'The TGOS Game Bar blocks are removed (Win+G works again from the next sign-in).'
+                Write-Host 'If the Xbox Game Bar app was removed, install it again from the Microsoft Store.'
+            }
+        }
+        'ReservedStorage' {
+            if ($State -eq 'Off') { $value = 'Disabled' } else { $value = 'Enabled' }
+            $dism = Join-Path $env:SystemRoot 'System32\dism.exe'
+            $output = (& cmd.exe /c ('"{0}" /Online /Set-ReservedStorageState /State:{1} 2>&1' -f $dism, $value) | Out-String)
+            $code = $LASTEXITCODE
+            if ($output -match '(?i)not supported|0x80070032') {
+                Write-Host 'Reserved storage is not supported on this PC. Nothing was changed.'
+                Write-Log ('ReservedStorage {0}: not supported' -f $State)
+                exit 3
+            }
+            if ($code -ne 0) {
+                # Contoh: Windows sedang memakai cadangan itu untuk update yang belum selesai.
+                throw ('DISM returned {0}: {1}' -f $code, (($output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 2) -join ' '))
+            }
+            if ($State -eq 'Off') {
+                Write-Host 'Reserved storage is now OFF: the space Windows kept for updates is free again.'
+            }
+            else {
+                Write-Host 'Reserved storage is now ON: Windows keeps some space for updates again.'
+            }
+            $restart = $false
+        }
+        'LoginTheme' {
+            $csp = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'
+            $image = Join-Path $env:SystemRoot 'Web\Wallpaper\TGOS\TGOS.png'
+            if ($State -eq 'On') {
+                if (-not (Test-Path -LiteralPath $image)) { throw ('the TGO image is missing: {0}' -f $image) }
+                Set-Text -Path $csp -Name 'LockScreenImagePath' -Value $image
+                Set-Text -Path $csp -Name 'LockScreenImageUrl' -Value $image
+                Set-Dword -Path $csp -Name 'LockScreenImageStatus' -Value 1
+                Write-Host 'The lock and sign-in screens now use the TGO image.'
+            }
+            else {
+                foreach ($name in @('LockScreenImagePath', 'LockScreenImageUrl', 'LockScreenImageStatus')) {
+                    Remove-Value -Path $csp -Name $name
+                }
+                Write-Host 'The lock and sign-in screens are back to the Windows picture.'
+                Write-Host 'You can choose your own picture in Settings > Personalization > Lock screen.'
+            }
+            $restart = $false
         }
     }
 

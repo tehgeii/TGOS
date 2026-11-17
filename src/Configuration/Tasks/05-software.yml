@@ -57,8 +57,9 @@ actions:
     option: 'install-7zip'
 
   # --- Opsi: runtime game ----------------------------------------------------------
-  # Visual C++ 2015-2022 (x64 dan x86) dan pustaka DirectX lama (Juni 2010) yang masih
-  # dibutuhkan banyak game dan launcher.
+  # Visual C++ 2015-2022 (x64 dan x86), Visual C++ 2005-2013 (versi terakhir tiap
+  # generasi, x86 dan x64), XNA Framework 4.0, dan pustaka DirectX lama (Juni 2010) yang
+  # masih dibutuhkan banyak game dan launcher.
   - !run:
     exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
     args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item vcredist'
@@ -66,6 +67,26 @@ actions:
     exeDir: true
     wait: true
     weight: 15
+    showOutput: true
+    showError: true
+    option: 'install-runtimes'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item vcredist-legacy'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 20
+    showOutput: true
+    showError: true
+    option: 'install-runtimes'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item xna'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 5
     showOutput: true
     showError: true
     option: 'install-runtimes'
@@ -79,3 +100,97 @@ actions:
     showOutput: true
     showError: true
     option: 'install-runtimes'
+
+  # --- Opsi: .NET ------------------------------------------------------------------
+  # .NET Framework 3.5 (fitur Windows; DISM mengunduhnya dari Windows Update, jadi
+  # dijalankan di sini, sebelum update di-pause) dan .NET Desktop Runtime LTS terbaru,
+  # x64 dan x86. Banyak game lama, mod, dan tool membutuhkannya.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item netfx3'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 20
+    showOutput: true
+    showError: true
+    option: 'install-dotnet'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item dotnet'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 10
+    showOutput: true
+    showError: true
+    option: 'install-dotnet'
+
+  # --- Opsi: launcher game ---------------------------------------------------------
+  # Dipasang untuk semua pengguna. Jendela yang dibuka installer sesudah pasang ditutup
+  # otomatis; launcher memperbarui dirinya sendiri saat pertama dibuka.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item steam'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 15
+    showOutput: true
+    showError: true
+    option: 'install-steam'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item epic'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 20
+    showOutput: true
+    showError: true
+    option: 'install-epic'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item ea'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 20
+    showOutput: true
+    showError: true
+    option: 'install-ea'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item ubisoft'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 20
+    showOutput: true
+    showError: true
+    option: 'install-ubisoft'
+
+  # --- Opsi: aplikasi per pengguna -------------------------------------------------
+  # Installer Discord dan Spotify memasang ke profil pengguna, jadi dijalankan sebagai
+  # pengguna yang login (bukan TrustedInstaller, yang akan memasangnya ke profil sistem
+  # yang tak terlihat). Jendela aplikasi yang dibuka installer ditutup otomatis.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item discord'
+    runas: currentUser
+    exeDir: true
+    wait: true
+    weight: 15
+    showOutput: true
+    showError: true
+    option: 'install-discord'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item spotify'
+    runas: currentUser
+    exeDir: true
+    wait: true
+    weight: 15
+    showOutput: true
+    showError: true
+    option: 'install-spotify'

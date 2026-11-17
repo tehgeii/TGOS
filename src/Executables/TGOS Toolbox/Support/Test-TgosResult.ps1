@@ -325,16 +325,57 @@ function Test-VcRuntime {
     return $false
 }
 
+function Test-UninstallEntry {
+    # Ada program terpasang yang DisplayName-nya cocok dengan pola ini (64 dan 32-bit).
+    param([string]$Pattern)
+    $roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
+    $names = @(Get-ItemProperty -Path $roots -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.DisplayName })
+    return [bool](@($names | Where-Object { $_ -match $Pattern }).Count)
+}
+
+function Find-UserProgram {
+    # Program per pengguna: jalur pertama yang ada di salah satu profil pengguna biasa.
+    param([string]$Relative)
+    $root = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+    foreach ($key in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
+        if ($key.PSChildName -notmatch '^S-1-5-21-[\d-]+$') { continue }
+        $profilePath = [string](Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue).ProfileImagePath
+        if (-not $profilePath) { continue }
+        $path = Join-Path $profilePath $Relative
+        if (Test-Path -LiteralPath $path) { return $path }
+    }
+    return $null
+}
+
 function Test-SoftwareResults {
     # Program pilihan pengguna. Yang tidak terpasang bisa diulang dari TGOS Toolbox.
+    # Arsitektur asli Windows (bukan arsitektur proses PowerShell ini). Selain browser
+    # dan 7-Zip, software TGOS hanya dipasang di Windows x64.
+    $native = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -ErrorAction SilentlyContinue).PROCESSOR_ARCHITECTURE
+    $x64 = (-not $native) -or $native -eq 'AMD64'
     $programs = @(
-        @{ Option = 'browser-brave'; Name = 'Brave'; Relative = 'BraveSoftware\Brave-Browser\Application\brave.exe' },
-        @{ Option = 'browser-chrome'; Name = 'Google Chrome'; Relative = 'Google\Chrome\Application\chrome.exe' },
-        @{ Option = 'browser-firefox'; Name = 'Mozilla Firefox'; Relative = 'Mozilla Firefox\firefox.exe' },
-        @{ Option = 'install-7zip'; Name = '7-Zip'; Relative = '7-Zip\7z.exe' })
+        @{ Option = 'browser-brave'; Name = 'Brave'; Relative = @('BraveSoftware\Brave-Browser\Application\brave.exe') },
+        @{ Option = 'browser-chrome'; Name = 'Google Chrome'; Relative = @('Google\Chrome\Application\chrome.exe') },
+        @{ Option = 'browser-firefox'; Name = 'Mozilla Firefox'; Relative = @('Mozilla Firefox\firefox.exe') },
+        @{ Option = 'install-7zip'; Name = '7-Zip'; Relative = @('7-Zip\7z.exe') },
+        @{ Option = 'install-steam'; Name = 'Steam'; Relative = @('Steam\steam.exe'); X64Only = $true },
+        @{ Option = 'install-epic'; Name = 'Epic Games Launcher'; X64Only = $true
+            Relative = @('Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe', 'Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe') },
+        @{ Option = 'install-ea'; Name = 'EA app'; Relative = @('Electronic Arts\EA Desktop\EA Desktop\EADesktop.exe'); X64Only = $true },
+        @{ Option = 'install-ubisoft'; Name = 'Ubisoft Connect'; X64Only = $true
+            Relative = @('Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe', 'Ubisoft\Ubisoft Game Launcher\upc.exe') },
+        @{ Option = 'install-discord'; Name = 'Discord'; UserRelative = 'AppData\Local\Discord\Update.exe'; X64Only = $true },
+        @{ Option = 'install-spotify'; Name = 'Spotify'; UserRelative = 'AppData\Roaming\Spotify\Spotify.exe'; X64Only = $true })
     foreach ($program in $programs) {
         if (-not (Test-Option $program.Option)) { continue }
-        $path = Find-Program $program.Relative
+        if ($program.X64Only -and -not $x64) {
+            Add-Result 'SKIP' 'software' $program.Name ("installed on x64 Windows only (this PC is {0})" -f $native) 'Install-Software.ps1'
+            continue
+        }
+        $path = $null
+        if ($program.UserRelative) { $path = Find-UserProgram $program.UserRelative }
+        else { $path = @($program.Relative | ForEach-Object { Find-Program $_ } | Where-Object { $_ }) | Select-Object -First 1 }
         if ($path) {
             Add-Result 'PASS' 'software' $program.Name ("installed: {0}" -f $path) 'Install-Software.ps1'
         }
@@ -350,8 +391,6 @@ function Test-SoftwareResults {
         else {
             Add-Result 'FAIL' 'software' 'Visual C++ Redistributable' 'x64 or x86 runtime missing; retry from the TGOS Toolbox' 'Install-Software.ps1'
         }
-        # Arsitektur asli Windows (bukan arsitektur proses PowerShell ini).
-        $native = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -ErrorAction SilentlyContinue).PROCESSOR_ARCHITECTURE
         $legacy = @('System32', 'SysWOW64') | ForEach-Object { Join-Path $env:SystemRoot ('{0}\d3dx9_43.dll' -f $_) } |
             Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
         if ($native -and $native -ne 'AMD64') {
@@ -362,6 +401,56 @@ function Test-SoftwareResults {
         }
         else {
             Add-Result 'FAIL' 'software' 'DirectX End-User Runtime' 'd3dx9_43.dll missing; retry from the TGOS Toolbox' 'Install-Software.ps1'
+        }
+
+        # Visual C++ 2005-2013 (x86 dan x64) dan XNA 4.0, dari daftar program terpasang.
+        $runtimes = @(
+            @{ Name = 'Visual C++ 2005 x86'; Pattern = 'Visual C\+\+ 2005 Redistributable$' },
+            @{ Name = 'Visual C++ 2005 x64'; Pattern = 'Visual C\+\+ 2005 Redistributable \(x64\)' },
+            @{ Name = 'Visual C++ 2008 x86'; Pattern = 'Visual C\+\+ 2008 Redistributable - x86' },
+            @{ Name = 'Visual C++ 2008 x64'; Pattern = 'Visual C\+\+ 2008 Redistributable - x64' },
+            @{ Name = 'Visual C++ 2010 x86'; Pattern = 'Visual C\+\+ 2010\s+x86 Redistributable' },
+            @{ Name = 'Visual C++ 2010 x64'; Pattern = 'Visual C\+\+ 2010\s+x64 Redistributable' },
+            @{ Name = 'Visual C++ 2012 x86'; Pattern = 'Visual C\+\+ 2012 Redistributable \(x86\)' },
+            @{ Name = 'Visual C++ 2012 x64'; Pattern = 'Visual C\+\+ 2012 Redistributable \(x64\)' },
+            @{ Name = 'Visual C++ 2013 x86'; Pattern = 'Visual C\+\+ 2013 Redistributable \(x86\)' },
+            @{ Name = 'Visual C++ 2013 x64'; Pattern = 'Visual C\+\+ 2013 Redistributable \(x64\)' },
+            @{ Name = 'XNA Framework 4.0'; Pattern = '^Microsoft XNA Framework Redistributable 4\.0' })
+        foreach ($runtime in $runtimes) {
+            if (-not $x64) {
+                Add-Result 'SKIP' 'software' $runtime.Name ("installed on x64 Windows only (this PC is {0})" -f $native) 'Install-Software.ps1'
+            }
+            elseif (Test-UninstallEntry $runtime.Pattern) {
+                Add-Result 'PASS' 'software' $runtime.Name 'installed' 'Install-Software.ps1'
+            }
+            else {
+                Add-Result 'FAIL' 'software' $runtime.Name 'not installed; retry from the TGOS Toolbox' 'Install-Software.ps1'
+            }
+        }
+    }
+
+    if (Test-Option 'install-dotnet') {
+        $netfx3 = Read-RegistryValue ([Microsoft.Win32.Registry]::LocalMachine) 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5' 'Install'
+        if ($netfx3.Found -and [int]$netfx3.Data -eq 1) {
+            Add-Result 'PASS' 'software' '.NET Framework 3.5' 'installed' 'Install-Software.ps1'
+        }
+        else {
+            Add-Result 'FAIL' 'software' '.NET Framework 3.5' 'not installed; retry from the TGOS Toolbox (needs internet)' 'Install-Software.ps1'
+        }
+        foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+            $label = '.NET Desktop Runtime 10 ({0})' -f $(if ($base -eq $env:ProgramFiles) { 'x64' } else { 'x86' })
+            if (-not $x64) {
+                Add-Result 'SKIP' 'software' $label ("installed on x64 Windows only (this PC is {0})" -f $native) 'Install-Software.ps1'
+                continue
+            }
+            $folder = Join-Path $base 'dotnet\shared\Microsoft.WindowsDesktop.App'
+            $found = @(Get-ChildItem -LiteralPath $folder -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '10.*' })
+            if ($found.Count -gt 0) {
+                Add-Result 'PASS' 'software' $label ('installed: {0}' -f ($found | Select-Object -Last 1).Name) 'Install-Software.ps1'
+            }
+            else {
+                Add-Result 'FAIL' 'software' $label 'not installed; retry from the TGOS Toolbox' 'Install-Software.ps1'
+            }
         }
     }
 
@@ -441,6 +530,25 @@ function Test-ScriptResults {
         }
     }
 
+    if (Test-Option 'remove-xbox') {
+        # Win+G diblokir lewat DisabledHotkeys (huruf G) untuk tiap pengguna yang sedang login.
+        $users = @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
+                Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+$' } | ForEach-Object { $_.PSChildName })
+        if (-not $users.Count) {
+            Add-Result 'SKIP' 'game bar' 'Win+G' 'no logged-on user hive to check' 'Set-TgosFeature.ps1'
+        }
+        foreach ($sid in $users) {
+            $advanced = 'Registry::HKEY_USERS\{0}\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -f $sid
+            $hotkeys = [string](Get-ItemProperty -LiteralPath $advanced -ErrorAction SilentlyContinue).DisabledHotkeys
+            if ($hotkeys.Contains('G')) {
+                Add-Result 'PASS' 'game bar' ('Win+G ({0})' -f $sid) 'blocked (DisabledHotkeys contains G)' 'Set-TgosFeature.ps1'
+            }
+            else {
+                Add-Result 'FAIL' 'game bar' ('Win+G ({0})' -f $sid) 'not blocked; run "Xbox Game Bar - Turn OFF" in the Toolbox' 'Set-TgosFeature.ps1'
+            }
+        }
+    }
+
     $restoreLine = @($installInfo | Where-Object { $_ -match '^Restore point\s*:' }) | Select-Object -First 1
     if ($restoreLine -and $restoreLine -match ':\s*created') {
         Add-Result 'PASS' 'restore point' 'Before TGOS' 'created' 'New-RestorePoint.ps1'
@@ -460,6 +568,80 @@ function Test-ScriptResults {
         }
         else {
             Add-Result 'FAIL' 'power plan' 'TGOS Ultimate Performance' ("not active; active scheme: {0}" -f $active.Trim()) 'Set-PowerPlan.ps1'
+        }
+        # Penghematan daya USB mati di skema TGOS. Dua angka heksadesimal terakhir dari
+        # powercfg /query = nilai AC dan baterai.
+        if ($expected) {
+            $usbSettings = @(
+                @{ Name = 'USB selective suspend'; Guid = '48e6b7a6-50f5-4782-a5d4-53bb8f07e226' },
+                @{ Name = 'USB 3 link power management'; Guid = 'd4e98f31-5ffe-4ce1-be31-1b38b384c009' })
+            foreach ($usb in $usbSettings) {
+                $query = (& cmd.exe /c ('powercfg.exe /query {0} 2a737441-1930-4402-8d77-b2bebba308a3 {1} 2>&1' -f $expected, $usb.Guid) | Out-String)
+                $values = @([regex]::Matches($query, '0x[0-9a-fA-F]{8}') | ForEach-Object { [Convert]::ToInt32($_.Value, 16) })
+                if ($LASTEXITCODE -ne 0 -or $values.Count -lt 2) {
+                    Add-Result 'SKIP' 'power plan' $usb.Name 'setting not available on this PC' 'Set-PowerPlan.ps1'
+                }
+                elseif ($values[$values.Count - 2] -eq 0 -and $values[$values.Count - 1] -eq 0) {
+                    Add-Result 'PASS' 'power plan' $usb.Name 'off on the TGOS plan' 'Set-PowerPlan.ps1'
+                }
+                else {
+                    Add-Result 'FAIL' 'power plan' $usb.Name ("expected 0, found AC {0} / DC {1}" -f $values[$values.Count - 2], $values[$values.Count - 1]) 'Set-PowerPlan.ps1'
+                }
+            }
+        }
+    }
+
+    if ((Test-Option 'deep-clean') -or (Test-Option 'deep-clean-plus')) {
+        # Ditulis Invoke-DeepClean.ps1. Langkah yang gagal (mis. file terkunci) dicatat
+        # sebagai WARNING di file itu; bersih-bersih tetap tidak fatal.
+        $record = Join-Path $dataDirectory 'deep-clean.txt'
+        if (-not (Test-Path -LiteralPath $record)) {
+            Add-Result 'FAIL' 'deep clean' 'deep-clean.txt' 'missing: the deep clean did not run' 'Invoke-DeepClean.ps1'
+        }
+        else {
+            $content = @(Get-Content -LiteralPath $record)
+            $done = @($content | Where-Object { $_ -match 'completed:' }) | Select-Object -Last 1
+            $warnings = @($content | Where-Object { $_ -match 'WARNING' })
+            if ($done -and $warnings.Count -eq 0) {
+                Add-Result 'PASS' 'deep clean' 'deep-clean.txt' $done.Trim() 'Invoke-DeepClean.ps1'
+            }
+            elseif ($done) {
+                Add-Result 'WARN' 'deep clean' 'deep-clean.txt' ('{0}; {1}' -f $done.Trim(), $warnings[0].Trim()) 'Invoke-DeepClean.ps1'
+            }
+            else {
+                Add-Result 'WARN' 'deep clean' 'deep-clean.txt' 'did not finish; run Deep Clean in the TGOS Toolbox' 'Invoke-DeepClean.ps1'
+            }
+        }
+        $reserved = (& cmd.exe /c ('"{0}" /Online /Get-ReservedStorageState 2>&1' -f (Join-Path $env:SystemRoot 'System32\dism.exe')) | Out-String)
+        if ($reserved -match '(?i)reserved storage is disabled') {
+            Add-Result 'PASS' 'deep clean' 'reserved storage' 'off' 'Invoke-DeepClean.ps1'
+        }
+        elseif ($reserved -match '(?i)reserved storage is enabled') {
+            Add-Result 'WARN' 'deep clean' 'reserved storage' 'still on (Windows may be using it for an update); use Reserved Storage - Turn OFF in the Toolbox later' 'Invoke-DeepClean.ps1'
+        }
+        else {
+            Add-Result 'SKIP' 'deep clean' 'reserved storage' 'state could not be read on this PC' 'Invoke-DeepClean.ps1'
+        }
+    }
+
+    if (Test-Option 'updates-pause') {
+        # Ditulis Set-TgosFeature.ps1 -Feature UpdatePause -State Off. Tombol "Resume
+        # updates" di Settings menghapusnya, jadi FAIL di sini bisa juga berarti pengguna
+        # sudah melanjutkan update sendiri.
+        $read = Read-RegistryValue ([Microsoft.Win32.Registry]::LocalMachine) 'SOFTWARE\Microsoft\WindowsUpdate\UX\Settings' 'PauseUpdatesExpiryTime'
+        $until = [DateTime]::MinValue
+        $styles = [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal
+        if (-not $read.Found) {
+            Add-Result 'FAIL' 'windows update' 'pause' 'not paused (no pause end date); use Windows Updates - Pause in the Toolbox' 'Set-TgosFeature.ps1'
+        }
+        elseif (-not [DateTime]::TryParse([string]$read.Data, [Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$until)) {
+            Add-Result 'FAIL' 'windows update' 'pause' ("unreadable pause end date '{0}'" -f $read.Data) 'Set-TgosFeature.ps1'
+        }
+        elseif ($until -gt [DateTime]::UtcNow.AddDays(30)) {
+            Add-Result 'PASS' 'windows update' 'pause' ('paused until {0}' -f $until.ToString('yyyy-MM-dd')) 'Set-TgosFeature.ps1'
+        }
+        else {
+            Add-Result 'FAIL' 'windows update' 'pause' ('pause ends soon: {0}' -f $until.ToString('yyyy-MM-dd')) 'Set-TgosFeature.ps1'
         }
     }
 

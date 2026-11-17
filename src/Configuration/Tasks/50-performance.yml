@@ -16,6 +16,63 @@ actions:
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\GameBar', value: 'AutoGameModeEnabled', data: '1', type: REG_DWORD }
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\GameBar', value: 'AllowAutoGameMode', data: '1', type: REG_DWORD }
 
+  # --- Opsi: Game Bar dimatikan total (bersama opsi hapus Xbox) ----------------------
+  # Aplikasi Game Bar dihapus di modul aplikasi; di sini sisa pemicunya dimatikan:
+  # tombol Xbox di controller dan kombinasi View + Menu tidak lagi membuka Game Bar,
+  # dan policy perekaman game dimatikan. Game Mode (di atas) TIDAK ikut dimatikan.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\GameBar', value: 'UseNexusForGameBarEnabled', data: '0', type: REG_DWORD, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\GameBar', value: 'GamepadNexusChordEnabled', data: '0', type: REG_DWORD, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\GameDVR', value: 'AllowGameDVR', data: '0', type: REG_DWORD, option: 'remove-xbox' }
+  # Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a
+  # new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan
+  # pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang
+  # langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain.
+  # Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi.
+  # Ditulis di HKLM (semua pengguna) dan HKCU (tiap profil): di Windows 11 kunci per
+  # pengguna menimpa HKLM. Pilihan aplikasi lama yang masih menunjuk ke Game Bar yang
+  # sudah dihapus dicabut oleh skrip di bawah daftar ini (uji otomatis Windows 11
+  # menangkap jendela "Pick an app" tanpa itu).
+  - !registryValue: { path: 'HKLM\SOFTWARE\Classes\ms-gamebar', value: '', data: 'URL:ms-gamebar', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Classes\ms-gamebar', value: 'URL Protocol', data: '', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Classes\ms-gamebar', value: 'NoOpenWith', data: '', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Classes\ms-gamebar\shell\open\command', value: '', data: '"%SystemRoot%\System32\systray.exe"', type: REG_EXPAND_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Classes\ms-gamebarservices', value: '', data: 'URL:ms-gamebarservices', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Classes\ms-gamebarservices', value: 'URL Protocol', data: '', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Classes\ms-gamebarservices', value: 'NoOpenWith', data: '', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Classes\ms-gamebarservices\shell\open\command', value: '', data: '"%SystemRoot%\System32\systray.exe"', type: REG_EXPAND_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Classes\ms-gamingoverlay', value: '', data: 'URL:ms-gamingoverlay', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Classes\ms-gamingoverlay', value: 'URL Protocol', data: '', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Classes\ms-gamingoverlay', value: 'NoOpenWith', data: '', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Classes\ms-gamingoverlay\shell\open\command', value: '', data: '"%SystemRoot%\System32\systray.exe"', type: REG_EXPAND_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\ms-gamebar', value: '', data: 'URL:ms-gamebar', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\ms-gamebar', value: 'URL Protocol', data: '', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\ms-gamebar', value: 'NoOpenWith', data: '', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\ms-gamebar\shell\open\command', value: '', data: '"%SystemRoot%\System32\systray.exe"', type: REG_EXPAND_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\ms-gamebarservices', value: '', data: 'URL:ms-gamebarservices', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\ms-gamebarservices', value: 'URL Protocol', data: '', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\ms-gamebarservices', value: 'NoOpenWith', data: '', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\ms-gamebarservices\shell\open\command', value: '', data: '"%SystemRoot%\System32\systray.exe"', type: REG_EXPAND_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\ms-gamingoverlay', value: '', data: 'URL:ms-gamingoverlay', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\ms-gamingoverlay', value: 'URL Protocol', data: '', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\ms-gamingoverlay', value: 'NoOpenWith', data: '', type: REG_SZ, option: 'remove-xbox' }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\ms-gamingoverlay\shell\open\command', value: '', data: '"%SystemRoot%\System32\systray.exe"', type: REG_EXPAND_SZ, option: 'remove-xbox' }
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\TGOS Toolbox\Support\Set-TgosFeature.ps1" -Feature GameBar -State Off'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 1
+    showOutput: true
+    showError: true
+    option: 'remove-xbox'
+
+  # --- Opsi: aplikasi latar --------------------------------------------------------
+  # Policy resmi "Let Windows apps run in the background" = Force Deny: aplikasi Store
+  # tidak berjalan di latar belakang saat tidak dibuka. Program desktop biasa (game,
+  # launcher, Discord) tidak terpengaruh. Notifikasi aplikasi Store bisa terlambat.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy', value: 'LetAppsRunInBackground', data: '2', type: REG_DWORD, option: 'block-background-apps' }
+
   # --- Penjadwalan GPU -------------------------------------------------------------
   # Hardware-accelerated GPU scheduling. Diabaikan Windows bila GPU atau driver tidak
   # mendukung. Menjadi syarat frame generation di GPU modern.

@@ -10,8 +10,32 @@
         firefox   Mozilla Firefox    (download.mozilla.org)
         7zip      7-Zip              (rilis resmi ip7z/7zip di GitHub)
         vcredist  Visual C++ 2015-2022 Redistributable x64 dan x86 (aka.ms)
+        vcredist-legacy
+                  Visual C++ 2005, 2008, 2010, 2012, 2013 x86 dan x64, versi terakhir
+                  masing-masing (download.microsoft.com, aka.ms). Banyak game lama
+                  membutuhkan runtime ini, bukan hanya 2015-2022.
+        xna       XNA Framework 4.0 Redistributable (download.microsoft.com)
         directx   DirectX End-User Runtime, pustaka lama Juni 2010, paket lengkap
                   (download.microsoft.com)
+        dotnet    .NET Desktop Runtime LTS terbaru (10.0) x64 dan x86 (aka.ms/dotnet)
+        netfx3    .NET Framework 3.5 (fitur Windows; diunduh Windows sendiri lewat DISM)
+        steam     Steam               (cdn.akamai.steamstatic.com, Valve)
+        epic      Epic Games Launcher (MSI resmi Epic Games)
+        ea        EA app              (installer resmi Electronic Arts)
+        ubisoft   Ubisoft Connect     (installer resmi Ubisoft)
+        discord   Discord             (discord.com) - PER PENGGUNA
+        spotify   Spotify             (installer lengkap, download.scdn.co) - PER PENGGUNA
+
+    Program PER PENGGUNA dipasang ke profil akun yang menjalankan skrip ini (playbook
+    menjalankannya sebagai pengguna yang login). Installer Spotify menolak hak
+    Administrator; bila skrip berjalan sebagai admin, installer dijalankan dengan token
+    pengguna biasa (runas /trustlevel:0x20000). Program yang langsung dibuka installer-nya
+    sesudah pasang (Discord, Spotify, launcher) ditutup otomatis, supaya tidak ada jendela
+    di tengah instalasi TGOS.
+
+    Semua yang diunduh selalu versi terbaru dari alamat resmi "latest" pembuatnya, kecuali
+    runtime lama yang memang sudah final. Selain 7-Zip dan .NET Framework 3.5, semua hanya
+    dipasang di Windows x64 (target TGOS); di Windows ARM64 dilewati.
 
     Urutan kerja untuk tiap file:
       1. Diunduh lewat HTTPS ke folder sementara.
@@ -71,7 +95,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('brave', 'chrome', 'firefox', '7zip', 'vcredist', 'directx')]
+    [ValidateSet('brave', 'chrome', 'firefox', '7zip', 'vcredist', 'vcredist-legacy', 'xna', 'directx',
+        'dotnet', 'netfx3', 'steam', 'epic', 'ea', 'ubisoft', 'discord', 'spotify')]
     [string]$Item,
 
     [string]$DataDirectory,
@@ -110,6 +135,107 @@ function Test-VcRuntime {
         if ($installed -eq 1) { return $true }
     }
     return $false
+}
+
+function Test-UninstallEntry {
+    # Ada program terpasang yang DisplayName-nya cocok dengan pola ini (64 dan 32-bit).
+    param([string]$Pattern)
+    $roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
+    $names = @(Get-ItemProperty -Path $roots -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.DisplayName })
+    return [bool](@($names | Where-Object { $_ -match $Pattern }).Count)
+}
+
+function Test-DesktopRuntime {
+    # .NET Desktop Runtime dengan versi utama ini, di Program Files 64 dan 32-bit.
+    param([string]$Major)
+    foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+        $folder = Join-Path $base 'dotnet\shared\Microsoft.WindowsDesktop.App'
+        if (-not (Test-Path -LiteralPath $folder)) { return $false }
+        if (-not @(Get-ChildItem -LiteralPath $folder -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like ('{0}.*' -f $Major) }).Count) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Test-IsAdministrator {
+    $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Stop-NewProcess {
+    # Menutup proses bernama $Names yang tidak ada di $Before (dibuka installer).
+    param([string[]]$Names, [int[]]$Before)
+    $closed = @()
+    foreach ($process in @(Get-Process -Name $Names -ErrorAction SilentlyContinue)) {
+        if ($Before -notcontains $process.Id) {
+            try { $process.Kill(); $closed += $process.ProcessName } catch { }
+        }
+    }
+    return $closed
+}
+
+function Invoke-Installer {
+    <#
+    Menjalankan installer tanpa jendela dan menunggu. Selama menunggu dan 30 detik
+    sesudahnya, program bernama $CloseAfter yang dibuka installer langsung ditutup.
+    $DropAdmin: bila proses ini admin, installer dijalankan dengan token pengguna biasa.
+    Mengembalikan @{ Code; Closed } (Code $null = melewati batas waktu).
+    #>
+    param([string]$File, [string]$Arguments, [int]$TimeoutMilliseconds, [string[]]$CloseAfter, [switch]$DropAdmin)
+    $before = @()
+    if ($CloseAfter) { $before = @(Get-Process -Name $CloseAfter -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }) }
+    $closed = @()
+
+    $info = New-Object System.Diagnostics.ProcessStartInfo
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.WorkingDirectory = Split-Path -Parent $File
+    $waitName = $null
+    if ($DropAdmin -and (Test-IsAdministrator)) {
+        # runas /trustlevel langsung selesai; yang ditunggu proses installer-nya.
+        $info.FileName = Join-Path $env:SystemRoot 'System32\runas.exe'
+        $info.Arguments = '/trustlevel:0x20000 "\"{0}\" {1}"' -f $File, $Arguments
+        $waitName = [IO.Path]::GetFileNameWithoutExtension($File)
+        Write-Output ("TGOS: {0} refuses administrator rights; running it as a standard user" -f (Split-Path -Leaf $File))
+    }
+    else {
+        $info.FileName = $File
+        $info.Arguments = $Arguments
+    }
+    $process = [System.Diagnostics.Process]::Start($info)
+    $started = [DateTime]::UtcNow
+    $deadline = $started.AddMilliseconds($TimeoutMilliseconds)
+    $code = $null
+    $installerSeen = $false
+    while ([DateTime]::UtcNow -lt $deadline) {
+        if ($CloseAfter) { $closed += Stop-NewProcess -Names $CloseAfter -Before $before }
+        if ($process.HasExited) {
+            if (-not $waitName) { $code = $process.ExitCode; break }
+            # Lewat runas: tunggu installer-nya muncul dulu (paling lama 60 detik), lalu
+            # tunggu sampai selesai. Kode keluarnya tidak terbaca; hasilnya diperiksa dari
+            # file program.
+            $running = [bool](Get-Process -Name $waitName -ErrorAction SilentlyContinue)
+            if ($running) { $installerSeen = $true }
+            elseif ($installerSeen -or ([DateTime]::UtcNow - $started).TotalSeconds -gt 60) {
+                if ($process.ExitCode -ne 0) { $code = $process.ExitCode } else { $code = 0 }
+                break
+            }
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    if ($null -eq $code) {
+        try { $process.Kill() } catch { }
+        if ($waitName) { Get-Process -Name $waitName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    }
+    if ($CloseAfter) {
+        for ($attempt = 0; $attempt -lt 120; $attempt++) {
+            $closed += Stop-NewProcess -Names $CloseAfter -Before $before
+            Start-Sleep -Milliseconds 250
+        }
+    }
+    return @{ Code = $code; Closed = @($closed | Select-Object -Unique) }
 }
 
 function Get-SevenZipRelease {
@@ -198,11 +324,124 @@ $Catalog = @{
                 Sha256 = '053F76DCBB28802E23341B6A787E3B0791C0FA5C8D4D011B1044172DBF89C73B'
                 Extract = '/Q:A /C /T:"{0}"'; Setup = 'DXSETUP.exe'; Arguments = '/silent' })
         Test  = { Test-Path -LiteralPath (Join-Path $env:SystemRoot 'System32\d3dx9_43.dll') }
+        X64Only = $true
+    }
+    'vcredist-legacy' = @{
+        Name  = 'Visual C++ 2005-2013 Redistributables'
+        # Argumen senyap dari dokumentasi Microsoft untuk tiap generasi installer.
+        # 2005: paket IExpress; /q:a tanpa tampilan, /c: menjalankan MSI di dalamnya senyap.
+        Files = @(
+            @{ Url = 'https://download.microsoft.com/download/8/B/4/8B42259F-5D70-43F4-AC2E-4B208FD8D66A/vcredist_x86.EXE'; File = 'vcredist2005_x86.exe'
+                Arguments = '/q:a /c:"msiexec /i vcredist.msi /qn"'; Signer = 'Microsoft Corporation'; SuccessCodes = @(0, 3010, 1638) },
+            @{ Url = 'https://download.microsoft.com/download/8/B/4/8B42259F-5D70-43F4-AC2E-4B208FD8D66A/vcredist_x64.EXE'; File = 'vcredist2005_x64.exe'
+                Arguments = '/q:a /c:"msiexec /i vcredist.msi /qn"'; Signer = 'Microsoft Corporation'; SuccessCodes = @(0, 3010, 1638) },
+            @{ Url = 'https://download.microsoft.com/download/5/D/8/5D8C65CB-C849-4025-8E95-C3966CAFD8AE/vcredist_x86.exe'; File = 'vcredist2008_x86.exe'
+                Arguments = '/q'; Signer = 'Microsoft Corporation'; SuccessCodes = @(0, 3010, 1638) },
+            @{ Url = 'https://download.microsoft.com/download/5/D/8/5D8C65CB-C849-4025-8E95-C3966CAFD8AE/vcredist_x64.exe'; File = 'vcredist2008_x64.exe'
+                Arguments = '/q'; Signer = 'Microsoft Corporation'; SuccessCodes = @(0, 3010, 1638) },
+            @{ Url = 'https://download.microsoft.com/download/1/6/5/165255E7-1014-4D0A-B094-B6A430A6BFFC/vcredist_x86.exe'; File = 'vcredist2010_x86.exe'
+                Arguments = '/q /norestart'; Signer = 'Microsoft Corporation'; SuccessCodes = @(0, 3010, 1638, 5100) },
+            @{ Url = 'https://download.microsoft.com/download/1/6/5/165255E7-1014-4D0A-B094-B6A430A6BFFC/vcredist_x64.exe'; File = 'vcredist2010_x64.exe'
+                Arguments = '/q /norestart'; Signer = 'Microsoft Corporation'; SuccessCodes = @(0, 3010, 1638, 5100) },
+            @{ Url = 'https://download.microsoft.com/download/1/6/B/16B06F60-3B20-4FF2-B699-5E9B7962F9AE/VSU_4/vcredist_x86.exe'; File = 'vcredist2012_x86.exe'
+                Arguments = '/install /quiet /norestart'; Signer = 'Microsoft Corporation'; SuccessCodes = @(0, 3010, 1638) },
+            @{ Url = 'https://download.microsoft.com/download/1/6/B/16B06F60-3B20-4FF2-B699-5E9B7962F9AE/VSU_4/vcredist_x64.exe'; File = 'vcredist2012_x64.exe'
+                Arguments = '/install /quiet /norestart'; Signer = 'Microsoft Corporation'; SuccessCodes = @(0, 3010, 1638) },
+            @{ Url = 'https://aka.ms/highdpimfc2013x86enu'; File = 'vcredist2013_x86.exe'
+                Arguments = '/install /quiet /norestart'; Signer = 'Microsoft Corporation'; SuccessCodes = @(0, 3010, 1638) },
+            @{ Url = 'https://aka.ms/highdpimfc2013x64enu'; File = 'vcredist2013_x64.exe'
+                Arguments = '/install /quiet /norestart'; Signer = 'Microsoft Corporation'; SuccessCodes = @(0, 3010, 1638) })
+        Test  = {
+            $patterns = @('2005 Redistributable$', '2005 Redistributable \(x64\)', '2008 Redistributable - x86', '2008 Redistributable - x64',
+                '2010\s+x86 Redistributable', '2010\s+x64 Redistributable', '2012 Redistributable \(x86\)', '2012 Redistributable \(x64\)',
+                '2013 Redistributable \(x86\)', '2013 Redistributable \(x64\)')
+            @($patterns | Where-Object { -not (Test-UninstallEntry ('Visual C\+\+ ' + $_)) }).Count -eq 0
+        }
+        X64Only = $true
+    }
+    xna      = @{
+        Name  = 'XNA Framework 4.0'
+        Files = @(@{ Url = 'https://download.microsoft.com/download/A/C/2/AC2C903B-E6E8-42C2-9FD7-BEBAC362A930/xnafx40_redist.msi'
+                File = 'xnafx40_redist.msi'; Msi = $true; Signer = 'Microsoft Corporation' })
+        Test  = { Test-UninstallEntry '^Microsoft XNA Framework Redistributable 4\.0' }
+        X64Only = $true
+    }
+    dotnet   = @{
+        Name  = '.NET Desktop Runtime 10'
+        Files = @(
+            @{ Url = 'https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe'; File = 'windowsdesktop-runtime-win-x64.exe'
+                Arguments = '/install /quiet /norestart'; Signer = 'Microsoft Corporation'; SuccessCodes = @(0, 3010, 1638) },
+            @{ Url = 'https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x86.exe'; File = 'windowsdesktop-runtime-win-x86.exe'
+                Arguments = '/install /quiet /norestart'; Signer = 'Microsoft Corporation'; SuccessCodes = @(0, 3010, 1638) })
+        Test  = { Test-DesktopRuntime '10' }
+        X64Only = $true
+    }
+    netfx3   = @{
+        Name  = '.NET Framework 3.5'
+        # Fitur Windows, bukan unduhan TGOS: DISM mengambil filenya dari Windows Update.
+        Dism  = 'NetFx3'
+        Test  = { (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5' -ErrorAction SilentlyContinue).Install -eq 1 }
+    }
+    steam    = @{
+        Name  = 'Steam'
+        Files = @(@{ Url = 'https://cdn.akamai.steamstatic.com/client/installer/SteamSetup.exe'
+                File = 'SteamSetup.exe'; Arguments = '/S'; Signer = 'Valve' })
+        Test  = { [bool](Get-ProgramPath 'Steam\steam.exe') }
+        CloseAfter = @('steam', 'steamwebhelper')
+        X64Only = $true
+    }
+    epic     = @{
+        Name  = 'Epic Games Launcher'
+        Files = @(@{ Url = 'https://launcher-public-service-prod06.ol.epicgames.com/launcher/api/installer/download/EpicGamesLauncherInstaller.msi'
+                File = 'EpicGamesLauncherInstaller.msi'; Msi = $true; Signer = 'Epic Games' })
+        Test  = { [bool]((Get-ProgramPath 'Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe') -or (Get-ProgramPath 'Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe')) }
+        CloseAfter = @('EpicGamesLauncher', 'EpicWebHelper')
+        X64Only = $true
+    }
+    ea       = @{
+        Name  = 'EA app'
+        Files = @(@{ Url = 'https://origin-a.akamaihd.net/EA-Desktop-Client-Download/installer-releases/EAappInstaller.exe'
+                File = 'EAappInstaller.exe'; Arguments = '/quiet /norestart'; Signer = 'Electronic Arts' })
+        Test  = { [bool](Get-ProgramPath 'Electronic Arts\EA Desktop\EA Desktop\EADesktop.exe') }
+        CloseAfter = @('EADesktop', 'EABackgroundService', 'EALauncher')
+        X64Only = $true
+    }
+    ubisoft  = @{
+        Name  = 'Ubisoft Connect'
+        Files = @(@{ Url = 'https://static3.cdn.ubi.com/orbit/launcher_installer/UbisoftConnectInstaller.exe'
+                File = 'UbisoftConnectInstaller.exe'; Arguments = '/S'; Signer = 'Ubisoft' })
+        Test  = { [bool]((Get-ProgramPath 'Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe') -or (Get-ProgramPath 'Ubisoft\Ubisoft Game Launcher\upc.exe')) }
+        CloseAfter = @('UbisoftConnect', 'upc')
+        X64Only = $true
+    }
+    discord  = @{
+        Name  = 'Discord'
+        Files = @(@{ Url = 'https://discord.com/api/downloads/distributions/app/installers/latest?channel=stable&platform=win&arch=x64'
+                File = 'DiscordSetup.exe'; Arguments = '-s'; Signer = 'Discord' })
+        Test  = { Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'Discord\Update.exe') }
+        CloseAfter = @('Discord')
+        PerUser = $true
+        X64Only = $true
+    }
+    spotify  = @{
+        Name  = 'Spotify'
+        # Installer lengkap: installer web (SpotifySetup.exe) menampilkan jendela unduhan
+        # walaupun diberi /silent, dan di uji otomatis menggantung sampai batas waktu.
+        Files = @(@{ Url = 'https://download.scdn.co/SpotifyFullSetup.exe'
+                File = 'SpotifyFullSetup.exe'; Arguments = '/silent'; Signer = 'Spotify'; DropAdmin = $true })
+        TimeoutMinutes = 5
+        Test  = { Test-Path -LiteralPath (Join-Path $env:APPDATA 'Spotify\Spotify.exe') }
+        CloseAfter = @('Spotify')
+        PerUser = $true
+        X64Only = $true
     }
 }
 
 function Write-SoftwareRecord {
     param([string]$State)
+    # Program per pengguna dipasang dari akun biasa, yang tidak boleh menulis file data
+    # TGOS. Pemeriksa hasil memeriksa program itu langsung di profil pengguna.
+    if (-not (Test-IsAdministrator)) { return }
     try {
         $file = Join-Path $DataDirectory 'software.txt'
         $kept = @()
@@ -292,8 +531,8 @@ try {
     $entry = $Catalog[$Item]
     Write-SoftwareRecord -State 'requested'
 
-    if ($Item -eq 'directx' -and (Get-TgosNativeArchitecture) -ne 'AMD64') {
-        Write-Output ("TGOS: DirectX End-User Runtime skipped: TGOS installs it on x64 Windows only (this PC is {0})" -f (Get-TgosNativeArchitecture))
+    if ($entry.X64Only -and (Get-TgosNativeArchitecture) -ne 'AMD64') {
+        Write-Output ("TGOS: {0} skipped: TGOS installs it on x64 Windows only (this PC is {1})" -f $entry.Name, (Get-TgosNativeArchitecture))
         Write-SoftwareRecord -State 'skipped'
         exit 0
     }
@@ -304,10 +543,20 @@ try {
         exit 0
     }
 
+    if ($entry.Dism) {
+        # Fitur Windows: DISM mengunduh dan memasangnya sendiri (butuh internet).
+        Write-Output ("TGOS: enabling the Windows feature {0} (Windows downloads it)" -f $entry.Dism)
+        $dismArguments = '/Online /Enable-Feature /FeatureName:{0} /All /NoRestart /Quiet' -f $entry.Dism
+        $code = Invoke-TgosProcess -File (Join-Path $env:SystemRoot 'System32\dism.exe') -Arguments $dismArguments -TimeoutMilliseconds 1800000
+        if ($null -eq $code) { throw 'DISM did not finish within 30 minutes' }
+        if (@(0, 3010) -notcontains $code) { throw ("DISM returned exit code {0}" -f $code) }
+        Write-Output ("TGOS: DISM finished with exit code {0}" -f $code)
+    }
+
     $workDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ('tgos-setup-{0}' -f [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $workDirectory -Force | Out-Null
 
-    foreach ($spec in $entry.Files) {
+    foreach ($spec in @($entry.Files | Where-Object { $_ })) {
         $url = $spec.Url
         $release = $null
         if ($UrlOverride) { $url = $UrlOverride }
@@ -370,8 +619,14 @@ try {
             $file = $path
             $arguments = [string]$spec.Arguments
         }
-        $code = Invoke-TgosProcess -File $file -Arguments $arguments -TimeoutMilliseconds $InstallTimeoutMilliseconds
-        if ($null -eq $code) { throw ("the installer {0} did not finish within 15 minutes" -f $label) }
+        $timeout = $InstallTimeoutMilliseconds
+        if ($entry.TimeoutMinutes) { $timeout = [int]$entry.TimeoutMinutes * 60000 }
+        $run = Invoke-Installer -File $file -Arguments $arguments -TimeoutMilliseconds $timeout -CloseAfter $entry.CloseAfter -DropAdmin:([bool]$spec.DropAdmin)
+        $code = $run.Code
+        if ($run.Closed.Count -gt 0) {
+            Write-Output ("TGOS: closed the window the installer opened: {0}" -f ($run.Closed -join ', '))
+        }
+        if ($null -eq $code) { throw ("the installer {0} did not finish within {1} minutes" -f $label, ($timeout / 60000)) }
         $accepted = @(0, 3010)
         if ($spec.SuccessCodes) { $accepted = @($spec.SuccessCodes) }
         if ($accepted -notcontains $code) {

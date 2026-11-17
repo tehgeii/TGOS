@@ -19,6 +19,10 @@ actions:
 
   # Opsi: ikon taskbar rata kiri seperti Windows 10 (0 = kiri, 1 = tengah).
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'TaskbarAl', data: '0', type: REG_DWORD, option: 'taskbar-left' }
+  # Opsi: "End task" di menu klik kanan aplikasi pada taskbar, untuk menutup game yang
+  # macet tanpa membuka Task Manager. Sama dengan Settings > System > For developers >
+  # End task, dan bisa dimatikan di sana.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings', value: 'TaskbarEndTask', data: '1', type: REG_DWORD, option: 'taskbar-end-task' }
 
   # --- Opsi: menu klik kanan klasik ------------------------------------------------
   # Kunci kosong ini membuat Explorer memakai menu klik kanan lengkap gaya Windows 10,
@@ -53,6 +57,19 @@ actions:
   - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'WallpaperStyle', data: '10', type: REG_SZ }
   - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'TileWallpaper', data: '0', type: REG_SZ }
   - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'JPEGImportQuality', data: '100', type: REG_DWORD }
+
+  # --- Layar kunci dan layar login -------------------------------------------------
+  # Gambar layar kunci memakai wallpaper TGO (file yang sama). Layar login memakai
+  # gambar layar kunci sebagai latarnya, jadi ikut bertema TGO. Lewat PersonalizationCSP,
+  # yang berlaku di edisi Pro; Settings lalu menampilkan gambar layar kunci sebagai
+  # diatur organisasi. Dikembalikan lewat "TGO Login Screen - Turn OFF" di Toolbox.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP', value: 'LockScreenImagePath', data: 'C:\Windows\Web\Wallpaper\TGOS\TGOS.png', type: REG_SZ }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP', value: 'LockScreenImageUrl', data: 'C:\Windows\Web\Wallpaper\TGOS\TGOS.png', type: REG_SZ }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP', value: 'LockScreenImageStatus', data: '1', type: REG_DWORD }
+  # Opsi: layar kunci (gambar + jam sebelum kotak login) dilewati. Password, PIN, atau
+  # Windows Hello TETAP diminta; yang hilang hanya layar bergambar itu. Policy resmi
+  # "Do not display the lock screen".
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Personalization', value: 'NoLockScreen', data: '1', type: REG_DWORD, option: 'skip-lock-screen' }
 
   # --- Warna aksen TGO -------------------------------------------------------------
   # Biru TGO #3B82F6, sama dengan website dan aplikasi TGO. Windows menyimpan warna

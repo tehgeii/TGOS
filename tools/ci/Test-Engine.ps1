@@ -44,7 +44,7 @@ param(
     [string]$Options = '',
     [string]$ForceItems = '',
     [string]$WorkDirectory,
-    [int]$TimeoutMinutes = 25
+    [int]$TimeoutMinutes = 60
 )
 
 $ErrorActionPreference = 'Stop'
@@ -450,7 +450,108 @@ if ($diagTrack -and [string]$diagTrack.Status -ne 'Running') {
 if ($diagTrack) { Write-Host ('   DiagTrack before the run: {0}' -f (Get-Service -Name 'DiagTrack').Status) }
 else { Write-Host '   DiagTrack is not on this runner' }
 
+# Pemantau jendela selama seluruh playbook (permintaan pemilik: semua harus berjalan di
+# latar, tanpa jendela). Proses terpisah mencatat setiap proses baru yang punya jendela
+# terlihat. Kontrol dulu: jendela Notepad harus tercatat, kalau tidak hasilnya tidak
+# berarti dan hanya dilaporkan.
+$windowLog = Join-Path $artifacts 'visible-windows.txt'
+Set-Content -LiteralPath $windowLog -Value @() -Encoding ASCII
+$watcher = Start-Job -ArgumentList $windowLog -ScriptBlock {
+    param($Path)
+    # Ukuran jendela ikut dicatat: installer seperti WiX Burn (VC++ 2012/2013) dan updater
+    # Brave membuat jendela pesan tanpa judul yang secara teknis "visible" tetapi tidak
+    # tampil bagi pengguna.
+    Add-Type -Namespace TgosCi -Name Win -MemberDefinition @'
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+public struct Rect { public int Left; public int Top; public int Right; public int Bottom; }
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool GetWindowRect(System.IntPtr hWnd, out Rect rect);
+'@
+    $known = @{}
+    foreach ($process in @(Get-Process -ErrorAction SilentlyContinue)) {
+        if ($process.MainWindowHandle -ne [IntPtr]::Zero) { $known[$process.Id] = $true }
+    }
+    # Tanda siap: jendela kontrol baru dibuka sesudah daftar awal ini dibuat (job PowerShell
+    # bisa butuh belasan detik untuk mulai di runner yang lambat).
+    Add-Content -LiteralPath $Path -Value 'READY' -Encoding ASCII
+    while ($true) {
+        foreach ($process in @(Get-Process -ErrorAction SilentlyContinue)) {
+            if ($process.MainWindowHandle -ne [IntPtr]::Zero -and -not $known.ContainsKey($process.Id)) {
+                $known[$process.Id] = $true
+                $rect = New-Object TgosCi.Win+Rect
+                $null = [TgosCi.Win]::GetWindowRect($process.MainWindowHandle, [ref]$rect)
+                # Jam dan proses induk, untuk mencocokkan jendela dengan langkah playbook.
+                $parent = '?'
+                $commandLine = ''
+                try {
+                    $info = Get-CimInstance -ClassName Win32_Process -Filter ('ProcessId={0}' -f $process.Id) -ErrorAction Stop
+                    $commandLine = [string]$info.CommandLine
+                    if ($commandLine.Length -gt 160) { $commandLine = $commandLine.Substring(0, 160) }
+                    $parent = (Get-Process -Id $info.ParentProcessId -ErrorAction Stop).ProcessName
+                }
+                catch { }
+                Add-Content -LiteralPath $Path -Value ('{0} | {1} | {2}x{3} | {4:HH:mm:ss} parent {5} | {6}' -f $process.ProcessName, $process.MainWindowTitle, ($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top), (Get-Date), $parent, $commandLine) -Encoding ASCII
+            }
+        }
+        Start-Sleep -Milliseconds 300
+    }
+}
+for ($attempt = 0; $attempt -lt 120; $attempt++) {
+    if (@(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue) -contains 'READY') { break }
+    Start-Sleep -Milliseconds 500
+}
+$null = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\notepad.exe') -PassThru
+$watcherWorks = $false
+for ($attempt = 0; $attempt -lt 40 -and -not $watcherWorks; $attempt++) {
+    Start-Sleep -Milliseconds 500
+    $watcherWorks = [bool](@(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue) -match '^notepad \|').Count
+}
+Get-Process -Name 'notepad' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+# Jendela yang sudah muncul sebelum playbook dijalankan (milik runner, bukan TGOS).
+@(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue | Where-Object { $_ -and $_ -ne 'READY' -and $_ -notmatch '^notepad \|' }) |
+    ForEach-Object { Write-Host ('   window before the playbook: {0}' -f (Format-LogLine $_)) }
+$wslTasks = @(Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object { @($_.Actions | Where-Object { [string]$_.Execute -match '(?i)wsl' }).Count } |
+        ForEach-Object { '{0}{1}' -f $_.TaskPath, $_.TaskName })
+Write-Host ('   runner scheduled tasks that start wsl.exe: {0}' -f $(if ($wslTasks.Count) { $wslTasks -join ', ' } else { 'none' }))
+Write-Host ('   wsl.exe processes before the playbook: {0}' -f @(Get-Process -Name 'wsl' -ErrorAction SilentlyContinue).Count)
+Set-Content -LiteralPath $windowLog -Value @() -Encoding ASCII
+
 $pass = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbookPass -OptionList $optionList -Name 'pass'
+
+Stop-Job -Job $watcher -ErrorAction SilentlyContinue
+Remove-Job -Job $watcher -Force -ErrorAction SilentlyContinue
+# Bagian shell Windows yang memang muncul lagi saat TGOS menjalankan ulang Explorer.
+$shellProcesses = '^(explorer|ShellExperienceHost|StartMenuExperienceHost|SearchHost|SearchApp|TextInputHost|ApplicationFrameHost|LockApp|ShellHost) \|'
+$newWindows = @(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue | Where-Object { $_ })
+# Image runner Windows 11 membuka "wsl.exe --update --confirm --prompt-before-exit" tiap
+# 90 detik sepanjang job (juga saat uji Game Bar, sesudah playbook selesai). TGOS tidak
+# pernah menjalankan WSL: validate.py menolak "wsl" di seluruh src/.
+$runnerNoise = '^wsl \|.*\| (?i:C:\\Windows\\system32\\wsl\.exe) --update --confirm --prompt-before-exit\s*$'
+$noise = @($newWindows | Where-Object { $_ -match $runnerNoise })
+$newWindows = @($newWindows | Where-Object { $_ -notmatch $runnerNoise })
+if ($noise.Count) { Write-Host ('   ignored {0} runner window(s): wsl.exe --update (WSL updater of the runner image)' -f $noise.Count) }
+# Pelanggaran: jendela berjudul, atau jendela tanpa judul yang ukurannya nyata (bukan
+# jendela pesan kosong), dari proses selain shell Windows.
+$unexpected = @($newWindows | Where-Object {
+        $parts = $_ -split ' \| '
+        $titled = $parts.Count -ge 2 -and $parts[1].Trim()
+        $large = $false
+        if ($parts.Count -ge 3 -and $parts[2] -match '^(-?\d+)x(-?\d+)$') { $large = ([int]$Matches[1] -ge 50 -and [int]$Matches[2] -ge 50) }
+        ($_ -notmatch $shellProcesses) -and ($titled -or $large)
+    })
+if ($watcherWorks) {
+    $null = Assert-That ($unexpected.Count -eq 0) ('pass: no visible window appeared during the playbook ({0} window(s) seen; shell windows and empty message windows are not counted)' -f $newWindows.Count)
+    $unexpected | ForEach-Object { Write-Host ('   VISIBLE: {0}' -f (Format-LogLine $_)) }
+}
+else {
+    Write-Host '   INFO: the window watcher could not see the Notepad control window; the no-window check is inconclusive'
+}
+$newWindows | Select-Object -First 15 | ForEach-Object { Write-Host ('   window: {0}' -f (Format-LogLine $_)) }
+
+# Diagnosa: paket framework yang dijaga compare-snapshots.py, tepat setelah playbook. Bila
+# nanti hilang sebelum potret "after", log AppX Windows menunjukkan siapa yang mencabutnya.
+$frameworks = @(Get-AppxPackage -AllUsers -Name 'Microsoft.NET.Native.*' -ErrorAction SilentlyContinue | ForEach-Object { $_.Name } | Select-Object -Unique)
+Write-Host ('   .NET Native frameworks right after the playbook: {0}' -f $(if ($frameworks.Count) { $frameworks -join ', ' } else { 'none' }))
 $ok = Assert-That (-not $pass.TimedOut) 'pass: the engine did not hang'
 $ok = (Assert-That ($pass.Output -notmatch 'YAML Error|Fatal Playbook Error') 'pass: no YAML or fatal error') -and $ok
 $ok = (Assert-That ($pass.Output -match 'Playbook completed successfully') 'pass: the engine reported "Playbook completed successfully."') -and $ok
@@ -470,8 +571,13 @@ if (Test-Path -LiteralPath $engineOutput) {
     Write-Host '   TGOS script results in the engine log:'
     Get-Content -LiteralPath $engineOutput |
         Where-Object { $_ -match 'TGOS: (?!recorded option|task disabled:|task not present)|PASSED:|REJECTED:|SUMMARY:' -or $_ -match 'WARNING: ' } |
-        ForEach-Object { ($_ -replace '^.*?(TGOS: |PASSED:|REJECTED:|SUMMARY:|WARNING: )', '$1') } |
-        Select-Object -First 80 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+        ForEach-Object {
+            # Jam dari log mesin AME ikut ditampilkan, supaya langkah yang lama terlihat.
+            $time = ''
+            if ($_ -match '\| (\d{2}:\d{2}:\d{2})\]') { $time = $Matches[1] + ' ' }
+            $time + ($_ -replace '^.*?(TGOS: |PASSED:|REJECTED:|SUMMARY:|WARNING: )', '$1')
+        } |
+        Select-Object -First 120 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
 }
 
 Write-Host '   install-info.txt:'
@@ -502,11 +608,37 @@ $softwareChecks = @(
     @{ Option = 'browser-brave'; Name = 'Brave'; Relative = 'BraveSoftware\Brave-Browser\Application\brave.exe' },
     @{ Option = 'browser-chrome'; Name = 'Chrome'; Relative = 'Google\Chrome\Application\chrome.exe' },
     @{ Option = 'browser-firefox'; Name = 'Firefox'; Relative = 'Mozilla Firefox\firefox.exe' },
-    @{ Option = 'install-7zip'; Name = '7-Zip'; Relative = '7-Zip\7z.exe' })
+    @{ Option = 'install-7zip'; Name = '7-Zip'; Relative = '7-Zip\7z.exe' },
+    @{ Option = 'install-steam'; Name = 'Steam'; Relative = 'Steam\steam.exe'; X64Only = $true },
+    @{ Option = 'install-epic'; Name = 'Epic Games Launcher'; Relative = 'Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe'; X64Only = $true },
+    @{ Option = 'install-ea'; Name = 'EA app'; Relative = 'Electronic Arts\EA Desktop\EA Desktop\EADesktop.exe'; X64Only = $true },
+    @{ Option = 'install-ubisoft'; Name = 'Ubisoft Connect'; Relative = 'Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe'; X64Only = $true },
+    @{ Option = 'install-discord'; Name = 'Discord'; UserRelative = 'Discord\Update.exe'; X64Only = $true },
+    @{ Option = 'install-spotify'; Name = 'Spotify'; UserRelative = 'Spotify\Spotify.exe'; Roaming = $true; X64Only = $true })
 foreach ($check in $softwareChecks) {
     if ($selectedOptions -notcontains $check.Option) { continue }
-    $found = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
-        ForEach-Object { Join-Path $_ $check.Relative } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if ($check.X64Only -and $runnerArch -ne 'AMD64') {
+        Write-Host ('   {0}: skipped on {1} (TGOS installs it on x64 only)' -f $check.Name, $runnerArch)
+        continue
+    }
+    if ($check.UserRelative) {
+        # Per pengguna: dipasang ke profil akun yang menjalankan uji ini.
+        $base = $env:LOCALAPPDATA
+        if ($check.Roaming) { $base = $env:APPDATA }
+        $found = @(Join-Path $base $check.UserRelative) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    }
+    else {
+        $found = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
+            ForEach-Object { Join-Path $_ $check.Relative } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    }
+    if (-not $found -and $check.Option -eq 'install-epic') {
+        $found = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
+            ForEach-Object { Join-Path $_ 'Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe' } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    }
+    if (-not $found -and $check.Option -eq 'install-ubisoft') {
+        $found = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
+            ForEach-Object { Join-Path $_ 'Ubisoft\Ubisoft Game Launcher\upc.exe' } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    }
     $null = Assert-That ([bool]$found) ('software: {0} is installed after the run' -f $check.Name)
     if ($found) { Write-Host ('   {0} {1}' -f $found, (Get-Item -LiteralPath $found).VersionInfo.ProductVersion) }
     elseif ($check.Option -eq 'browser-brave') {
@@ -534,6 +666,19 @@ function Get-VisibleWindow {
         Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and ($_.ProcessName -match $Pattern -or $_.MainWindowTitle -match $Pattern) } |
         ForEach-Object { '{0} "{1}"' -f $_.ProcessName, $_.MainWindowTitle })
 }
+# Kontrol pemantau jendela: jendela Notepad harus terdeteksi. Bila tidak, runner ini tidak
+# memperlihatkan jendela dan uji "tidak ada jendela" tidak berarti.
+function Test-WindowControl {
+    $null = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\notepad.exe') -PassThru
+    $seen = $false
+    for ($attempt = 0; $attempt -lt 30 -and -not $seen; $attempt++) {
+        Start-Sleep -Milliseconds 500
+        $seen = (Get-VisibleWindow '(?i)^notepad$').Count -gt 0
+    }
+    Get-Process -Name 'notepad' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
+    return $seen
+}
 foreach ($item in @($ForceItems -split '\s+' | Where-Object { $_ })) {
     $before = $null
     if ($versionedExe.ContainsKey($item)) { $before = Get-InstalledVersion $versionedExe[$item] }
@@ -543,13 +688,7 @@ foreach ($item in @($ForceItems -split '\s+' | Where-Object { $_ })) {
         # DirectX". Selama pemasangan, jendela installer DirectX yang terlihat dicari.
         # Kontrol dulu: jendela Notepad harus terdeteksi oleh cara yang sama; bila tidak,
         # runner ini tidak bisa melihat jendela dan hasilnya hanya dicatat.
-        $null = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\notepad.exe') -PassThru
-        $controlSeen = $false
-        for ($attempt = 0; $attempt -lt 30 -and -not $controlSeen; $attempt++) {
-            Start-Sleep -Milliseconds 500
-            $controlSeen = (Get-VisibleWindow '(?i)^notepad$').Count -gt 0
-        }
-        Get-Process -Name 'notepad' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        $controlSeen = Test-WindowControl
         $outFile = Join-Path $artifacts 'force-directx.txt'
         $process = Start-Process -FilePath 'cmd.exe' -ArgumentList ('/c ' + $command) -RedirectStandardOutput $outFile -NoNewWindow -PassThru
         $null = $process.Handle
@@ -584,6 +723,164 @@ foreach ($item in @($ForceItems -split '\s+' | Where-Object { $_ })) {
     }
     $output -split "`r?`n" | Where-Object { $_ -match 'TGOS: |WARNING: ' } | Select-Object -First 8 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
     if (-not $ok) { Write-Host ('   exit {0}' -f $exit) }
+}
+
+# =======================================================================================
+Write-Section 'Game Bar and Windows Update'
+if ($plannedOptions -contains 'remove-xbox') {
+    # Tanpa aplikasi Game Bar, protokol ms-gamebar memunculkan jendela "You'll need a new
+    # app to open this ms-gamebar link". TGOS memberi penangan pengganti (systray.exe).
+    $systray = Join-Path $env:SystemRoot 'System32\systray.exe'
+    $null = Assert-That (Test-Path -LiteralPath $systray) 'gamebar: systray.exe (the replacement handler) exists'
+    # Diagnosa: penangan tiap protokol untuk pengguna uji, dan pilihan aplikasi tersimpan.
+    foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
+        foreach ($root in @('HKCU:\Software\Classes', 'HKLM:\SOFTWARE\Classes')) {
+            $command = Join-Path (Join-Path $root $protocol) 'shell\open\command'
+            $value = '(missing)'
+            if (Test-Path -LiteralPath $command) { $value = [string](Get-Item -LiteralPath $command).GetValue('', '', 'DoNotExpandEnvironmentNames') }
+            Write-Host ('   {0}\{1}\shell\open\command = {2}' -f ($root -replace ':', ''), $protocol, $value)
+        }
+        $choice = 'HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\{0}\UserChoice' -f $protocol
+        $progId = (Get-ItemProperty -LiteralPath $choice -ErrorAction SilentlyContinue).ProgId
+        if (-not $progId) { $progId = '(none)' }
+        Write-Host ('   UserChoice for {0}: {1}' -f $protocol, $progId)
+    }
+    $overlay = @(Get-AppxPackage -AllUsers -Name '*XboxGamingOverlay*' -ErrorAction SilentlyContinue | ForEach-Object { $_.PackageFullName })
+    Write-Host ('   Game Bar packages left: {0}' -f $(if ($overlay.Count) { $overlay -join ', ' } else { 'none' }))
+    # Informasi: cache AppX Windows (StateRepository) yang masih mengaitkan ms-gamebar dengan
+    # Game Bar yang sudah dihapus. TGOS tidak mengubah cache ini; Win+G diblokir.
+    $stateCache = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModel\StateRepository\Cache\Protocol\Index\Name\ms-gamebar'
+    Write-Host ('   StateRepository cache entry for ms-gamebar: {0}' -f $(if (Test-Path -LiteralPath $stateCache) { 'present' } else { 'absent' }))
+    $advanced = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+    $hotkeys = [string](Get-ItemProperty -LiteralPath $advanced -ErrorAction SilentlyContinue).DisabledHotkeys
+    $null = Assert-That ($hotkeys.Contains('G')) ('gamebar: Win+G is blocked for the test user (DisabledHotkeys = {0})' -f $hotkeys)
+    if (Test-WindowControl) {
+        # Win+G sungguhan lewat keybd_event. Jendela dicari dengan EnumWindows (semua jendela
+        # teratas yang terlihat dan berjudul, termasuk dialog milik Explorer).
+        Add-Type -Namespace TgosCi -Name Top -MemberDefinition @'
+public delegate bool EnumProc(System.IntPtr hWnd, System.IntPtr lParam);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool EnumWindows(EnumProc callback, System.IntPtr lParam);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool IsWindowVisible(System.IntPtr hWnd);
+[System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+public static extern int GetWindowText(System.IntPtr hWnd, System.Text.StringBuilder text, int count);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern uint GetWindowThreadProcessId(System.IntPtr hWnd, out uint processId);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool PostMessage(System.IntPtr hWnd, uint msg, System.IntPtr wParam, System.IntPtr lParam);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern void keybd_event(byte vk, byte scan, uint flags, System.UIntPtr extra);
+public static System.Collections.Generic.List<System.IntPtr> Visible() {
+    var list = new System.Collections.Generic.List<System.IntPtr>();
+    EnumWindows((h, l) => { if (IsWindowVisible(h)) { list.Add(h); } return true; }, System.IntPtr.Zero);
+    return list;
+}
+'@
+        function Get-TitledWindow {
+            $names = @{}
+            Get-Process -ErrorAction SilentlyContinue | ForEach-Object { $names[[uint32]$_.Id] = $_.ProcessName }
+            $result = @{}
+            foreach ($handle in [TgosCi.Top]::Visible()) {
+                $text = New-Object System.Text.StringBuilder 256
+                $null = [TgosCi.Top]::GetWindowText($handle, $text, 256)
+                $title = $text.ToString().Trim()
+                if (-not $title) { continue }
+                $processId = [uint32]0
+                $null = [TgosCi.Top]::GetWindowThreadProcessId($handle, [ref]$processId)
+                $name = '?'
+                if ($names.ContainsKey($processId)) { $name = $names[$processId] }
+                $result[[long]$handle] = '{0} "{1}"' -f $name, $title
+            }
+            return $result
+        }
+        function Test-WinGPopup {
+            $before = Get-TitledWindow
+            [TgosCi.Top]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero)
+            [TgosCi.Top]::keybd_event(0x47, 0, 0, [UIntPtr]::Zero)
+            Start-Sleep -Milliseconds 100
+            [TgosCi.Top]::keybd_event(0x47, 0, 2, [UIntPtr]::Zero)
+            [TgosCi.Top]::keybd_event(0x5B, 0, 2, [UIntPtr]::Zero)
+            $seen = @{}
+            for ($attempt = 0; $attempt -lt 16; $attempt++) {
+                Start-Sleep -Milliseconds 500
+                $now = Get-TitledWindow
+                foreach ($handle in @($now.Keys)) {
+                    if (-not $before.ContainsKey($handle) -and -not $seen.ContainsKey($handle)) { $seen[$handle] = $now[$handle] }
+                }
+            }
+            foreach ($handle in @($seen.Keys)) { $null = [TgosCi.Top]::PostMessage([IntPtr]$handle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) }
+            Get-Process -Name 'OpenWith' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 800
+            # wsl.exe: updater WSL milik image runner (lihat pemantau jendela di atas).
+            return @($seen.Values | Where-Object { $_ -notmatch '^wsl ' })
+        }
+        function Restart-TestExplorer {
+            Get-Process -Name 'explorer' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 3
+            if (-not (Get-Process -Name 'explorer' -ErrorAction SilentlyContinue)) { Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe') }
+            Start-Sleep -Seconds 10
+        }
+        # Kontrol: tanpa blok TGOS, Win+G HARUS memunculkan jendela di runner ini (Game Bar
+        # sudah dihapus). Bila tidak, runner ini tidak meneruskan Win+G dan hasilnya tidak
+        # dihitung.
+        $withoutG = $hotkeys.Replace('G', '')
+        if ($withoutG) { Set-ItemProperty -LiteralPath $advanced -Name 'DisabledHotkeys' -Value $withoutG }
+        else { Remove-ItemProperty -LiteralPath $advanced -Name 'DisabledHotkeys' -ErrorAction SilentlyContinue }
+        Restart-TestExplorer
+        $control = @(Test-WinGPopup)
+        $control | ForEach-Object { Write-Host ('   control (block removed), Win+G showed: {0}' -f (Format-LogLine $_)) }
+        Set-ItemProperty -LiteralPath $advanced -Name 'DisabledHotkeys' -Value $hotkeys
+        Restart-TestExplorer
+        $blocked = @(Test-WinGPopup)
+        $blocked | ForEach-Object { Write-Host ('   with the TGOS block, Win+G showed: {0}' -f (Format-LogLine $_)) }
+        if ($control.Count) {
+            $null = Assert-That ($blocked.Count -eq 0) 'gamebar: Win+G shows no window (control: without the TGOS block it showed one)'
+        }
+        else {
+            Write-Host '   INFO: Win+G showed no window even without the block, so this runner cannot show the effect; result not counted'
+        }
+    }
+    else {
+        Write-Host '   INFO: this runner does not expose windows; the Win+G check is inconclusive'
+    }
+}
+if ($plannedOptions -contains 'updates-pause') {
+    # Informasi: nilai pause yang ditulis TGOS, dan bagaimana layanan Windows Update
+    # membacanya (kunci UpdatePolicy diisi layanan itu sendiri, tidak oleh TGOS).
+    foreach ($key in @('HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings', 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UpdatePolicy\Settings')) {
+        $item = Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue
+        if ($null -eq $item) { Write-Host ('   {0}: (missing)' -f $key); continue }
+        $item.PSObject.Properties | Where-Object { $_.Name -match '(?i)pause' } |
+            ForEach-Object { Write-Host ('   {0}\{1} = {2}' -f ($key -replace '^.*\\', ''), $_.Name, $_.Value) }
+    }
+    # Definisi Defender tetap bisa diperbarui saat Windows Update di-pause? (informasi)
+    $mpCmd = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
+    if (Test-Path -LiteralPath $mpCmd) {
+        $mpOutput = & cmd.exe /c ('"{0}" -SignatureUpdate 2>&1' -f $mpCmd) | Out-String
+        Write-Host ('   Defender signature update while paused: exit {0}' -f $LASTEXITCODE)
+        $mpOutput -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 3 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+    }
+}
+
+# =======================================================================================
+Write-Section 'Deep clean'
+if ($plannedOptions -contains 'deep-clean' -or $plannedOptions -contains 'deep-clean-plus') {
+    $cleanRecord = Join-Path $env:ProgramData 'TGOS\deep-clean.txt'
+    if (Assert-That (Test-Path -LiteralPath $cleanRecord) 'deep clean: deep-clean.txt was written') {
+        $cleanLines = @(Get-Content -LiteralPath $cleanRecord)
+        $cleanLines | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+        $null = Assert-That ([bool](@($cleanLines -match 'completed:').Count)) 'deep clean: finished (completed line present)'
+        if ($plannedOptions -contains 'deep-clean-plus') {
+            $null = Assert-That ([bool](@($cleanLines -match 'ResetBase').Count)) 'deep clean: Deep clean+ ran the ResetBase step'
+        }
+    }
+    # Folder playbook yang sedang berjalan tidak boleh tersentuh (langkah sesudahnya masih
+    # memakai skripnya).
+    $null = Assert-That (Test-Path -LiteralPath (Join-Path $playbookPass 'Executables\Scripts\Set-ShellLayout.ps1')) 'deep clean: the running playbook folder was left alone'
+}
+else {
+    Write-Host '   deep clean not selected in this job'
 }
 
 # =======================================================================================
@@ -624,7 +921,16 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
         @{ Feature = 'ExtraServices'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\Spooler'; Name = 'Start'; Off = 4; On = 2 },
         # Tanpa nilai registry: yang diperiksa kode keluarnya (0, atau 3 bila tidak didukung).
         @{ Feature = 'CoreParking'; Path = $null; Name = 'exit code'; Off = $null; On = $null },
-        @{ Feature = 'Defender'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection'; Name = 'DisableRealtimeMonitoring'; Off = 1; On = $null }
+        @{ Feature = 'Defender'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection'; Name = 'DisableRealtimeMonitoring'; Off = 1; On = $null },
+        # '*' = nilainya harus ada (isinya tanggal yang dihitung saat itu).
+        @{ Feature = 'UpdatePause'; Path = 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings'; Name = 'PauseUpdatesExpiryTime'; Off = '*'; On = $null },
+        @{ Feature = 'DriverUpdates'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate'; Name = 'ExcludeWUDriversInQualityUpdate'; Off = 1; On = $null },
+        @{ Feature = 'BackgroundApps'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'; Name = 'LetAppsRunInBackground'; Off = 2; On = $null },
+        @{ Feature = 'LockScreen'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'; Name = 'NoLockScreen'; Off = 1; On = $null },
+        @{ Feature = 'GameBar'; Path = 'HKLM:\SOFTWARE\Classes\ms-gamebar'; Name = 'NoOpenWith'; Off = ''; On = $null },
+        @{ Feature = 'LoginTheme'; Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'; Name = 'LockScreenImageStatus'; Off = $null; On = 1 },
+        # DISM; diperiksa lewat kode keluarnya (3 = tidak didukung di runner ini).
+        @{ Feature = 'ReservedStorage'; Path = $null; Name = 'exit code'; Off = $null; On = $null }
     )
 
     function Get-Value {
@@ -661,7 +967,9 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
             }
             $actual = Get-Value -Path $case.Path -Name $case.Name
             $expected = $case[$state]
-            if ($null -eq $expected) { $same = ($null -eq $actual) } else { $same = ($actual -eq $expected) }
+            if ($null -eq $expected) { $same = ($null -eq $actual) }
+            elseif ($expected -is [string] -and $expected -eq '*') { $same = ($null -ne $actual -and [string]$actual -ne '') }
+            else { $same = ($null -ne $actual -and $actual -eq $expected) }
             if ($null -eq $expected) { $expectedText = '(absent)' } else { $expectedText = [string]$expected }
             $label = 'toolbox: {0} {1} -> exit 0 and {2} = {3}' -f $case.Feature, $state, $case.Name, $expectedText
             if (-not (Assert-That ($exit -eq 0 -and $same) $label)) {
@@ -672,6 +980,61 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
         }
     }
 }
+
+# =======================================================================================
+Write-Section 'Toolbox buttons'
+# Tombol .cmd yang sebenarnya diklik pengguna, dengan input disuapkan (Enter untuk
+# "pause"). Membuktikan jalur ..\Support dari subfolder dan menu Install Software.
+$toolboxRoot = Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox'
+function Invoke-ToolboxButton {
+    param([string]$Relative, [string[]]$InputLines, [string]$Path)
+    $inputFile = Join-Path $artifacts 'button-input.txt'
+    $stem = [IO.Path]::GetFileNameWithoutExtension($Relative) -replace '[^A-Za-z0-9-]', ''
+    $outputFile = Join-Path $artifacts ('button-{0}.txt' -f $stem)
+    $errorFile = Join-Path $artifacts ('button-{0}-stderr.txt' -f $stem)
+    Set-Content -LiteralPath $inputFile -Value $InputLines -Encoding ASCII
+    if (-not $Path) { $Path = Join-Path $toolboxRoot $Relative }
+    $process = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', ('"{0}"' -f $Path)) -RedirectStandardInput $inputFile -RedirectStandardOutput $outputFile -RedirectStandardError $errorFile -NoNewWindow -PassThru
+    $null = $process.Handle
+    if (-not $process.WaitForExit(600000)) { try { $process.Kill() } catch { } }
+    # Get-Content -Raw pada file kosong tidak mengembalikan apa pun (bukan string kosong).
+    $text = ''
+    if (Test-Path -LiteralPath $outputFile) { $text = Get-Content -LiteralPath $outputFile -Raw }
+    if ($null -eq $text) { $text = '' }
+    $errors = ''
+    if (Test-Path -LiteralPath $errorFile) { $errors = Get-Content -LiteralPath $errorFile -Raw }
+    if ($null -eq $errors) { $errors = '' }
+    return @{ Exit = $process.ExitCode; Output = [string]$text; Errors = [string]$errors }
+}
+$lockKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'
+$result = Invoke-ToolboxButton -Relative 'Turn ON or OFF\Lock Screen - Turn OFF.cmd' -InputLines @('')
+$value = (Get-ItemProperty -LiteralPath $lockKey -ErrorAction SilentlyContinue).NoLockScreen
+$null = Assert-That ($value -eq 1 -and $result.Output -match 'lock screen is now skipped') 'toolbox button: "Turn ON or OFF\Lock Screen - Turn OFF.cmd" works'
+$result = Invoke-ToolboxButton -Relative 'Turn ON or OFF\Lock Screen - Turn ON.cmd' -InputLines @('')
+$value = (Get-ItemProperty -LiteralPath $lockKey -ErrorAction SilentlyContinue).NoLockScreen
+$null = Assert-That ($null -eq $value -and $result.Output -match 'lock screen is back') 'toolbox button: "Turn ON or OFF\Lock Screen - Turn ON.cmd" works'
+# Menu: 4 = 7-Zip, lalu "x" untuk "pause", lalu 0 = keluar. Dengan input dari file,
+# "pause" hanya memakan SATU karakter (di konsol sungguhan: satu tombol), jadi baris kedua
+# "x0" = tombol untuk pause, lalu "0" untuk menu.
+$result = Invoke-ToolboxButton -Relative 'Install Software.cmd' -InputLines @('4', 'x0')
+$ok = Assert-That ($result.Output -match 'TGOS: 7-Zip installed' -and $result.Output -match 'verified:' -and $result.Output -notmatch 'Unknown number') 'toolbox button: "Install Software.cmd" menu installs 7-Zip and exits on 0'
+if (-not $ok) { $result.Output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 8 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) } }
+$null = Assert-That (-not $result.Errors.Trim()) 'toolbox button: "Install Software.cmd" printed no cmd error'
+if ($result.Errors.Trim()) {
+    Write-Host ('   stderr: {0}' -f (Format-LogLine $result.Errors))
+    # Jalankan salinan dengan "echo on" supaya baris yang memicu error terlihat.
+    $debugCopy = Join-Path $toolboxRoot 'menu-debug.cmd'
+    (Get-Content -LiteralPath (Join-Path $toolboxRoot 'Install Software.cmd') -Raw).Replace('@echo off', '@echo on') |
+        Set-Content -LiteralPath $debugCopy -Encoding ASCII -NoNewline
+    $debug = Invoke-ToolboxButton -Relative 'menu-debug.cmd' -Path $debugCopy -InputLines @('4', 'x0')
+    $debug.Output -split "`r?`n" | Where-Object { $_.Trim() -and $_ -notmatch '^\s*(\| |TGOS:)' } | Select-Object -Last 30 | ForEach-Object { Write-Host ('   debug | ' + (Format-LogLine $_)) }
+    Write-Host ('   debug stderr: {0}' -f (Format-LogLine $debug.Errors))
+    Remove-Item -LiteralPath $debugCopy -Force -ErrorAction SilentlyContinue
+}
+# Ketikan yang bukan nomor (tanda kutip dan &) tidak boleh merusak menu.
+$result = Invoke-ToolboxButton -Relative 'Install Software.cmd' -InputLines @('"&x')
+$null = Assert-That ($result.Output -match 'Unknown number' -and -not $result.Errors.Trim()) 'toolbox button: "Install Software.cmd" handles a bad entry without a cmd error'
+if ($result.Errors.Trim()) { Write-Host ('   stderr: {0}' -f (Format-LogLine $result.Errors)) }
 
 # =======================================================================================
 Write-Section 'Report collector'
@@ -698,6 +1061,17 @@ $python = Get-Command python -CommandType Application -ErrorAction SilentlyConti
 $after = Get-ChildItem -LiteralPath (Join-Path $artifacts 'report') -Filter 'TGOS-snapshot-*.json' -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($python -and $after) {
     Write-Section 'Before / after'
+$frameworks = @(Get-AppxPackage -AllUsers -Name 'Microsoft.NET.Native.*' -ErrorAction SilentlyContinue | ForEach-Object { $_.Name } | Select-Object -Unique)
+Write-Host ('   .NET Native frameworks now: {0}' -f $(if ($frameworks.Count) { $frameworks -join ', ' } else { 'none' }))
+try {
+    Get-WinEvent -LogName 'Microsoft-Windows-AppXDeploymentServer/Operational' -MaxEvents 4000 -ErrorAction Stop |
+        Where-Object { $_.Message -match 'NET\.Native' -and $_.Message -match '(?i)remov|deprovision|uninstall' } |
+        Select-Object -First 6 |
+        ForEach-Object { Write-Host ('   appx event {0:HH:mm:ss} id {1}: {2}' -f $_.TimeCreated, $_.Id, (Format-LogLine $_.Message)) }
+}
+catch {
+    Write-Host ('   appx events not readable: {0}' -f (Format-LogLine $_.Exception.Message))
+}
     $command = '"{0}" "{1}" "{2}" "{3}" 2>&1' -f $python.Source, (Join-Path $repoRoot 'tools\compare-snapshots.py'), (Join-Path $artifacts 'TGOS-snapshot-before.json'), $after.FullName
     $compare = & cmd.exe /c ('"{0}"' -f $command) | Out-String
     $compareExit = $LASTEXITCODE

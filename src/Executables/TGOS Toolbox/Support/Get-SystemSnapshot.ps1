@@ -133,6 +133,11 @@ $services = Invoke-Section 'services' {
 $appx = Invoke-Section 'appx' {
     $packages = if ($isAdmin) { Get-AppxPackage -AllUsers } else { Get-AppxPackage }
     @($packages | Sort-Object Name, Version -Unique | ForEach-Object {
+        # Nama paket framework yang dipakai aplikasi ini: compare-snapshots.py memakainya
+        # untuk membedakan framework yang dibuang Windows karena sudah tidak dipakai dari
+        # framework yang hilang padahal masih dibutuhkan.
+        $dependencies = @()
+        if (-not $_.IsFramework) { $dependencies = @($_.Dependencies | ForEach-Object { [string]$_.Name } | Where-Object { $_ } | Select-Object -Unique) }
         [ordered]@{
             name         = [string]$_.Name
             familyName   = [string]$_.PackageFamilyName
@@ -140,6 +145,7 @@ $appx = Invoke-Section 'appx' {
             isFramework  = [bool]$_.IsFramework
             nonRemovable = [bool]$_.NonRemovable
             signature    = [string]$_.SignatureKind
+            dependencies = $dependencies
         }
     })
 }

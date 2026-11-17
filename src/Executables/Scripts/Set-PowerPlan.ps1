@@ -6,7 +6,10 @@
 .DESCRIPTION
     -UltimatePerformance
         Menyalin skema bawaan "Ultimate Performance" (bila belum pernah), mengaktifkannya,
-        dan mematikan USB selective suspend di skema itu. Skema daya yang sudah ada tidak
+        dan mematikan penghematan daya USB di skema itu: USB selective suspend dan USB 3
+        Link Power Management (supaya controller, mouse, dan headset USB tidak tertidur
+        atau putus-sambung). Pengaturan USB yang tidak ada di PC itu dilewati dengan
+        pesan. Skema daya yang sudah ada tidak
         diubah atau dihapus, jadi bisa dipilih lagi di Control Panel > Power Options.
         GUID skema TGOS dan skema sebelumnya dicatat di folder data TGOS.
 
@@ -44,6 +47,7 @@ $ErrorActionPreference = 'Stop'
 $UltimateTemplate = 'e9a42b02-d5df-448d-aa00-03f14749eb61'
 $UsbSubgroup = '2a737441-1930-4402-8d77-b2bebba308a3'
 $UsbSelectiveSuspend = '48e6b7a6-50f5-4782-a5d4-53bb8f07e226'
+$UsbLinkPowerManagement = 'd4e98f31-5ffe-4ce1-be31-1b38b384c009'
 $ProcessorSubgroup = '54533251-82be-4824-96c1-47b60b740d00'
 # "Processor performance core parking min cores", kelas core 0 dan 1.
 $CoreParkingSettings = @('0cc5b647-c1df-4637-891a-dec35c318583', '0cc5b647-c1df-4637-891a-dec35c318584')
@@ -107,8 +111,19 @@ if ($UltimatePerformance) {
             }
         }
 
-        foreach ($index in @('/setacvalueindex', '/setdcvalueindex')) {
-            Invoke-PowerCfg @($index, $planGuid, $UsbSubgroup, $UsbSelectiveSuspend, '0') | Out-Null
+        # 0 = Disabled (selective suspend) / Off (link power management).
+        foreach ($usbSetting in @($UsbSelectiveSuspend, $UsbLinkPowerManagement)) {
+            try {
+                # USB 3 Link Power Management disembunyikan di banyak PC; dibuat terlihat
+                # supaya nilainya bisa diperiksa (dan tampil di Advanced power settings).
+                try { Invoke-PowerCfg @('/attributes', $UsbSubgroup, $usbSetting, '-ATTRIB_HIDE') | Out-Null } catch { }
+                foreach ($index in @('/setacvalueindex', '/setdcvalueindex')) {
+                    Invoke-PowerCfg @($index, $planGuid, $UsbSubgroup, $usbSetting, '0') | Out-Null
+                }
+            }
+            catch {
+                Write-Output ("TGOS: USB power setting {0} is not available on this PC; skipped" -f $usbSetting)
+            }
         }
         Invoke-PowerCfg @('/setactive', $planGuid) | Out-Null
         Set-Content -LiteralPath $planFile -Value $planGuid -Encoding ASCII

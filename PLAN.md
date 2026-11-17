@@ -370,32 +370,50 @@ Batas dari Wizard: satu halaman maksimal 4 opsi; 3 bila halaman punya `TopLine` 
 `BottomLine`; 2 bila punya keduanya. Default checkbox lewat `IsChecked`, default radio
 lewat `DefaultOption`. Kolom "Nama opsi" dipakai di filter `option:` pada YAML.
 
-Susunan `1.0.0` (✔ = bawaan tercentang):
+Susunan `1.0.0` (revisi kedua; ✔ = bawaan tercentang):
 
 | # | Halaman | Pilihan | Nama opsi | Default |
 |---|---|---|---|---|
 | 1 | Komponen (`CheckboxPage`) | Remove Copilot and Widgets | `remove-ai-widgets` | ✔ |
 | | | Remove OneDrive | `remove-onedrive` | ✔ |
-| | | Remove Xbox app and Game Bar | `remove-xbox` | ✘ |
+| | | Remove Xbox app and turn Game Bar off | `remove-xbox` | ✘ |
 | | | Remove Microsoft Store (hard to undo) | `remove-store` | ✘ |
 | 2 | Browser (`RadioImagePage`) | Brave | `browser-brave` | bawaan |
 | | | Chrome | `browser-chrome` | |
 | | | Firefox | `browser-firefox` | |
 | | | None | (tidak mengirim opsi) | |
 | 3 | Software (`CheckboxPage`) | Install 7-Zip | `install-7zip` | ✔ |
-| | | Install game runtimes (VC++, DirectX) | `install-runtimes` | ✔ |
+| | | Install game runtimes (VC++, DirectX, XNA) | `install-runtimes` | ✔ |
+| | | Install .NET for older games and tools | `install-dotnet` | ✔ |
 | | | Remove Microsoft Edge | `remove-edge` | ✘ |
-| 4 | Daya (`CheckboxPage`) | Ultimate Performance plan (not for laptops) | `disable-power-saving` | ✔ |
+| 4 | Launcher game (`CheckboxPage`) | Steam | `install-steam` | ✘ |
+| | | Epic Games Launcher | `install-epic` | ✘ |
+| | | EA app | `install-ea` | ✘ |
+| | | Ubisoft Connect | `install-ubisoft` | ✘ |
+| 5 | Aplikasi (`CheckboxPage`, per pengguna) | Discord | `install-discord` | ✘ |
+| | | Spotify | `install-spotify` | ✘ |
+| 6 | Daya (`CheckboxPage`) | Ultimate Performance plan (not for laptops) | `disable-power-saving` | ✔ |
 | | | Disable CPU core parking (not for laptops) | `disable-core-parking` | ✔ |
 | | | Disable hibernation and Fast Startup | `disable-hibernation` | ✔ |
 | | | Disable search indexing | `disable-indexing` | ✔ |
-| 5 | Sistem (`CheckboxPage`) | Disable Core Isolation (VBS) | `disable-vbs` | ✔ |
+| 7 | Sistem (`CheckboxPage`) | Disable Core Isolation (VBS) | `disable-vbs` | ✔ |
 | | | Disable animations | `disable-animations` | ✔ |
 | | | Trim extra services (printing, discovery) | `trim-services` | ✘ |
-| 6 | Tampilan (`CheckboxPage`) | Classic right-click menu | `classic-context-menu` | ✔ |
+| | | Block background apps (Store apps) | `block-background-apps` | ✔ |
+| 8 | Tampilan (`CheckboxPage`) | Classic right-click menu | `classic-context-menu` | ✔ |
 | | | Taskbar icons on the left | `taskbar-left` | ✘ |
-| 7 | Mitigasi CPU (`RadioPage`, wajib) | Keep default / Disable | `mitigations-default` / `mitigations-disable` | default |
-| 8 | Update Windows (`RadioPage`, wajib) | Manual / Automatic | `updates-manual` / `updates-default` | manual |
+| | | Add End task to the taskbar menu | `taskbar-end-task` | ✔ |
+| | | Skip the lock screen (sign-in stays) | `skip-lock-screen` | ✘ |
+| 9 | Bersih-bersih (`CheckboxPage`) | Deep clean at the end | `deep-clean` | ✔ |
+| | | Deep clean+: Windows.old and ResetBase | `deep-clean-plus` | ✘ |
+| | | Block driver updates from Windows Update | `block-driver-updates` | ✘ |
+| 10 | Mitigasi CPU (`RadioPage`, wajib) | Keep default / Disable | `mitigations-default` / `mitigations-disable` | default |
+| 11 | Update Windows (`RadioPage`, wajib) | Pause / Manual / Automatic | `updates-pause` / `updates-manual` / `updates-default` | pause |
+
+Keputusan pemilik untuk revisi kedua: Pause jadi bawaan dan ditahan sampai dilanjutkan
+sendiri (~10 tahun); Game Bar dimatikan total hanya bila opsi Xbox dicentang; semua
+launcher dan aplikasi bawaan tidak tercentang; lewati layar kunci bawaan tidak
+tercentang; Deep clean+ dipisah dari Deep clean karena tidak bisa dibatalkan.
 
 Halaman browser memakai `RadioImagePage`: satu gambar PNG setinggi 128 piksel per opsi
 di folder `Images/` playbook, di atas gradasi dua warna, dan opsi `None="true"` yang tidak
@@ -420,7 +438,8 @@ memblokir jaringan) dan Windows Defender (tidak disentuh playbook; hanya lewat T
 >
 > - Tugas terjadwal dinonaktifkan lewat skrip, bukan aksi `!scheduledTask` (lihat 2.4).
 > - Layanan Xbox dan geolokasi (`lfsvc`) tidak disentuh.
-> - Policy `AllowGameDVR` tidak dipakai, supaya perekaman tetap bisa dinyalakan pengguna.
+> - Policy `AllowGameDVR` hanya dipakai bersama opsi `remove-xbox` (Game Bar sudah dihapus);
+>   tanpa opsi itu perekaman tetap bisa dinyalakan pengguna.
 > - Menu klik kanan klasik tidak dikerjakan. Taskbar baru diatur di `0.9.1`
 >   (lihat [8.8](#88-antarmuka-80-interfaceyml)); tombol Widgets tidak ditulis karena
 >   nilainya dilindungi Windows.
@@ -754,6 +773,68 @@ bila playbook terverifikasi AME. Saat memuat `.apbx`, ikon TGOS tampil (uji Fase
 - Wizard meminta restart.
 
 ---
+
+### 8.10 Revisi kedua `1.0.0`: update, launcher, bersih-bersih
+
+**Pause Windows Update** (`updates-pause`, bawaan). Nilai yang ditulis halaman Settings
+sendiri saat tombol pause diklik, di `HKLM\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings`:
+`FlightSettingsMaxPauseDays` (batas pause, 3650 hari) dan pasangan
+`Pause{Feature,Quality}Updates{Start,End}Time`, `PauseUpdates{Start,Expiry}Time`. Nilai ini
+tidak didokumentasikan resmi Microsoft dan satu laporan menyebut tidak jalan di LTSC 24H2,
+jadi cadangannya `NoAutoUpdate=1`: bila pause diabaikan, hasilnya tetap Manual. Di runner
+uji, layanan Windows Update belum mencatat status pause (`PausedQualityStatus = 0`) tepat
+setelah nilainya ditulis; bukti akhirnya di Settings VM. Definisi Defender tetap bisa
+diperbarui saat pause (uji otomatis: `MpCmdRun -SignatureUpdate` keluar 0).
+
+**Game Bar** (bersama `remove-xbox`): `UseNexusForGameBarEnabled=0`,
+`GamepadNexusChordEnabled=0` (nama nilai kedua dari satu sumber forum, dicek di VM),
+`AllowGameDVR=0`, penangan pengganti `systray.exe` untuk `ms-gamebar`,
+`ms-gamebarservices`, `ms-gamingoverlay`, dan Win+G diblokir lewat `DisabledHotkeys`
+Explorer (huruf `G` ditambahkan ke isi yang sudah ada; dicabut lagi oleh Toolbox *Turn
+ON*). Riwayat temuan di uji otomatis Windows 11 25H2: penangan pengganti saja tidak cukup
+("Pick an app" tetap muncul); `AssocQueryString` menjawab "no application is associated"
+untuk `ms-gamebar`, sama dengan protokol yang tidak ada, sedangkan protokol buatan sendiri
+dengan penangan yang sama bekerja. Penyebabnya dua catatan AppX yang masih menunjuk ke
+paket Game Bar yang sudah dihapus: katalog `PackageRepository\Extensions\windows.protocol`
+dan cache `AppModel\StateRepository\Cache\Protocol`. Menghapus entri katalog sudah dicoba
+dan tidak mengubah jawaban Windows; cache StateRepository adalah data internal layanan
+Windows yang bisa dibangun ulang dari databasenya, jadi tidak disentuh. Karena itu
+pemicunya (Win+G) yang dimatikan. Di Server 2025 (tanpa Game Bar sejak awal) penangan
+pengganti langsung dipakai Windows.
+
+**Framework AppX yang dibuang Windows.** Dengan *Remove Microsoft Store*, Store adalah
+pemakai terakhir .NET Native 2.2 di Windows Server, dan Windows kadang langsung membuang
+framework itu (log AppX: operasi Remove biasa). Itu bukan kerusakan: tidak ada aplikasi
+tersisa yang memakainya, dan aplikasi yang dipasang lagi membawa framework-nya. Potret
+sistem sekarang mencatat dependensi tiap aplikasi, dan `compare-snapshots.py` hanya
+menandai BAHAYA bila framework hilang padahal masih ada aplikasi yang memakainya (atau
+datanya tidak ada).
+
+**Launcher dan aplikasi.** Semua dari alamat "latest" resmi, tanda tangan diperiksa
+(Valve, Epic Games, Electronic Arts, Ubisoft, Discord), dipasang senyap. Program yang
+dibuka installer sesudah pasang (EA app, Discord) ditutup otomatis. Discord dipasang per
+pengguna, jadi dijalankan sebagai pengguna yang login, bukan TrustedInstaller.
+Spotify: installer web (`SpotifySetup.exe /silent`) tetap menampilkan jendela "Spotify
+Installer" dan macet sampai batas waktu di uji otomatis. TGOS memakai installer lengkap
+resmi `download.scdn.co/SpotifyFullSetup.exe` (`/silent`, tanda tangan Spotify), yang
+terbukti senyap. Installer Spotify menolak hak admin, jadi dijalankan dengan token
+pengguna biasa (`runas /trustlevel:0x20000`), batas waktu 5 menit. Catatan jujur: versi
+installer lengkap tertinggal dari versi web (uji: 1.2.53); Spotify memperbarui dirinya
+sendiri saat pertama dibuka.
+
+**Pemantau jendela di uji otomatis.** Selama seluruh playbook, proses terpisah mencatat
+setiap jendela baru yang terlihat beserta ukurannya; kontrolnya jendela Notepad. Installer
+WiX Burn (VC++ 2012/2013), installer EA app, dan updater Brave membuat jendela pesan tanpa
+judul yang secara teknis "visible" tetapi tidak tampil; yang dihitung pelanggaran hanya
+jendela berjudul atau berukuran nyata. Jendela Explorer "Personalized Settings" (Active
+Setup saat Explorer dijalankan ulang) dicatat sebagai bagian shell.
+
+**Deep clean** (`Invoke-DeepClean.ps1`). Isi dan pengamannya ada di kepala skrip. Prinsip:
+hanya sampah yang dibuat ulang Windows sendiri; Prefetch, Recycle Bin, Event Log, dan data
+pengguna tidak disentuh; folder dihapus dengan `rd /s /q` yang tidak mengikuti junction
+(Windows.old berisi junction yang bisa menunjuk ke folder pengguna sekarang); folder
+playbook yang sedang berjalan dan folder AME dilewati. Deep clean+ (`Windows.old`,
+`/ResetBase`) dipisah karena tidak bisa dibatalkan.
 
 ## 9. Yang sengaja tidak dilakukan
 

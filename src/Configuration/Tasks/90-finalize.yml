@@ -38,6 +38,13 @@ actions:
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "browser-firefox"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'browser-firefox' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "install-7zip"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'install-7zip' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "install-runtimes"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'install-runtimes' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "install-dotnet"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'install-dotnet' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "install-steam"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'install-steam' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "install-epic"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'install-epic' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "install-ea"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'install-ea' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "install-ubisoft"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'install-ubisoft' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "install-discord"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'install-discord' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "install-spotify"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'install-spotify' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "remove-edge"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'remove-edge' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "disable-power-saving"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'disable-power-saving' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "disable-core-parking"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'disable-core-parking' }
@@ -46,12 +53,44 @@ actions:
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "disable-vbs"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'disable-vbs' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "disable-animations"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'disable-animations' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "trim-services"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'trim-services' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "block-background-apps"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'block-background-apps' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "classic-context-menu"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'classic-context-menu' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "taskbar-left"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'taskbar-left' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "taskbar-end-task"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'taskbar-end-task' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "skip-lock-screen"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'skip-lock-screen' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "deep-clean"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'deep-clean' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "deep-clean-plus"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'deep-clean-plus' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "block-driver-updates"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'block-driver-updates' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "mitigations-default"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'mitigations-default' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "mitigations-disable"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'mitigations-disable' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "updates-pause"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'updates-pause' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "updates-manual"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'updates-manual' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "updates-default"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'updates-default' }
+
+  # Opsi Deep clean / Deep clean+: bersih-bersih disk sesudah semua program terpasang,
+  # sebelum Explorer dijalankan ulang. Rinciannya di Scripts\Invoke-DeepClean.ps1;
+  # hasilnya di %ProgramData%\TGOS\deep-clean.txt. Bila keduanya dipilih, langkah
+  # pertama melihat catatan opsi di atas dan menyerahkan semuanya ke langkah kedua.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Invoke-DeepClean.ps1" -Playbook'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 30
+    showOutput: true
+    showError: true
+    option: 'deep-clean'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Invoke-DeepClean.ps1" -Playbook -Plus'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 40
+    showOutput: true
+    showError: true
+    option: 'deep-clean-plus'
 
   # Menyusun ulang pin taskbar dan Start menjadi set TGOS. Dijalankan setelah opsi
   # tercatat (skrip membaca opsi "remove-store" dari install-info.txt) dan setelah
