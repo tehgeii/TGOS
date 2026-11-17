@@ -5,6 +5,49 @@ Semua perubahan penting pada TGOS dicatat di sini. Nomor versi mengikuti roadmap
 
 ## 1.0.0 — pilihan browser, opsi baru, dan perbaikan dari uji 0.9.1
 
+**Revisi kedua setelah uji VM revisi pertama** (nomor versi tetap). Revisi pertama diuji
+pemilik di VMware (Windows 11 Pro 26H2, semua opsi, Brave): setelah restart **226 PASS,
+0 FAIL, 0 WARN**, instalasi ~10 menit; dibanding Windows bersih RAM −35%, thread −37%,
+proses −25%, layanan berjalan −22%. Permintaan pemilik dan tambahan di revisi ini:
+
+- **Windows Update tiga pilihan: Pause (bawaan), Manual, Automatic.** Pause memakai fitur
+  pause bawaan Settings, ditahan 10 tahun sampai pengguna menekan "Resume updates"; sebagai
+  cadangan update otomatis juga dimatikan, jadi bila Windows mengabaikan pause hasilnya
+  tetap Manual. Tombol Toolbox *Windows Updates - Pause / Resume*.
+- **Game Bar mati total bersama opsi Xbox**: tombol Xbox di controller dan View + Menu
+  tidak membuka Game Bar, policy perekaman dimatikan, dan protokol `ms-gamebar` diberi
+  penangan pengganti supaya Win+G tidak memunculkan jendela "Pick an app" (jendela itu
+  tertangkap uji otomatis Windows 11). Game Mode tetap aktif.
+- **Halaman launcher game**: Steam, Epic Games Launcher, EA app, Ubisoft Connect; dan
+  **halaman aplikasi** per pengguna: Discord dan Spotify. Semua bawaan tidak tercentang,
+  versi terbaru dari alamat resmi, tanda tangan diperiksa, dipasang senyap; jendela yang
+  dibuka installer sesudah pasang ditutup otomatis.
+- **.NET untuk game lama** (bawaan tercentang): .NET Framework 3.5 dan .NET Desktop
+  Runtime 10 (x64 dan x86).
+- **Runtime game lengkap**: ditambah Visual C++ 2005, 2008, 2010, 2012, 2013 (x86 dan
+  x64) dan XNA Framework 4.0, semua dari Microsoft.
+- **Opsi baru**: *Block background apps* (✔), *End task di menu taskbar* (✔), *Skip the
+  lock screen* (password/PIN tetap diminta), *Block driver updates from Windows Update*,
+  *Deep clean* (✔) dan *Deep clean+*.
+- **Deep clean** di akhir instalasi: file sementara, cache Windows Update dan Delivery
+  Optimization, laporan error, file dump, `DISM /StartComponentCleanup`, Reserved
+  Storage dimatikan. **Deep clean+** (tidak bisa dibatalkan): `Windows.old` dan sisa
+  upgrade, `/ResetBase`. Folder dihapus dengan `rd /s /q`, yang tidak mengikuti junction.
+  Tombol Toolbox *Deep Clean*.
+- **Layar kunci dan login bertema TGO** (wallpaper yang sama).
+- **USB**: selain USB selective suspend (sudah sejak 1.0.0), USB 3 Link Power Management
+  dimatikan di skema TGOS Ultimate.
+- **TGOS Toolbox ditata ulang**: tombol ON/OFF di subfolder *Turn ON or OFF* (dibuat
+  `tools/make-toolbox.py` dan diperiksa uji diri), satu menu *Install Software*, tombol
+  *Deep Clean*, dan fitur baru: Windows Updates, Driver Updates, Background Apps, Lock
+  Screen, Xbox Game Bar, TGO Login Screen, Reserved Storage.
+- **Uji otomatis**: pemantau jendela selama seluruh playbook (dengan kontrol Notepad),
+  uji popup `ms-gamebar:`, uji tombol `.cmd` Toolbox sungguhan termasuk menu, bolak-balik
+  semua fitur Toolbox baru, uji Deep clean; validator menolak `-Feature`/`-Item` yang
+  tidak ada di skripnya.
+
+Revisi pertama (setelah uji VM build pertama):
+
 **Direvisi setelah uji VM build pertama 1.0.0** (nomor versi tetap). Build pertama diuji
 pemilik di VMware (Windows 11 Pro 26H2, semua opsi, Chrome): Copilot, kotak abu-abu
 taskbar, Start, dan Edge sudah beres; RAM −35%, thread −39%, proses −24%. Pemeriksaan

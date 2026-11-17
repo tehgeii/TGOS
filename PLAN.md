@@ -438,7 +438,8 @@ memblokir jaringan) dan Windows Defender (tidak disentuh playbook; hanya lewat T
 >
 > - Tugas terjadwal dinonaktifkan lewat skrip, bukan aksi `!scheduledTask` (lihat 2.4).
 > - Layanan Xbox dan geolokasi (`lfsvc`) tidak disentuh.
-> - Policy `AllowGameDVR` tidak dipakai, supaya perekaman tetap bisa dinyalakan pengguna.
+> - Policy `AllowGameDVR` hanya dipakai bersama opsi `remove-xbox` (Game Bar sudah dihapus);
+>   tanpa opsi itu perekaman tetap bisa dinyalakan pengguna.
 > - Menu klik kanan klasik tidak dikerjakan. Taskbar baru diatur di `0.9.1`
 >   (lihat [8.8](#88-antarmuka-80-interfaceyml)); tombol Widgets tidak ditulis karena
 >   nilainya dilindungi Windows.
@@ -772,6 +773,51 @@ bila playbook terverifikasi AME. Saat memuat `.apbx`, ikon TGOS tampil (uji Fase
 - Wizard meminta restart.
 
 ---
+
+### 8.10 Revisi kedua `1.0.0`: update, launcher, bersih-bersih
+
+**Pause Windows Update** (`updates-pause`, bawaan). Nilai yang ditulis halaman Settings
+sendiri saat tombol pause diklik, di `HKLM\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings`:
+`FlightSettingsMaxPauseDays` (batas pause, 3650 hari) dan pasangan
+`Pause{Feature,Quality}Updates{Start,End}Time`, `PauseUpdates{Start,Expiry}Time`. Nilai ini
+tidak didokumentasikan resmi Microsoft dan satu laporan menyebut tidak jalan di LTSC 24H2,
+jadi cadangannya `NoAutoUpdate=1`: bila pause diabaikan, hasilnya tetap Manual. Di runner
+uji, layanan Windows Update belum mencatat status pause (`PausedQualityStatus = 0`) tepat
+setelah nilainya ditulis; bukti akhirnya di Settings VM. Definisi Defender tetap bisa
+diperbarui saat pause (uji otomatis: `MpCmdRun -SignatureUpdate` keluar 0).
+
+**Game Bar** (bersama `remove-xbox`): `UseNexusForGameBarEnabled=0`,
+`GamepadNexusChordEnabled=0` (nama nilai kedua dari satu sumber forum, dicek di VM),
+`AllowGameDVR=0`, dan penangan pengganti `systray.exe` untuk `ms-gamebar`,
+`ms-gamebarservices`, `ms-gamingoverlay`. Di Windows 11 penangan di HKLM saja tidak cukup:
+uji otomatis menangkap jendela "Pick an app". Karena itu penangan juga ditulis per
+pengguna, dan pilihan aplikasi lama (`UrlAssociations\<protokol>`) dicabut.
+
+**Launcher dan aplikasi.** Semua dari alamat "latest" resmi, tanda tangan diperiksa
+(Valve, Epic Games, Electronic Arts, Ubisoft, Discord), dipasang senyap. Program yang
+dibuka installer sesudah pasang (EA app, Discord) ditutup otomatis. Discord dipasang per
+pengguna, jadi dijalankan sebagai pengguna yang login, bukan TrustedInstaller.
+Spotify: installer web (`SpotifySetup.exe /silent`) tetap menampilkan jendela "Spotify
+Installer" dan macet sampai batas waktu di uji otomatis. TGOS memakai installer lengkap
+resmi `download.scdn.co/SpotifyFullSetup.exe` (`/silent`, tanda tangan Spotify), yang
+terbukti senyap. Installer Spotify menolak hak admin, jadi dijalankan dengan token
+pengguna biasa (`runas /trustlevel:0x20000`), batas waktu 5 menit. Catatan jujur: versi
+installer lengkap tertinggal dari versi web (uji: 1.2.53); Spotify memperbarui dirinya
+sendiri saat pertama dibuka.
+
+**Pemantau jendela di uji otomatis.** Selama seluruh playbook, proses terpisah mencatat
+setiap jendela baru yang terlihat beserta ukurannya; kontrolnya jendela Notepad. Installer
+WiX Burn (VC++ 2012/2013), installer EA app, dan updater Brave membuat jendela pesan tanpa
+judul yang secara teknis "visible" tetapi tidak tampil; yang dihitung pelanggaran hanya
+jendela berjudul atau berukuran nyata. Jendela Explorer "Personalized Settings" (Active
+Setup saat Explorer dijalankan ulang) dicatat sebagai bagian shell.
+
+**Deep clean** (`Invoke-DeepClean.ps1`). Isi dan pengamannya ada di kepala skrip. Prinsip:
+hanya sampah yang dibuat ulang Windows sendiri; Prefetch, Recycle Bin, Event Log, dan data
+pengguna tidak disentuh; folder dihapus dengan `rd /s /q` yang tidak mengikuti junction
+(Windows.old berisi junction yang bisa menunjuk ke folder pengguna sekarang); folder
+playbook yang sedang berjalan dan folder AME dilewati. Deep clean+ (`Windows.old`,
+`/ResetBase`) dipisah karena tidak bisa dibatalkan.
 
 ## 9. Yang sengaja tidak dilakukan
 

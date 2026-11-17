@@ -477,7 +477,17 @@ public static extern bool GetWindowRect(System.IntPtr hWnd, out Rect rect);
                 $known[$process.Id] = $true
                 $rect = New-Object TgosCi.Win+Rect
                 $null = [TgosCi.Win]::GetWindowRect($process.MainWindowHandle, [ref]$rect)
-                Add-Content -LiteralPath $Path -Value ('{0} | {1} | {2}x{3}' -f $process.ProcessName, $process.MainWindowTitle, ($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top)) -Encoding ASCII
+                # Jam dan proses induk, untuk mencocokkan jendela dengan langkah playbook.
+                $parent = '?'
+                $commandLine = ''
+                try {
+                    $info = Get-CimInstance -ClassName Win32_Process -Filter ('ProcessId={0}' -f $process.Id) -ErrorAction Stop
+                    $commandLine = [string]$info.CommandLine
+                    if ($commandLine.Length -gt 160) { $commandLine = $commandLine.Substring(0, 160) }
+                    $parent = (Get-Process -Id $info.ParentProcessId -ErrorAction Stop).ProcessName
+                }
+                catch { }
+                Add-Content -LiteralPath $Path -Value ('{0} | {1} | {2}x{3} | {4:HH:mm:ss} parent {5} | {6}' -f $process.ProcessName, $process.MainWindowTitle, ($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top), (Get-Date), $parent, $commandLine) -Encoding ASCII
             }
         }
         Start-Sleep -Milliseconds 300
@@ -718,21 +728,111 @@ if ($plannedOptions -contains 'remove-xbox') {
     $overlay = @(Get-AppxPackage -AllUsers -Name '*XboxGamingOverlay*' -ErrorAction SilentlyContinue | ForEach-Object { $_.PackageFullName })
     Write-Host ('   Game Bar packages left: {0}' -f $(if ($overlay.Count) { $overlay -join ', ' } else { 'none' }))
     if (Test-WindowControl) {
-        $before = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | ForEach-Object { $_.Id })
-        foreach ($uri in @('ms-gamebar:', 'ms-gamingoverlay:')) {
-            try { Start-Process -FilePath $uri } catch { Write-Host ('   {0} could not be started: {1}' -f $uri, (Format-LogLine $_.Exception.Message)) }
+        # Diagnosa: bagaimana shell Windows sendiri menerjemahkan protokol itu
+        # (AssocQueryString, sama dengan yang dipakai ShellExecute).
+        Add-Type -Namespace TgosCi -Name Assoc -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("shlwapi.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+public static extern int AssocQueryString(int flags, int str, string assoc, string extra, System.Text.StringBuilder output, ref uint size);
+'@
+        function Get-ProtocolAssoc {
+            param([string]$Protocol, [int]$What)
+            $size = [uint32]1024
+            $buffer = New-Object System.Text.StringBuilder 1024
+            # 0x1000 = ASSOCF_IS_PROTOCOL
+            $hr = [TgosCi.Assoc]::AssocQueryString(0x1000, $What, $Protocol, [NullString]::Value, $buffer, [ref]$size)
+            if ($hr -ne 0) { return ('(0x{0:X8})' -f $hr) }
+            return $buffer.ToString()
+        }
+        # Membuka satu protokol dan mencatat setiap jendela baru: nama, judul, induk, dan
+        # baris perintahnya (memperlihatkan jalur mana yang memunculkan jendela itu).
+        function Test-ProtocolPopup {
+            param([string]$Uri)
+            $before = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | ForEach-Object { $_.Id })
+            try { Start-Process -FilePath $Uri } catch { Write-Host ('   {0} could not be started: {1}' -f $Uri, (Format-LogLine $_.Exception.Message)) }
+            $seen = @{}
+            for ($attempt = 0; $attempt -lt 12; $attempt++) {
+                Start-Sleep -Milliseconds 500
+                foreach ($process in @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $before -notcontains $_.Id })) {
+                    if ($seen.ContainsKey($process.Id)) { continue }
+                    $parent = '?'
+                    $commandLine = ''
+                    try {
+                        $info = Get-CimInstance -ClassName Win32_Process -Filter ('ProcessId={0}' -f $process.Id) -ErrorAction Stop
+                        $commandLine = [string]$info.CommandLine
+                        $parent = (Get-Process -Id $info.ParentProcessId -ErrorAction Stop).ProcessName
+                    }
+                    catch { }
+                    $seen[$process.Id] = '{0} "{1}" parent {2} | {3}' -f $process.ProcessName, $process.MainWindowTitle, $parent, $commandLine
+                }
+            }
+            Get-Process -Name 'OpenWith' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 500
+            return @($seen.Values)
+        }
+        foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
+            # 1 = ASSOCSTR_COMMAND, 20 = ASSOCSTR_PROGID, 21 = ASSOCSTR_APPID
+            Write-Host ('   shell resolves {0}: command {1}, progid {2}, appid {3}' -f $protocol, (Get-ProtocolAssoc $protocol 1), (Get-ProtocolAssoc $protocol 20), (Get-ProtocolAssoc $protocol 21))
         }
         $popups = @()
-        for ($attempt = 0; $attempt -lt 16; $attempt++) {
-            Start-Sleep -Milliseconds 500
-            $popups += @(Get-Process -ErrorAction SilentlyContinue |
-                Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $before -notcontains $_.Id } |
-                ForEach-Object { '{0} "{1}"' -f $_.ProcessName, $_.MainWindowTitle })
+        foreach ($uri in @('ms-gamebar:', 'ms-gamingoverlay:')) {
+            $found = @(Test-ProtocolPopup $uri)
+            $found | ForEach-Object { Write-Host ('   visible after {0} {1}' -f $uri, (Format-LogLine $_)) }
+            # wsl.exe: jendela konsol yang muncul berkala di runner Windows 11 (juga saat
+            # playbook belum menyentuh apa pun); bukan hasil membuka protokol Game Bar.
+            $popups += @($found | Where-Object { $_ -notmatch '^wsl ' })
         }
-        $popups = @($popups | Select-Object -Unique)
         $null = Assert-That ($popups.Count -eq 0) 'gamebar: opening ms-gamebar: and ms-gamingoverlay: shows no window (control: the Notepad window was detected)'
-        $popups | ForEach-Object { Write-Host ('   visible: {0}' -f $_) }
-        Get-Process -Name 'OpenWith' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        if ($popups.Count) {
+            # Diagnosa lanjutan (hanya informasi; hasil di atas yang menentukan).
+            foreach ($key in @(
+                    'HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\ms-gamebar',
+                    'HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\ms-gamingoverlay',
+                    'HKCR\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\ms-gamebar',
+                    'HKCR\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\ms-gamingoverlay')) {
+                $lines = @(& reg.exe query $key /s 2>&1 | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() })
+                Write-Host ('   reg {0}: {1} line(s)' -f $key, $lines.Count)
+                $lines | Select-Object -First 8 | ForEach-Object { Write-Host ('     {0}' -f (Format-LogLine $_)) }
+            }
+            $toasts = Get-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts' -ErrorAction SilentlyContinue
+            if ($toasts) { $toasts.GetValueNames() | Where-Object { $_ -match '(?i)gam' } | ForEach-Object { Write-Host ('   association toast: {0}' -f $_) } }
+            $provisioned = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match '(?i)xbox|gaming' } | ForEach-Object { $_.DisplayName })
+            Write-Host ('   provisioned Xbox/gaming packages: {0}' -f $(if ($provisioned.Count) { $provisioned -join ', ' } else { 'none' }))
+            $allGaming = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)xbox|gaming' } | ForEach-Object { $_.Name })
+            Write-Host ('   installed Xbox/gaming packages: {0}' -f $(if ($allGaming.Count) { $allGaming -join ', ' } else { 'none' }))
+
+            # Percobaan (informasi): protokol buatan sendiri dengan penangan yang sama. Bila
+            # ini juga memunculkan jendela, Windows ini bertanya untuk SEMUA protokol lama
+            # tanpa pilihan tersimpan, bukan khusus Game Bar.
+            $probe = 'HKCU:\Software\Classes\tgos-probe'
+            New-Item -Path (Join-Path $probe 'shell\open\command') -Force | Out-Null
+            Set-ItemProperty -LiteralPath $probe -Name '(default)' -Value 'URL:tgos-probe'
+            Set-ItemProperty -LiteralPath $probe -Name 'URL Protocol' -Value ''
+            Set-ItemProperty -LiteralPath (Join-Path $probe 'shell\open\command') -Name '(default)' -Value ('"{0}"' -f $systray)
+            Write-Host ('   experiment tgos-probe: (custom protocol, REG_SZ handler) -> {0}' -f ((@(Test-ProtocolPopup 'tgos-probe:') -join ' ; ') -replace '^$', 'no window'))
+            Remove-Item -LiteralPath $probe -Recurse -Force -ErrorAction SilentlyContinue
+
+            # Percobaan: penangan sebagai REG_SZ dengan jalur lengkap (bukan REG_EXPAND_SZ).
+            foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
+                Set-ItemProperty -LiteralPath ('HKCU:\Software\Classes\{0}\shell\open\command' -f $protocol) -Name '(default)' -Value ('"{0}"' -f $systray) -Type String
+            }
+            foreach ($uri in @('ms-gamebar:', 'ms-gamingoverlay:')) {
+                Write-Host ('   experiment REG_SZ handler, {0} -> {1}' -f $uri, ((@(Test-ProtocolPopup $uri) -join ' ; ') -replace '^$', 'no window'))
+            }
+
+            # Percobaan: policy "Do not show the new application installed notification".
+            $explorerPolicy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer'
+            if (-not (Test-Path -LiteralPath $explorerPolicy)) { New-Item -Path $explorerPolicy -Force | Out-Null }
+            Set-ItemProperty -LiteralPath $explorerPolicy -Name 'NoNewAppAlert' -Value 1 -Type DWord
+            foreach ($uri in @('ms-gamebar:', 'ms-gamingoverlay:')) {
+                Write-Host ('   experiment NoNewAppAlert, {0} -> {1}' -f $uri, ((@(Test-ProtocolPopup $uri) -join ' ; ') -replace '^$', 'no window'))
+            }
+            Remove-ItemProperty -LiteralPath $explorerPolicy -Name 'NoNewAppAlert' -ErrorAction SilentlyContinue
+            foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
+                Write-Host ('   after experiments, shell resolves {0}: command {1}' -f $protocol, (Get-ProtocolAssoc $protocol 1))
+            }
+            Get-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts' -ErrorAction SilentlyContinue |
+                ForEach-Object { $_.GetValueNames() } | Where-Object { $_ -match '(?i)gam|tgos' } | ForEach-Object { Write-Host ('   association toast after: {0}' -f $_) }
+        }
     }
     else {
         Write-Host '   INFO: this runner does not expose windows; the ms-gamebar popup check is inconclusive'
@@ -903,9 +1003,11 @@ $null = Assert-That ($value -eq 1 -and $result.Output -match 'lock screen is now
 $result = Invoke-ToolboxButton -Relative 'Turn ON or OFF\Lock Screen - Turn ON.cmd' -InputLines @('')
 $value = (Get-ItemProperty -LiteralPath $lockKey -ErrorAction SilentlyContinue).NoLockScreen
 $null = Assert-That ($null -eq $value -and $result.Output -match 'lock screen is back') 'toolbox button: "Turn ON or OFF\Lock Screen - Turn ON.cmd" works'
-# Menu: 4 = 7-Zip, Enter untuk "pause", 0 = keluar.
-$result = Invoke-ToolboxButton -Relative 'Install Software.cmd' -InputLines @('4', '', '0')
-$ok = Assert-That ($result.Output -match 'TGOS: 7-Zip installed' -and $result.Output -match 'verified:') 'toolbox button: "Install Software.cmd" menu installs 7-Zip and exits on 0'
+# Menu: 4 = 7-Zip, lalu "x" untuk "pause", lalu 0 = keluar. Dengan input dari file,
+# "pause" hanya memakan SATU karakter (di konsol sungguhan: satu tombol), jadi baris kedua
+# "x0" = tombol untuk pause, lalu "0" untuk menu.
+$result = Invoke-ToolboxButton -Relative 'Install Software.cmd' -InputLines @('4', 'x0')
+$ok = Assert-That ($result.Output -match 'TGOS: 7-Zip installed' -and $result.Output -match 'verified:' -and $result.Output -notmatch 'Unknown number') 'toolbox button: "Install Software.cmd" menu installs 7-Zip and exits on 0'
 if (-not $ok) { $result.Output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 8 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) } }
 $null = Assert-That (-not $result.Errors.Trim()) 'toolbox button: "Install Software.cmd" printed no cmd error'
 if ($result.Errors.Trim()) {
@@ -914,11 +1016,15 @@ if ($result.Errors.Trim()) {
     $debugCopy = Join-Path $toolboxRoot 'menu-debug.cmd'
     (Get-Content -LiteralPath (Join-Path $toolboxRoot 'Install Software.cmd') -Raw).Replace('@echo off', '@echo on') |
         Set-Content -LiteralPath $debugCopy -Encoding ASCII -NoNewline
-    $debug = Invoke-ToolboxButton -Relative 'menu-debug.cmd' -Path $debugCopy -InputLines @('4', '', '0')
+    $debug = Invoke-ToolboxButton -Relative 'menu-debug.cmd' -Path $debugCopy -InputLines @('4', 'x0')
     $debug.Output -split "`r?`n" | Where-Object { $_.Trim() -and $_ -notmatch '^\s*(\| |TGOS:)' } | Select-Object -Last 30 | ForEach-Object { Write-Host ('   debug | ' + (Format-LogLine $_)) }
     Write-Host ('   debug stderr: {0}' -f (Format-LogLine $debug.Errors))
     Remove-Item -LiteralPath $debugCopy -Force -ErrorAction SilentlyContinue
 }
+# Ketikan yang bukan nomor (tanda kutip dan &) tidak boleh merusak menu.
+$result = Invoke-ToolboxButton -Relative 'Install Software.cmd' -InputLines @('"&x')
+$null = Assert-That ($result.Output -match 'Unknown number' -and -not $result.Errors.Trim()) 'toolbox button: "Install Software.cmd" handles a bad entry without a cmd error'
+if ($result.Errors.Trim()) { Write-Host ('   stderr: {0}' -f (Format-LogLine $result.Errors)) }
 
 # =======================================================================================
 Write-Section 'Report collector'

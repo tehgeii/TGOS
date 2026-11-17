@@ -33,23 +33,28 @@ echo.
 set "PICK="
 set /p "PICK=Type a number, then Enter / Ketik nomor lalu Enter: "
 if not defined PICK exit /b 0
-if "%PICK%"=="0" exit /b 0
-if "%PICK%"=="1" call :install brave
-if "%PICK%"=="2" call :install chrome
-if "%PICK%"=="3" call :install firefox
-if "%PICK%"=="4" call :install 7zip
-if "%PICK%"=="5" call :install vcredist
-if "%PICK%"=="5" call :install vcredist-legacy
-if "%PICK%"=="5" call :install xna
-if "%PICK%"=="5" call :install directx
-if "%PICK%"=="6" call :install netfx3
-if "%PICK%"=="6" call :install dotnet
-if "%PICK%"=="7" call :install steam
-if "%PICK%"=="8" call :install epic
-if "%PICK%"=="9" call :install ea
-if "%PICK%"=="10" call :install ubisoft
-if "%PICK%"=="11" call :install discord
-if "%PICK%"=="12" call :install spotify
+set "N="
+setlocal EnableDelayedExpansion
+for %%n in (0 1 2 3 4 5 6 7 8 9 10 11 12) do if "!PICK!"=="%%n" set "N=%%n"
+endlocal & set "N=%N%"
+if "%N%"=="0" exit /b 0
+if not defined N echo Unknown number / Nomor tidak dikenal.
+if "%N%"=="1" call :install brave
+if "%N%"=="2" call :install chrome
+if "%N%"=="3" call :install firefox
+if "%N%"=="4" call :install 7zip
+if "%N%"=="5" call :install vcredist
+if "%N%"=="5" call :install vcredist-legacy
+if "%N%"=="5" call :install xna
+if "%N%"=="5" call :install directx
+if "%N%"=="6" call :install netfx3
+if "%N%"=="6" call :install dotnet
+if "%N%"=="7" call :install steam
+if "%N%"=="8" call :install epic
+if "%N%"=="9" call :install ea
+if "%N%"=="10" call :install ubisoft
+if "%N%"=="11" call :install discord
+if "%N%"=="12" call :install spotify
 echo.
 pause
 goto menu

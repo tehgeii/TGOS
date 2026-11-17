@@ -123,6 +123,19 @@ Laporan otomatis tidak bisa menilai hal berikut. Cukup jawab ya/tidak:
 - [ ] Halaman browser di Wizard tampil benar: logo asli Brave, Chrome, Firefox di atas
       kotak gelap, dan None.
 - [ ] Ikon TGOS Toolbox di Desktop berada di deretan ikon kiri, bukan di tengah.
+- [ ] Settings > Windows Update menampilkan "Updates paused until ..." (pilihan Pause),
+      dan masih begitu setelah restart. Tombol "Resume updates" ada.
+- [ ] Windows Security > Virus & threat protection > Protection updates > "Check for
+      updates" tetap bisa memperbarui definisi saat update Windows di-pause.
+- [ ] Settings > Gaming > Game Bar: kedua toggle (controller dan View + Menu) Off; Win+G
+      tidak memunculkan jendela apa pun (opsi Xbox).
+- [ ] Gambar layar kunci dan latar layar login bertema TGO.
+- [ ] Bila "Skip the lock screen" dicentang: setelah restart langsung ke kotak
+      password/PIN.
+- [ ] Klik kanan aplikasi di taskbar: ada "End task".
+- [ ] Launcher dan aplikasi yang dicentang terpasang dan terbuka normal; tidak ada
+      jendelanya yang muncul selama instalasi.
+- [ ] `%ProgramData%\TGOS\deep-clean.txt` berisi ruang yang dibebaskan.
 - [ ] Taskbar: tidak ada kotak abu-abu; pencarian berupa ikon; tombol Task View tidak
       ada; yang tersisa Start, Search, File Explorer, browser pilihan, Store.
 - [ ] Start menu: pin berisi File Explorer, Settings, Store, browser, Notepad,
@@ -302,7 +315,8 @@ Semuanya ditangani di `1.0.0`.
 | 1. Uji bentuk | 17 Nov 2026 | Lolos | 91 pemeriksaan di `tools/selftest.py` |
 | 2. Mesin AME | 17 Nov 2026 | Lolos di kelima job | Rincian di bawah |
 | 3. VM pemilik, build pertama | 17 Nov 2026 | 225 PASS, 1 FAIL; setelah restart 224 PASS, 2 FAIL | Rincian di bawah; dua FAIL itu diperbaiki di revisi |
-| 3. VM pemilik, revisi | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
+| 3. VM pemilik, revisi pertama | 17 Nov 2026 | Setelah restart 226 PASS, 0 FAIL, 0 WARN | Rincian di bawah |
+| 3. VM pemilik, revisi kedua | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
 | Hardware asli | | Belum | Benchmark dan anti-cheat belum diuji |
 
 Lapis 2, runner command-line AME versi 0.8.4 (run terakhir sebelum rilis):
@@ -397,3 +411,27 @@ Yang **tidak** bisa dibuktikan uji otomatis, jadi baru terlihat di uji ulang VM:
 - Tidak ada jendela installer yang muncul selama instalasi di Windows 11 Pro.
 - Nilai perekam telemetri bertahan setelah restart (uji otomatis tidak bisa restart).
 - Ikon TGOS Toolbox tidak di tengah Desktop, dan tidak ada pintasan pin ganda.
+
+Lapis 3, uji pemilik revisi pertama `1.0.0`: Windows 11 Pro 26H2 build 26300.9974 di
+VMware, AME Beta 0.8.4, semua opsi, browser Brave. Instalasi sekitar 10 menit (build
+pertama sekitar 30 menit). Setelah restart: **226 PASS, 0 FAIL, 0 WARN, 7 SKIP**.
+
+| | Sebelum | Sesudah |
+|---|---|---|
+| Proses | 149 | 111 (−25%) |
+| Thread | 1.931 | 1.225 (−37%) |
+| RAM terpakai | 3.345 MB | 2.181 MB (−35%) |
+| Layanan berjalan | 97 | 76 (−22%) |
+| Disk terpakai | 30,0 GB | 24,9 GB |
+| Paket AppX | 108 | 80 |
+
+Terbukti beres di VM: DirectX terpasang tanpa jendela (checksum terkunci cocok); nilai
+perekam telemetri bertahan setelah restart; ikon TGOS Toolbox di deretan kiri; satu
+pintasan pin lama terhapus; Copilot dan Edge terhapus; restore point dibuat; Defender
+aktif dengan Tamper Protection.
+
+Masukan pemilik untuk revisi kedua: opsi Pause Windows update; Game Bar masih aktif di
+Settings > Gaming (toggle controller dan View + Menu) walaupun aplikasinya dihapus; ide
+tambahan. Sisa kecil yang dicatat apa adanya: "Click to Do" dan "Get Started" masih di All
+apps (komponen sistem); baris error Widgets di log AME adalah upaya mesin AME sendiri pada
+file terkunci, dan skrip TGOS sesudahnya tidak menemukan sisa folder.

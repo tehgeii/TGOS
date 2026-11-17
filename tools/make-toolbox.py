@@ -130,11 +130,20 @@ def menu_file() -> str:
         "set \"PICK=\"",
         "set /p \"PICK=Type a number, then Enter / Ketik nomor lalu Enter: \"",
         "if not defined PICK exit /b 0",
-        "if \"%PICK%\"==\"0\" exit /b 0",
+        # Ketikan pengguna tidak pernah ditaruh langsung di baris perintah: tanda kutip, &,
+        # atau baris baru di dalamnya akan merusak perintah "if". Dengan delayed expansion
+        # isinya dibandingkan apa adanya, lalu hanya nomor yang cocok yang dibawa keluar
+        # (jalur folder dengan "!" tidak terpengaruh karena tidak ada di baris ini).
+        "set \"N=\"",
+        "setlocal EnableDelayedExpansion",
+        "for %%n in (" + " ".join(str(n) for n in range(len(SOFTWARE) + 1)) + ") do if \"!PICK!\"==\"%%n\" set \"N=%%n\"",
+        "endlocal & set \"N=%N%\"",
+        "if \"%N%\"==\"0\" exit /b 0",
+        "if not defined N echo Unknown number / Nomor tidak dikenal.",
     ]
     for number, (_, items) in enumerate(SOFTWARE, start=1):
         for item in items:
-            lines.append(f"if \"%PICK%\"==\"{number}\" call :install {item}")
+            lines.append(f"if \"%N%\"==\"{number}\" call :install {item}")
     lines += [
         "echo.",
         "pause",
