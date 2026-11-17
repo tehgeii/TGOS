@@ -461,6 +461,47 @@ function Test-ScriptResults {
         else {
             Add-Result 'FAIL' 'power plan' 'TGOS Ultimate Performance' ("not active; active scheme: {0}" -f $active.Trim()) 'Set-PowerPlan.ps1'
         }
+        # Penghematan daya USB mati di skema TGOS. Dua angka heksadesimal terakhir dari
+        # powercfg /query = nilai AC dan baterai.
+        if ($expected) {
+            $usbSettings = @(
+                @{ Name = 'USB selective suspend'; Guid = '48e6b7a6-50f5-4782-a5d4-53bb8f07e226' },
+                @{ Name = 'USB 3 link power management'; Guid = 'd4e98f31-5ffe-4ce1-be31-1b38b384c009' })
+            foreach ($usb in $usbSettings) {
+                $query = (& cmd.exe /c ('powercfg.exe /query {0} 2a737441-1930-4402-8d77-b2bebba308a3 {1} 2>&1' -f $expected, $usb.Guid) | Out-String)
+                $values = @([regex]::Matches($query, '0x[0-9a-fA-F]{8}') | ForEach-Object { [Convert]::ToInt32($_.Value, 16) })
+                if ($LASTEXITCODE -ne 0 -or $values.Count -lt 2) {
+                    Add-Result 'SKIP' 'power plan' $usb.Name 'setting not available on this PC' 'Set-PowerPlan.ps1'
+                }
+                elseif ($values[$values.Count - 2] -eq 0 -and $values[$values.Count - 1] -eq 0) {
+                    Add-Result 'PASS' 'power plan' $usb.Name 'off on the TGOS plan' 'Set-PowerPlan.ps1'
+                }
+                else {
+                    Add-Result 'FAIL' 'power plan' $usb.Name ("expected 0, found AC {0} / DC {1}" -f $values[$values.Count - 2], $values[$values.Count - 1]) 'Set-PowerPlan.ps1'
+                }
+            }
+        }
+    }
+
+    if (Test-Option 'updates-pause') {
+        # Ditulis Set-TgosFeature.ps1 -Feature UpdatePause -State Off. Tombol "Resume
+        # updates" di Settings menghapusnya, jadi FAIL di sini bisa juga berarti pengguna
+        # sudah melanjutkan update sendiri.
+        $read = Read-RegistryValue ([Microsoft.Win32.Registry]::LocalMachine) 'SOFTWARE\Microsoft\WindowsUpdate\UX\Settings' 'PauseUpdatesExpiryTime'
+        $until = [DateTime]::MinValue
+        $styles = [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal
+        if (-not $read.Found) {
+            Add-Result 'FAIL' 'windows update' 'pause' 'not paused (no pause end date); use Windows Updates - Pause in the Toolbox' 'Set-TgosFeature.ps1'
+        }
+        elseif (-not [DateTime]::TryParse([string]$read.Data, [Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$until)) {
+            Add-Result 'FAIL' 'windows update' 'pause' ("unreadable pause end date '{0}'" -f $read.Data) 'Set-TgosFeature.ps1'
+        }
+        elseif ($until -gt [DateTime]::UtcNow.AddDays(30)) {
+            Add-Result 'PASS' 'windows update' 'pause' ('paused until {0}' -f $until.ToString('yyyy-MM-dd')) 'Set-TgosFeature.ps1'
+        }
+        else {
+            Add-Result 'FAIL' 'windows update' 'pause' ('pause ends soon: {0}' -f $until.ToString('yyyy-MM-dd')) 'Set-TgosFeature.ps1'
+        }
     }
 
     if (Test-Option 'disable-hibernation') {

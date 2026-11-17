@@ -534,6 +534,19 @@ function Get-VisibleWindow {
         Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and ($_.ProcessName -match $Pattern -or $_.MainWindowTitle -match $Pattern) } |
         ForEach-Object { '{0} "{1}"' -f $_.ProcessName, $_.MainWindowTitle })
 }
+# Kontrol pemantau jendela: jendela Notepad harus terdeteksi. Bila tidak, runner ini tidak
+# memperlihatkan jendela dan uji "tidak ada jendela" tidak berarti.
+function Test-WindowControl {
+    $null = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\notepad.exe') -PassThru
+    $seen = $false
+    for ($attempt = 0; $attempt -lt 30 -and -not $seen; $attempt++) {
+        Start-Sleep -Milliseconds 500
+        $seen = (Get-VisibleWindow '(?i)^notepad$').Count -gt 0
+    }
+    Get-Process -Name 'notepad' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
+    return $seen
+}
 foreach ($item in @($ForceItems -split '\s+' | Where-Object { $_ })) {
     $before = $null
     if ($versionedExe.ContainsKey($item)) { $before = Get-InstalledVersion $versionedExe[$item] }
@@ -543,13 +556,7 @@ foreach ($item in @($ForceItems -split '\s+' | Where-Object { $_ })) {
         # DirectX". Selama pemasangan, jendela installer DirectX yang terlihat dicari.
         # Kontrol dulu: jendela Notepad harus terdeteksi oleh cara yang sama; bila tidak,
         # runner ini tidak bisa melihat jendela dan hasilnya hanya dicatat.
-        $null = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\notepad.exe') -PassThru
-        $controlSeen = $false
-        for ($attempt = 0; $attempt -lt 30 -and -not $controlSeen; $attempt++) {
-            Start-Sleep -Milliseconds 500
-            $controlSeen = (Get-VisibleWindow '(?i)^notepad$').Count -gt 0
-        }
-        Get-Process -Name 'notepad' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        $controlSeen = Test-WindowControl
         $outFile = Join-Path $artifacts 'force-directx.txt'
         $process = Start-Process -FilePath 'cmd.exe' -ArgumentList ('/c ' + $command) -RedirectStandardOutput $outFile -NoNewWindow -PassThru
         $null = $process.Handle
@@ -584,6 +591,52 @@ foreach ($item in @($ForceItems -split '\s+' | Where-Object { $_ })) {
     }
     $output -split "`r?`n" | Where-Object { $_ -match 'TGOS: |WARNING: ' } | Select-Object -First 8 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
     if (-not $ok) { Write-Host ('   exit {0}' -f $exit) }
+}
+
+# =======================================================================================
+Write-Section 'Game Bar and Windows Update'
+if ($plannedOptions -contains 'remove-xbox') {
+    # Tanpa aplikasi Game Bar, protokol ms-gamebar memunculkan jendela "You'll need a new
+    # app to open this ms-gamebar link". TGOS memberi penangan pengganti (systray.exe).
+    $systray = Join-Path $env:SystemRoot 'System32\systray.exe'
+    $null = Assert-That (Test-Path -LiteralPath $systray) 'gamebar: systray.exe (the replacement handler) exists'
+    if (Test-WindowControl) {
+        $before = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | ForEach-Object { $_.Id })
+        foreach ($uri in @('ms-gamebar:', 'ms-gamingoverlay:')) {
+            try { Start-Process -FilePath $uri } catch { Write-Host ('   {0} could not be started: {1}' -f $uri, (Format-LogLine $_.Exception.Message)) }
+        }
+        $popups = @()
+        for ($attempt = 0; $attempt -lt 16; $attempt++) {
+            Start-Sleep -Milliseconds 500
+            $popups += @(Get-Process -ErrorAction SilentlyContinue |
+                Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $before -notcontains $_.Id } |
+                ForEach-Object { '{0} "{1}"' -f $_.ProcessName, $_.MainWindowTitle })
+        }
+        $popups = @($popups | Select-Object -Unique)
+        $null = Assert-That ($popups.Count -eq 0) 'gamebar: opening ms-gamebar: and ms-gamingoverlay: shows no window (control: the Notepad window was detected)'
+        $popups | ForEach-Object { Write-Host ('   visible: {0}' -f $_) }
+        Get-Process -Name 'OpenWith' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+    else {
+        Write-Host '   INFO: this runner does not expose windows; the ms-gamebar popup check is inconclusive'
+    }
+}
+if ($plannedOptions -contains 'updates-pause') {
+    # Informasi: nilai pause yang ditulis TGOS, dan bagaimana layanan Windows Update
+    # membacanya (kunci UpdatePolicy diisi layanan itu sendiri, tidak oleh TGOS).
+    foreach ($key in @('HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings', 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UpdatePolicy\Settings')) {
+        $item = Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue
+        if ($null -eq $item) { Write-Host ('   {0}: (missing)' -f $key); continue }
+        $item.PSObject.Properties | Where-Object { $_.Name -match '(?i)pause' } |
+            ForEach-Object { Write-Host ('   {0}\{1} = {2}' -f ($key -replace '^.*\\', ''), $_.Name, $_.Value) }
+    }
+    # Definisi Defender tetap bisa diperbarui saat Windows Update di-pause? (informasi)
+    $mpCmd = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
+    if (Test-Path -LiteralPath $mpCmd) {
+        $mpOutput = & cmd.exe /c ('"{0}" -SignatureUpdate 2>&1' -f $mpCmd) | Out-String
+        Write-Host ('   Defender signature update while paused: exit {0}' -f $LASTEXITCODE)
+        $mpOutput -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 3 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+    }
 }
 
 # =======================================================================================
@@ -624,7 +677,14 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
         @{ Feature = 'ExtraServices'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\Spooler'; Name = 'Start'; Off = 4; On = 2 },
         # Tanpa nilai registry: yang diperiksa kode keluarnya (0, atau 3 bila tidak didukung).
         @{ Feature = 'CoreParking'; Path = $null; Name = 'exit code'; Off = $null; On = $null },
-        @{ Feature = 'Defender'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection'; Name = 'DisableRealtimeMonitoring'; Off = 1; On = $null }
+        @{ Feature = 'Defender'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection'; Name = 'DisableRealtimeMonitoring'; Off = 1; On = $null },
+        # '*' = nilainya harus ada (isinya tanggal yang dihitung saat itu).
+        @{ Feature = 'UpdatePause'; Path = 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings'; Name = 'PauseUpdatesExpiryTime'; Off = '*'; On = $null },
+        @{ Feature = 'DriverUpdates'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate'; Name = 'ExcludeWUDriversInQualityUpdate'; Off = 1; On = $null },
+        @{ Feature = 'BackgroundApps'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'; Name = 'LetAppsRunInBackground'; Off = 2; On = $null },
+        @{ Feature = 'LockScreen'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'; Name = 'NoLockScreen'; Off = 1; On = $null },
+        @{ Feature = 'GameBar'; Path = 'HKLM:\SOFTWARE\Classes\ms-gamebar'; Name = 'NoOpenWith'; Off = ''; On = $null },
+        @{ Feature = 'LoginTheme'; Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'; Name = 'LockScreenImageStatus'; Off = $null; On = 1 }
     )
 
     function Get-Value {
@@ -661,7 +721,9 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
             }
             $actual = Get-Value -Path $case.Path -Name $case.Name
             $expected = $case[$state]
-            if ($null -eq $expected) { $same = ($null -eq $actual) } else { $same = ($actual -eq $expected) }
+            if ($null -eq $expected) { $same = ($null -eq $actual) }
+            elseif ($expected -is [string] -and $expected -eq '*') { $same = ($null -ne $actual -and [string]$actual -ne '') }
+            else { $same = ($null -ne $actual -and $actual -eq $expected) }
             if ($null -eq $expected) { $expectedText = '(absent)' } else { $expectedText = [string]$expected }
             $label = 'toolbox: {0} {1} -> exit 0 and {2} = {3}' -f $case.Feature, $state, $case.Name, $expectedText
             if (-not (Assert-That ($exit -eq 0 -and $same) $label)) {
@@ -672,6 +734,36 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
         }
     }
 }
+
+# =======================================================================================
+Write-Section 'Toolbox buttons'
+# Tombol .cmd yang sebenarnya diklik pengguna, dengan input disuapkan (Enter untuk
+# "pause"). Membuktikan jalur ..\Support dari subfolder dan menu Install Software.
+$toolboxRoot = Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox'
+function Invoke-ToolboxButton {
+    param([string]$Relative, [string[]]$InputLines)
+    $inputFile = Join-Path $artifacts 'button-input.txt'
+    $outputFile = Join-Path $artifacts ('button-{0}.txt' -f ([IO.Path]::GetFileNameWithoutExtension($Relative) -replace '[^A-Za-z0-9-]', ''))
+    Set-Content -LiteralPath $inputFile -Value $InputLines -Encoding ASCII
+    $path = Join-Path $toolboxRoot $Relative
+    $process = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', ('"{0}"' -f $path)) -RedirectStandardInput $inputFile -RedirectStandardOutput $outputFile -NoNewWindow -PassThru
+    $null = $process.Handle
+    if (-not $process.WaitForExit(600000)) { try { $process.Kill() } catch { } }
+    $text = ''
+    if (Test-Path -LiteralPath $outputFile) { $text = Get-Content -LiteralPath $outputFile -Raw }
+    return @{ Exit = $process.ExitCode; Output = [string]$text }
+}
+$lockKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'
+$result = Invoke-ToolboxButton -Relative 'Turn ON or OFF\Lock Screen - Turn OFF.cmd' -InputLines @('')
+$value = (Get-ItemProperty -LiteralPath $lockKey -ErrorAction SilentlyContinue).NoLockScreen
+$null = Assert-That ($value -eq 1 -and $result.Output -match 'lock screen is now skipped') 'toolbox button: "Turn ON or OFF\Lock Screen - Turn OFF.cmd" works'
+$result = Invoke-ToolboxButton -Relative 'Turn ON or OFF\Lock Screen - Turn ON.cmd' -InputLines @('')
+$value = (Get-ItemProperty -LiteralPath $lockKey -ErrorAction SilentlyContinue).NoLockScreen
+$null = Assert-That ($null -eq $value -and $result.Output -match 'lock screen is back') 'toolbox button: "Turn ON or OFF\Lock Screen - Turn ON.cmd" works'
+# Menu: 4 = 7-Zip, Enter untuk "pause", 0 = keluar.
+$result = Invoke-ToolboxButton -Relative 'Install Software.cmd' -InputLines @('4', '', '0')
+$ok = Assert-That ($result.Output -match 'TGOS: 7-Zip installed' -and $result.Output -match 'verified:') 'toolbox button: "Install Software.cmd" menu installs 7-Zip and exits on 0'
+if (-not $ok) { $result.Output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 8 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) } }
 
 # =======================================================================================
 Write-Section 'Report collector'

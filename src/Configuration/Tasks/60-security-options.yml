@@ -23,3 +23,30 @@ actions:
   # Windows tidak mengunduh atau memasang update sendiri. Update tetap bisa dipasang
   # manual lewat Settings > Windows Update. Patch keamanan tertunda sampai dipasang.
   - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU', value: 'NoAutoUpdate', data: '1', type: REG_DWORD, option: 'updates-manual' }
+
+  # --- Opsi: pause update (bawaan) -------------------------------------------------
+  # Windows Update ditahan lewat fitur pause bawaan Settings, sampai pengguna menekan
+  # "Resume updates" di Settings > Windows Update (atau "Windows Updates - Resume" di
+  # TGOS Toolbox). Nilai pause ditulis Set-TgosFeature.ps1, karena tanggalnya dihitung
+  # saat instalasi: batas pause dinaikkan ke 3650 hari dan update ditahan 10 tahun.
+  # Nilai-nilai itu tidak didokumentasikan resmi Microsoft (dipakai halaman Settings
+  # sendiri), jadi sebagai cadangan update otomatis juga dimatikan: bila Windows
+  # mengabaikan pause, hasilnya tetap seperti pilihan Manual. Setelah Resume, update
+  # dipasang saat pengguna mengklik "Check for updates".
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU', value: 'NoAutoUpdate', data: '1', type: REG_DWORD, option: 'updates-pause' }
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\TGOS Toolbox\Support\Set-TgosFeature.ps1" -Feature UpdatePause -State Off'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 1
+    showOutput: true
+    showError: true
+    option: 'updates-pause'
+
+  # --- Opsi: update driver dari Windows Update -------------------------------------
+  # Policy resmi "Do not include drivers with Windows Updates": Windows Update tidak
+  # mengganti driver (mis. driver GPU NVIDIA/AMD yang dipasang sendiri). Driver untuk
+  # perangkat baru tetap bisa dipasang manual.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate', value: 'ExcludeWUDriversInQualityUpdate', data: '1', type: REG_DWORD, option: 'block-driver-updates' }

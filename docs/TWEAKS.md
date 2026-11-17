@@ -428,6 +428,32 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 | `HKCU\SOFTWARE\Microsoft\GameBar` | `AutoGameModeEnabled` | `1` |  | Menahan Windows Update dan notifikasi saat game berjalan, dan memprioritaskan game. |
 | `HKCU\SOFTWARE\Microsoft\GameBar` | `AllowAutoGameMode` | `1` |  | Menahan Windows Update dan notifikasi saat game berjalan, dan memprioritaskan game. |
 
+### Opsi: Game Bar dimatikan total (bersama opsi hapus Xbox)
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKCU\SOFTWARE\Microsoft\GameBar` | `UseNexusForGameBarEnabled` | `0` | opsi: `remove-xbox` | Aplikasi Game Bar dihapus di modul aplikasi; di sini sisa pemicunya dimatikan: tombol Xbox di controller dan kombinasi View + Menu tidak lagi membuka Game Bar, dan policy perekaman game dimatikan. Game Mode (di atas) TIDAK ikut dimatikan. |
+| `HKCU\SOFTWARE\Microsoft\GameBar` | `GamepadNexusChordEnabled` | `0` | opsi: `remove-xbox` | Aplikasi Game Bar dihapus di modul aplikasi; di sini sisa pemicunya dimatikan: tombol Xbox di controller dan kombinasi View + Menu tidak lagi membuka Game Bar, dan policy perekaman game dimatikan. Game Mode (di atas) TIDAK ikut dimatikan. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\GameDVR` | `AllowGameDVR` | `0` | opsi: `remove-xbox` | Aplikasi Game Bar dihapus di modul aplikasi; di sini sisa pemicunya dimatikan: tombol Xbox di controller dan kombinasi View + Menu tidak lagi membuka Game Bar, dan policy perekaman game dimatikan. Game Mode (di atas) TIDAK ikut dimatikan. |
+| `HKLM\SOFTWARE\Classes\ms-gamebar` | `` | `URL:ms-gamebar` | opsi: `remove-xbox` | Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain. Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi. |
+| `HKLM\SOFTWARE\Classes\ms-gamebar` | `URL Protocol` | `` | opsi: `remove-xbox` | Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain. Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi. |
+| `HKLM\SOFTWARE\Classes\ms-gamebar` | `NoOpenWith` | `` | opsi: `remove-xbox` | Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain. Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi. |
+| `HKLM\SOFTWARE\Classes\ms-gamebar\shell\open\command` | `` | `"%SystemRoot%\System32\systray.exe"` | opsi: `remove-xbox` | Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain. Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi. |
+| `HKLM\SOFTWARE\Classes\ms-gamebarservices` | `` | `URL:ms-gamebarservices` | opsi: `remove-xbox` | Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain. Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi. |
+| `HKLM\SOFTWARE\Classes\ms-gamebarservices` | `URL Protocol` | `` | opsi: `remove-xbox` | Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain. Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi. |
+| `HKLM\SOFTWARE\Classes\ms-gamebarservices` | `NoOpenWith` | `` | opsi: `remove-xbox` | Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain. Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi. |
+| `HKLM\SOFTWARE\Classes\ms-gamebarservices\shell\open\command` | `` | `"%SystemRoot%\System32\systray.exe"` | opsi: `remove-xbox` | Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain. Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi. |
+| `HKLM\SOFTWARE\Classes\ms-gamingoverlay` | `` | `URL:ms-gamingoverlay` | opsi: `remove-xbox` | Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain. Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi. |
+| `HKLM\SOFTWARE\Classes\ms-gamingoverlay` | `URL Protocol` | `` | opsi: `remove-xbox` | Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain. Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi. |
+| `HKLM\SOFTWARE\Classes\ms-gamingoverlay` | `NoOpenWith` | `` | opsi: `remove-xbox` | Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain. Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi. |
+| `HKLM\SOFTWARE\Classes\ms-gamingoverlay\shell\open\command` | `` | `"%SystemRoot%\System32\systray.exe"` | opsi: `remove-xbox` | Tanpa aplikasi Game Bar, Win+G atau tombol Xbox memunculkan jendela "You'll need a new app to open this ms-gamebar link". Tiga protokol Game Bar diberi penangan pengganti yang tidak melakukan apa-apa (systray.exe, program bawaan Windows yang langsung selesai) dan NoOpenWith supaya Windows tidak menawarkan aplikasi lain. Toolbox "Xbox Game Bar - Turn ON" mencabutnya bila Game Bar dipasang lagi. |
+
+### Opsi: aplikasi latar
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy` | `LetAppsRunInBackground` | `2` | opsi: `block-background-apps` | Policy resmi "Let Windows apps run in the background" = Force Deny: aplikasi Store tidak berjalan di latar belakang saat tidak dibuka. Program desktop biasa (game, launcher, Discord) tidak terpengaruh. Notifikasi aplikasi Store bisa terlambat. |
+
 ### Penjadwalan GPU
 
 | Kunci | Nilai | Data | Syarat | Keterangan |
@@ -554,6 +580,22 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 |---|---|---|---|---|
 | `HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU` | `NoAutoUpdate` | `1` | opsi: `updates-manual` | Windows tidak mengunduh atau memasang update sendiri. Update tetap bisa dipasang manual lewat Settings > Windows Update. Patch keamanan tertunda sampai dipasang. |
 
+### Opsi: pause update (bawaan)
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU` | `NoAutoUpdate` | `1` | opsi: `updates-pause` | Windows Update ditahan lewat fitur pause bawaan Settings, sampai pengguna menekan "Resume updates" di Settings > Windows Update (atau "Windows Updates - Resume" di TGOS Toolbox). Nilai pause ditulis Set-TgosFeature.ps1, karena tanggalnya dihitung saat instalasi: batas pause dinaikkan ke 3650 hari dan update ditahan 10 tahun. Nilai-nilai itu tidak didokumentasikan resmi Microsoft (dipakai halaman Settings sendiri), jadi sebagai cadangan update otomatis juga dimatikan: bila Windows mengabaikan pause, hasilnya tetap seperti pilihan Manual. Setelah Resume, update dipasang saat pengguna mengklik "Check for updates". |
+
+| Skrip | Syarat | Keterangan |
+|---|---|---|
+| `TGOS Toolbox\Support\Set-TgosFeature.ps1` `-Feature UpdatePause -State Off` | opsi: `updates-pause` | Windows Update ditahan lewat fitur pause bawaan Settings, sampai pengguna menekan "Resume updates" di Settings > Windows Update (atau "Windows Updates - Resume" di TGOS Toolbox). Nilai pause ditulis Set-TgosFeature.ps1, karena tanggalnya dihitung saat instalasi: batas pause dinaikkan ke 3650 hari dan update ditahan 10 tahun. Nilai-nilai itu tidak didokumentasikan resmi Microsoft (dipakai halaman Settings sendiri), jadi sebagai cadangan update otomatis juga dimatikan: bila Windows mengabaikan pause, hasilnya tetap seperti pilihan Manual. Setelah Resume, update dipasang saat pengguna mengklik "Check for updates". |
+
+### Opsi: update driver dari Windows Update
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate` | `ExcludeWUDriversInQualityUpdate` | `1` | opsi: `block-driver-updates` | Policy resmi "Do not include drivers with Windows Updates": Windows Update tidak mengganti driver (mis. driver GPU NVIDIA/AMD yang dipasang sendiri). Driver untuk perangkat baru tetap bisa dipasang manual. |
+
 
 ## Komponen (`70-components.yml`)
 
@@ -592,6 +634,7 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 | `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search` | `SearchboxTaskbarMode` | `1` |  | Pencarian tampil sebagai ikon saja (0 = sembunyi, 1 = ikon, 2 = kotak). |
 | `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | `ShowTaskViewButton` | `0` |  | Tombol Task View disembunyikan (Win+Tab tetap jalan). |
 | `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | `TaskbarAl` | `0` | opsi: `taskbar-left` | Opsi: ikon taskbar rata kiri seperti Windows 10 (0 = kiri, 1 = tengah). |
+| `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings` | `TaskbarEndTask` | `1` | opsi: `taskbar-end-task` | Opsi: "End task" di menu klik kanan aplikasi pada taskbar, untuk menutup game yang macet tanpa membuka Task Manager. Sama dengan Settings > System > For developers > End task, dan bisa dimatikan di sana. |
 
 ### Opsi: menu klik kanan klasik
 
@@ -630,6 +673,15 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 | `HKCU\Control Panel\Desktop` | `WallpaperStyle` | `10` |  | File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS. 10 = Fill. JPEGImportQuality 100 mencegah Windows mengompres ulang wallpaper, yang membuat gradasi gelapnya bergaris. |
 | `HKCU\Control Panel\Desktop` | `TileWallpaper` | `0` |  | File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS. 10 = Fill. JPEGImportQuality 100 mencegah Windows mengompres ulang wallpaper, yang membuat gradasi gelapnya bergaris. |
 | `HKCU\Control Panel\Desktop` | `JPEGImportQuality` | `100` |  | File gambarnya disalin skrip Install-Toolbox.ps1 ke C:\Windows\Web\Wallpaper\TGOS. 10 = Fill. JPEGImportQuality 100 mencegah Windows mengompres ulang wallpaper, yang membuat gradasi gelapnya bergaris. |
+
+### Layar kunci dan layar login
+
+| Kunci | Nilai | Data | Syarat | Keterangan |
+|---|---|---|---|---|
+| `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP` | `LockScreenImagePath` | `C:\Windows\Web\Wallpaper\TGOS\TGOS.png` |  | Gambar layar kunci memakai wallpaper TGO (file yang sama). Layar login memakai gambar layar kunci sebagai latarnya, jadi ikut bertema TGO. Lewat PersonalizationCSP, yang berlaku di edisi Pro; Settings lalu menampilkan gambar layar kunci sebagai diatur organisasi. Dikembalikan lewat "TGO Login Screen - Turn OFF" di Toolbox. |
+| `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP` | `LockScreenImageUrl` | `C:\Windows\Web\Wallpaper\TGOS\TGOS.png` |  | Gambar layar kunci memakai wallpaper TGO (file yang sama). Layar login memakai gambar layar kunci sebagai latarnya, jadi ikut bertema TGO. Lewat PersonalizationCSP, yang berlaku di edisi Pro; Settings lalu menampilkan gambar layar kunci sebagai diatur organisasi. Dikembalikan lewat "TGO Login Screen - Turn OFF" di Toolbox. |
+| `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP` | `LockScreenImageStatus` | `1` |  | Gambar layar kunci memakai wallpaper TGO (file yang sama). Layar login memakai gambar layar kunci sebagai latarnya, jadi ikut bertema TGO. Lewat PersonalizationCSP, yang berlaku di edisi Pro; Settings lalu menampilkan gambar layar kunci sebagai diatur organisasi. Dikembalikan lewat "TGO Login Screen - Turn OFF" di Toolbox. |
+| `HKLM\SOFTWARE\Policies\Microsoft\Windows\Personalization` | `NoLockScreen` | `1` | opsi: `skip-lock-screen` | Opsi: layar kunci (gambar + jam sebelum kotak login) dilewati. Password, PIN, atau Windows Hello TETAP diminta; yang hilang hanya layar bergambar itu. Policy resmi "Do not display the lock screen". |
 
 ### Warna aksen TGO
 

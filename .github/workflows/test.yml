@@ -52,6 +52,8 @@ jobs:
           # Test-Engine.ps1, jadi pemasangannya oleh playbook benar-benar teruji.
           # "force" = program yang diunduh dan dipasang ulang sesudahnya lewat skrip
           # Toolbox, untuk menguji tombol Toolbox dan aturan "versi tidak boleh turun".
+          # Pilihan update: job bawaan memakai bawaan Wizard (Pause), Server semua-opsi
+          # Manual, Windows 11 semua-opsi Automatic, jadi ketiganya teruji.
           - name: default
             os: windows-2025
             set: default
@@ -61,7 +63,7 @@ jobs:
           - name: all-options
             os: windows-2025
             set: all
-            options: 'mitigations-disable browser-chrome'
+            options: 'mitigations-disable browser-chrome updates-manual'
             force: 'directx chrome'
             experimental: false
           - name: windows-11
@@ -73,7 +75,7 @@ jobs:
           - name: windows-11-all-options
             os: windows-11-arm
             set: all
-            options: 'mitigations-disable browser-firefox'
+            options: 'mitigations-disable browser-firefox updates-default'
             force: ''
             experimental: true
     defaults:

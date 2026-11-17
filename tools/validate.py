@@ -740,6 +740,25 @@ def validate_action(report: Report, where: str, action: Action, options: set[str
             target = SRC / "Executables" / Path(*PureWindowsPath(script).parts)
             if not target.is_file():
                 report.error(where, f"!run: skrip '{script}' tidak ada di src/Executables")
+                continue
+            # Nilai -Feature / -Item harus ada di ValidateSet skrip tujuannya; salah ketik
+            # baru ketahuan saat playbook jalan di PC pengguna (skrip menolak dan opsi itu
+            # diam-diam tidak diterapkan).
+            for parameter in ("Feature", "Item"):
+                for value in re.findall(r"-" + parameter + r"\s+(\S+)", body["args"]):
+                    allowed = script_choices(target, parameter)
+                    if allowed is not None and value not in allowed:
+                        report.error(where, f"!run: -{parameter} {value} tidak ada di ValidateSet "
+                                            f"{target.name} ({', '.join(sorted(allowed))})")
+
+
+def script_choices(script: Path, parameter: str) -> set[str] | None:
+    """Isi [ValidateSet(...)] untuk parameter skrip PowerShell, atau None bila tidak ada."""
+    text = script.read_text(encoding="utf-8", errors="replace")
+    match = re.search(r"\[ValidateSet\(([^)]*)\)\]\s*\[string\]\$" + parameter + r"\b", text)
+    if not match:
+        return None
+    return set(re.findall(r"'([^']+)'", match.group(1)))
 
 
 def validate_yaml(report: Report, options: set[str]) -> None:

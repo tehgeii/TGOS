@@ -30,6 +30,7 @@ INFO_SCRIPT = "src/Executables/Scripts/Write-InstallInfo.ps1"
 APPX = "src/Configuration/Tasks/10-debloat-appx.yml"
 PRIVACY = "src/Configuration/Tasks/20-privacy.yml"
 SERVICES = "src/Configuration/Tasks/30-services.yml"
+SECURITY = "src/Configuration/Tasks/60-security-options.yml"
 TASK_LIST = "src/Executables/TGOS/scheduled-tasks.txt"
 EXPECTED_STATE = "src/Executables/TGOS Toolbox/Support/expected-state.json"
 ICON = "src/playbook.png"
@@ -42,6 +43,8 @@ TINY_PNG = bytes.fromhex(
 
 # (nama, file, teks lama, teks baru, potongan pesan yang harus muncul)
 MUTATIONS = [
+    ("fitur Toolbox salah ketik", SECURITY, "-Feature UpdatePause -State Off", "-Feature UpdatePauze -State Off",
+     "-Feature UpdatePauze tidak ada di ValidateSet"),
     ("properti salah ketik", PREFLIGHT, "exeDir: true", "exedir: true",
      "properti 'exedir' tidak dikenal"),
     ("runas tidak valid", PREFLIGHT, "runas: trustedInstaller", "runas: admin",
@@ -504,7 +507,7 @@ def test_common_functions() -> int:
 def test_generated_files() -> int:
     """File yang dibuat dari YAML tidak boleh usang."""
     failures = 0
-    for script in ("make-tweaks-doc.py", "make-expected-state.py"):
+    for script in ("make-tweaks-doc.py", "make-expected-state.py", "make-toolbox.py"):
         result = subprocess.run(
             [sys.executable, str(ROOT / "tools" / script), "--check"],
             capture_output=True, text=True, encoding="utf-8", errors="replace")
