@@ -113,6 +113,10 @@ $items = @('playbook.conf', 'Configuration', 'Executables')
 if (Test-Path -LiteralPath (Join-Path $src 'playbook.png')) {
     $items += 'playbook.png'
 }
+# Gambar opsi untuk halaman RadioImagePage.
+if (Test-Path -LiteralPath (Join-Path $src 'Images')) {
+    $items += 'Images'
+}
 Push-Location $src
 try {
     Invoke-Checked -File $sevenZip -What 'Pengemasan .apbx' -Arguments (@(

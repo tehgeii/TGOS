@@ -19,7 +19,7 @@ actions:
   # modul yang dipanggil main.yml (dijaga tools/validate.py).
   - !run:
     exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
-    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -Modules "preflight,debloat-appx,privacy,services,scheduled-tasks,performance,security-options,components,interface"'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -Modules "preflight,software,debloat-appx,privacy,services,scheduled-tasks,performance,security-options,components,interface"'
     runas: trustedInstaller
     exeDir: true
     wait: true
@@ -32,15 +32,50 @@ actions:
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "remove-ai-widgets"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'remove-ai-widgets' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "remove-onedrive"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'remove-onedrive' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "remove-xbox"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'remove-xbox' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "remove-store"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'remove-store' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "browser-brave"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'browser-brave' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "browser-chrome"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'browser-chrome' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "browser-firefox"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'browser-firefox' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "install-7zip"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'install-7zip' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "install-runtimes"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'install-runtimes' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "remove-edge"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'remove-edge' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "disable-power-saving"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'disable-power-saving' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "disable-core-parking"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'disable-core-parking' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "disable-hibernation"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'disable-hibernation' }
-  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "disable-vbs"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'disable-vbs' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "disable-indexing"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'disable-indexing' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "disable-vbs"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'disable-vbs' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "disable-animations"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'disable-animations' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "trim-services"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'trim-services' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "classic-context-menu"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'classic-context-menu' }
+  - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "taskbar-left"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'taskbar-left' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "mitigations-default"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'mitigations-default' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "mitigations-disable"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'mitigations-disable' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "updates-manual"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'updates-manual' }
   - !run: { exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe', args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Write-InstallInfo.ps1" -AppendOption "updates-default"', runas: trustedInstaller, exeDir: true, wait: true, weight: 1, showOutput: true, showError: true, option: 'updates-default' }
+
+  # Menyusun ulang pin taskbar dan Start menjadi set TGOS. Dijalankan setelah opsi
+  # tercatat (skrip membaca opsi "remove-store" dari install-info.txt) dan setelah
+  # browser terpasang. Skrip ini menghentikan Explorer; aksi berikutnya menjalankannya
+  # lagi sebagai pengguna yang login.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Set-ShellLayout.ps1"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 5
+    showOutput: true
+    showError: true
+
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Start-Shell.ps1"'
+    runas: currentUser
+    exeDir: true
+    wait: true
+    weight: 1
+    showOutput: true
+    showError: true
 
   # Mencocokkan sistem dengan expected-state.json dan menulis
   # %ProgramData%\TGOS\verify-report.txt. Hanya membaca; tidak fatal.

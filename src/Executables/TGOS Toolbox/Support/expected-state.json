@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "version": "0.9.1",
+ "version": "1.0.0",
  "checks": [
   {
    "type": "appx",
@@ -67,184 +67,219 @@
   },
   {
    "type": "appx",
-   "name": "Microsoft.MicrosoftOfficeHub*",
-   "source": "10-debloat-appx.yml:31",
-   "option": null,
-   "builds": null
-  },
-  {
-   "type": "appx",
    "name": "Microsoft.OutlookForWindows*",
-   "source": "10-debloat-appx.yml:32",
-   "option": null,
-   "builds": null
-  },
-  {
-   "type": "appx",
-   "name": "microsoft.windowscommunicationsapps*",
    "source": "10-debloat-appx.yml:33",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.People*",
+   "name": "microsoft.windowscommunicationsapps*",
    "source": "10-debloat-appx.yml:34",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.Todos*",
+   "name": "Microsoft.People*",
    "source": "10-debloat-appx.yml:35",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.PowerAutomateDesktop*",
+   "name": "Microsoft.Todos*",
    "source": "10-debloat-appx.yml:36",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.Windows.DevHome*",
+   "name": "Microsoft.PowerAutomateDesktop*",
    "source": "10-debloat-appx.yml:37",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "MicrosoftTeams_*",
+   "name": "Microsoft.Windows.DevHome*",
    "source": "10-debloat-appx.yml:38",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "MSTeams_*",
+   "name": "MicrosoftTeams_*",
    "source": "10-debloat-appx.yml:39",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Clipchamp.Clipchamp*",
+   "name": "MSTeams_*",
    "source": "10-debloat-appx.yml:40",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.WindowsMaps*",
-   "source": "10-debloat-appx.yml:43",
+   "name": "Clipchamp.Clipchamp*",
+   "source": "10-debloat-appx.yml:41",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.YourPhone*",
+   "name": "Microsoft.WindowsMaps*",
    "source": "10-debloat-appx.yml:44",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.WindowsSoundRecorder*",
+   "name": "Microsoft.YourPhone*",
    "source": "10-debloat-appx.yml:45",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.WindowsAlarms*",
+   "name": "MicrosoftWindows.CrossDevice*",
    "source": "10-debloat-appx.yml:46",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.MicrosoftStickyNotes*",
+   "name": "Microsoft.WindowsSoundRecorder*",
    "source": "10-debloat-appx.yml:47",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "MicrosoftCorporationII.MicrosoftFamily*",
+   "name": "Microsoft.WindowsAlarms*",
    "source": "10-debloat-appx.yml:48",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
-   "name": "Microsoft.549981C3F5F10*",
+   "name": "Microsoft.MicrosoftStickyNotes*",
    "source": "10-debloat-appx.yml:49",
    "option": null,
    "builds": null
   },
   {
    "type": "appx",
+   "name": "MicrosoftCorporationII.MicrosoftFamily*",
+   "source": "10-debloat-appx.yml:50",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.549981C3F5F10*",
+   "source": "10-debloat-appx.yml:51",
+   "option": null,
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.MicrosoftOfficeHub*",
+   "source": "10-debloat-appx.yml:69",
+   "option": "remove-ai-widgets",
+   "builds": null
+  },
+  {
+   "type": "appx",
    "name": "Microsoft.Copilot*",
-   "source": "10-debloat-appx.yml:57",
+   "source": "10-debloat-appx.yml:75",
    "option": "remove-ai-widgets",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.Windows.Ai.Copilot.Provider*",
-   "source": "10-debloat-appx.yml:58",
+   "source": "10-debloat-appx.yml:76",
    "option": "remove-ai-widgets",
    "builds": null
   },
   {
    "type": "appx",
    "name": "MicrosoftWindows.Client.WebExperience*",
-   "source": "10-debloat-appx.yml:59",
+   "source": "10-debloat-appx.yml:77",
    "option": "remove-ai-widgets",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.WidgetsPlatformRuntime*",
-   "source": "10-debloat-appx.yml:60",
+   "source": "10-debloat-appx.yml:78",
+   "option": "remove-ai-widgets",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.StartExperiencesApp*",
+   "source": "10-debloat-appx.yml:79",
    "option": "remove-ai-widgets",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.GamingApp*",
-   "source": "10-debloat-appx.yml:66",
+   "source": "10-debloat-appx.yml:97",
    "option": "remove-xbox",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.XboxGamingOverlay*",
-   "source": "10-debloat-appx.yml:67",
+   "source": "10-debloat-appx.yml:98",
    "option": "remove-xbox",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.XboxGameOverlay*",
-   "source": "10-debloat-appx.yml:68",
+   "source": "10-debloat-appx.yml:99",
    "option": "remove-xbox",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.XboxSpeechToTextOverlay*",
-   "source": "10-debloat-appx.yml:69",
+   "source": "10-debloat-appx.yml:100",
    "option": "remove-xbox",
    "builds": null
   },
   {
    "type": "appx",
    "name": "Microsoft.Xbox.TCUI*",
-   "source": "10-debloat-appx.yml:70",
+   "source": "10-debloat-appx.yml:101",
    "option": "remove-xbox",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.Edge.GameAssist*",
+   "source": "10-debloat-appx.yml:105",
+   "option": "remove-edge",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.WindowsStore*",
+   "source": "10-debloat-appx.yml:115",
+   "option": "remove-store",
+   "builds": null
+  },
+  {
+   "type": "appx",
+   "name": "Microsoft.StorePurchaseApp*",
+   "source": "10-debloat-appx.yml:116",
+   "option": "remove-store",
    "builds": null
   },
   {
@@ -634,9 +669,185 @@
   },
   {
    "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+   "value": "DisableOneSettingsDownloads",
+   "source": "20-privacy.yml:85",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+   "value": "LimitDiagnosticLogCollection",
+   "source": "20-privacy.yml:87",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+   "value": "LimitDumpCollection",
+   "source": "20-privacy.yml:88",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+   "value": "AllowDeviceNameInTelemetry",
+   "source": "20-privacy.yml:90",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppCompat",
+   "value": "AITEnable",
+   "source": "20-privacy.yml:92",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppCompat",
+   "value": "DisableInventory",
+   "source": "20-privacy.yml:93",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppCompat",
+   "value": "DisableUAR",
+   "source": "20-privacy.yml:94",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\SQMClient\\Windows",
+   "value": "CEIPEnable",
+   "source": "20-privacy.yml:96",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\TabletPC",
+   "value": "PreventHandwritingDataSharing",
+   "source": "20-privacy.yml:98",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\HandwritingErrorReports",
+   "value": "PreventHandwritingErrorReports",
+   "source": "20-privacy.yml:99",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+   "value": "DOTNET_CLI_TELEMETRY_OPTOUT",
+   "source": "20-privacy.yml:102",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+   "value": "POWERSHELL_TELEMETRY_OPTOUT",
+   "source": "20-privacy.yml:103",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\AutoLogger-Diagtrack-Listener",
+   "value": "Start",
+   "source": "20-privacy.yml:107",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\SQMLogger",
+   "value": "Start",
+   "source": "20-privacy.yml:108",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\CompatTelRunner.exe",
+   "value": "Debugger",
+   "source": "20-privacy.yml:117",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "%windir%\\System32\\taskkill.exe",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\DeviceCensus.exe",
+   "value": "Debugger",
+   "source": "20-privacy.yml:118",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "%windir%\\System32\\taskkill.exe",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
    "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
    "value": "DisableAIDataAnalysis",
-   "source": "20-privacy.yml:85",
+   "source": "20-privacy.yml:122",
    "option": null,
    "builds": [
     ">=26100"
@@ -649,7 +860,7 @@
    "type": "registry",
    "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
    "value": "AllowRecallEnablement",
-   "source": "20-privacy.yml:86",
+   "source": "20-privacy.yml:123",
    "option": null,
    "builds": [
     ">=26100"
@@ -662,7 +873,7 @@
    "type": "registry",
    "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Dsh",
    "value": "AllowNewsAndInterests",
-   "source": "20-privacy.yml:91",
+   "source": "20-privacy.yml:128",
    "option": "remove-ai-widgets",
    "builds": null,
    "absent": false,
@@ -671,9 +882,22 @@
   },
   {
    "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+   "value": "DisableClickToDo",
+   "source": "20-privacy.yml:131",
+   "option": "remove-ai-widgets",
+   "builds": [
+    ">=26100"
+   ],
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
    "path": "HKCU\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsCopilot",
    "value": "TurnOffWindowsCopilot",
-   "source": "20-privacy.yml:94",
+   "source": "20-privacy.yml:134",
    "option": "remove-ai-widgets",
    "builds": [
     "<26100"
@@ -686,7 +910,7 @@
    "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
    "value": "ShowCopilotButton",
-   "source": "20-privacy.yml:95",
+   "source": "20-privacy.yml:135",
    "option": "remove-ai-widgets",
    "builds": [
     "<26100"
@@ -699,7 +923,7 @@
    "type": "service",
    "name": "DiagTrack",
    "startup": 4,
-   "source": "30-services.yml:16",
+   "source": "30-services.yml:29",
    "option": null,
    "builds": null
   },
@@ -707,7 +931,7 @@
    "type": "service",
    "name": "dmwappushservice",
    "startup": 4,
-   "source": "30-services.yml:18",
+   "source": "30-services.yml:31",
    "option": null,
    "builds": null
   },
@@ -715,7 +939,7 @@
    "type": "service",
    "name": "diagnosticshub.standardcollector.service",
    "startup": 4,
-   "source": "30-services.yml:20",
+   "source": "30-services.yml:33",
    "option": null,
    "builds": null
   },
@@ -723,7 +947,7 @@
    "type": "service",
    "name": "WerSvc",
    "startup": 4,
-   "source": "30-services.yml:22",
+   "source": "30-services.yml:35",
    "option": null,
    "builds": null
   },
@@ -731,7 +955,7 @@
    "type": "service",
    "name": "wisvc",
    "startup": 4,
-   "source": "30-services.yml:24",
+   "source": "30-services.yml:37",
    "option": null,
    "builds": null
   },
@@ -739,7 +963,7 @@
    "type": "service",
    "name": "InventorySvc",
    "startup": 4,
-   "source": "30-services.yml:27",
+   "source": "30-services.yml:40",
    "option": null,
    "builds": null
   },
@@ -747,7 +971,7 @@
    "type": "service",
    "name": "whesvc",
    "startup": 4,
-   "source": "30-services.yml:30",
+   "source": "30-services.yml:43",
    "option": null,
    "builds": null
   },
@@ -755,7 +979,7 @@
    "type": "service",
    "name": "SysMain",
    "startup": 4,
-   "source": "30-services.yml:35",
+   "source": "30-services.yml:48",
    "option": null,
    "builds": null
   },
@@ -763,7 +987,7 @@
    "type": "service",
    "name": "MapsBroker",
    "startup": 4,
-   "source": "30-services.yml:37",
+   "source": "30-services.yml:50",
    "option": null,
    "builds": null
   },
@@ -771,7 +995,7 @@
    "type": "service",
    "name": "RetailDemo",
    "startup": 4,
-   "source": "30-services.yml:39",
+   "source": "30-services.yml:52",
    "option": null,
    "builds": null
   },
@@ -779,7 +1003,7 @@
    "type": "service",
    "name": "WpcMonSvc",
    "startup": 4,
-   "source": "30-services.yml:41",
+   "source": "30-services.yml:54",
    "option": null,
    "builds": null
   },
@@ -787,7 +1011,7 @@
    "type": "service",
    "name": "TrkWks",
    "startup": 4,
-   "source": "30-services.yml:43",
+   "source": "30-services.yml:56",
    "option": null,
    "builds": null
   },
@@ -795,7 +1019,7 @@
    "type": "service",
    "name": "Fax",
    "startup": 4,
-   "source": "30-services.yml:46",
+   "source": "30-services.yml:59",
    "option": null,
    "builds": null
   },
@@ -803,7 +1027,7 @@
    "type": "service",
    "name": "RemoteRegistry",
    "startup": 4,
-   "source": "30-services.yml:48",
+   "source": "30-services.yml:61",
    "option": null,
    "builds": null
   },
@@ -811,7 +1035,7 @@
    "type": "service",
    "name": "AJRouter",
    "startup": 4,
-   "source": "30-services.yml:50",
+   "source": "30-services.yml:63",
    "option": null,
    "builds": null
   },
@@ -819,7 +1043,7 @@
    "type": "service",
    "name": "WalletService",
    "startup": 4,
-   "source": "30-services.yml:52",
+   "source": "30-services.yml:65",
    "option": null,
    "builds": null
   },
@@ -827,7 +1051,7 @@
    "type": "service",
    "name": "SEMgrSvc",
    "startup": 4,
-   "source": "30-services.yml:53",
+   "source": "30-services.yml:66",
    "option": null,
    "builds": null
   },
@@ -835,7 +1059,7 @@
    "type": "service",
    "name": "WMPNetworkSvc",
    "startup": 4,
-   "source": "30-services.yml:55",
+   "source": "30-services.yml:68",
    "option": null,
    "builds": null
   },
@@ -843,7 +1067,7 @@
    "type": "service",
    "name": "WSAIFabricSvc",
    "startup": 3,
-   "source": "30-services.yml:60",
+   "source": "30-services.yml:73",
    "option": "remove-ai-widgets",
    "builds": null
   },
@@ -851,8 +1075,112 @@
    "type": "service",
    "name": "WSearch",
    "startup": 4,
-   "source": "30-services.yml:65",
+   "source": "30-services.yml:78",
    "option": "disable-indexing",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "Spooler",
+   "startup": 4,
+   "source": "30-services.yml:87",
+   "option": "trim-services",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "PrintNotify",
+   "startup": 4,
+   "source": "30-services.yml:88",
+   "option": "trim-services",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "PrintScanBrokerService",
+   "startup": 4,
+   "source": "30-services.yml:89",
+   "option": "trim-services",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "PrintDeviceConfigurationService",
+   "startup": 4,
+   "source": "30-services.yml:90",
+   "option": "trim-services",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "DPS",
+   "startup": 4,
+   "source": "30-services.yml:93",
+   "option": "trim-services",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "WdiServiceHost",
+   "startup": 4,
+   "source": "30-services.yml:94",
+   "option": "trim-services",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "WdiSystemHost",
+   "startup": 4,
+   "source": "30-services.yml:95",
+   "option": "trim-services",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "PcaSvc",
+   "startup": 4,
+   "source": "30-services.yml:96",
+   "option": "trim-services",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "SSDPSRV",
+   "startup": 4,
+   "source": "30-services.yml:100",
+   "option": "trim-services",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "upnphost",
+   "startup": 4,
+   "source": "30-services.yml:101",
+   "option": "trim-services",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "fdPHost",
+   "startup": 4,
+   "source": "30-services.yml:102",
+   "option": "trim-services",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "FDResPub",
+   "startup": 4,
+   "source": "30-services.yml:103",
+   "option": "trim-services",
+   "builds": null
+  },
+  {
+   "type": "service",
+   "name": "lmhosts",
+   "startup": 4,
+   "source": "30-services.yml:104",
+   "option": "trim-services",
    "builds": null
   },
   {
@@ -1024,8 +1352,8 @@
    "type": "registry",
    "path": "HKCU\\Control Panel\\Desktop\\WindowMetrics",
    "value": "MinAnimate",
-   "source": "50-performance.yml:55",
-   "option": null,
+   "source": "50-performance.yml:61",
+   "option": "disable-animations",
    "builds": null,
    "absent": false,
    "data": "0",
@@ -1035,8 +1363,8 @@
    "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
    "value": "TaskbarAnimations",
-   "source": "50-performance.yml:56",
-   "option": null,
+   "source": "50-performance.yml:62",
+   "option": "disable-animations",
    "builds": null,
    "absent": false,
    "data": "0",
@@ -1044,9 +1372,75 @@
   },
   {
    "type": "registry",
+   "path": "HKCU\\Control Panel\\Desktop",
+   "value": "MenuShowDelay",
+   "source": "50-performance.yml:63",
+   "option": "disable-animations",
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects",
+   "value": "VisualFXSetting",
+   "source": "50-performance.yml:65",
+   "option": "disable-animations",
+   "builds": null,
+   "absent": false,
+   "data": "3",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\Control Panel\\Desktop",
+   "value": "UserPreferencesMask",
+   "source": "50-performance.yml:68",
+   "option": "disable-animations",
+   "builds": null,
+   "absent": false,
+   "data": "9012038010000000",
+   "regType": "REG_BINARY"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\Control Panel\\Accessibility\\StickyKeys",
+   "value": "Flags",
+   "source": "50-performance.yml:75",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "506",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\Control Panel\\Accessibility\\Keyboard Response",
+   "value": "Flags",
+   "source": "50-performance.yml:76",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "122",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\Control Panel\\Accessibility\\ToggleKeys",
+   "value": "Flags",
+   "source": "50-performance.yml:77",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "58",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize",
    "value": "StartupDelayInMSec",
-   "source": "50-performance.yml:60",
+   "source": "50-performance.yml:81",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1057,7 +1451,7 @@
    "type": "registry",
    "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem",
    "value": "NtfsDisableLastAccessUpdate",
-   "source": "50-performance.yml:65",
+   "source": "50-performance.yml:86",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1068,7 +1462,7 @@
    "type": "registry",
    "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power",
    "value": "HiberbootEnabled",
-   "source": "50-performance.yml:70",
+   "source": "50-performance.yml:103",
    "option": "disable-hibernation",
    "builds": null,
    "absent": false,
@@ -1079,7 +1473,7 @@
    "type": "registry",
    "path": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling",
    "value": "PowerThrottlingOff",
-   "source": "50-performance.yml:84",
+   "source": "50-performance.yml:117",
    "option": "disable-power-saving",
    "builds": null,
    "absent": false,
@@ -1165,7 +1559,7 @@
    "type": "registry",
    "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\EdgeUpdate",
    "value": "Install{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}",
-   "source": "70-components.yml:42",
+   "source": "70-components.yml:45",
    "option": "remove-edge",
    "builds": null,
    "absent": false,
@@ -1218,9 +1612,75 @@
   },
   {
    "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+   "value": "TaskbarAl",
+   "source": "80-interface.yml:21",
+   "option": "taskbar-left",
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32",
+   "value": "",
+   "source": "80-interface.yml:27",
+   "option": "classic-context-menu",
+   "builds": null,
+   "absent": false,
+   "data": "",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer",
+   "value": "HideRecentlyAddedApps",
+   "source": "80-interface.yml:33",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Explorer",
+   "value": "HideRecommendedSection",
+   "source": "80-interface.yml:34",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "1",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+   "value": "Start_TrackDocs",
+   "source": "80-interface.yml:35",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+   "value": "Start_TrackProgs",
+   "source": "80-interface.yml:36",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "0",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
    "value": "AppsUseLightTheme",
-   "source": "80-interface.yml:21",
+   "source": "80-interface.yml:39",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1231,7 +1691,7 @@
    "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
    "value": "SystemUsesLightTheme",
-   "source": "80-interface.yml:22",
+   "source": "80-interface.yml:40",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1242,7 +1702,7 @@
    "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
    "value": "LaunchTo",
-   "source": "80-interface.yml:26",
+   "source": "80-interface.yml:44",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1253,7 +1713,7 @@
    "type": "registry",
    "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
    "value": "HideFileExt",
-   "source": "80-interface.yml:28",
+   "source": "80-interface.yml:46",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1264,7 +1724,7 @@
    "type": "registry",
    "path": "HKCU\\Control Panel\\Desktop",
    "value": "WallPaper",
-   "source": "80-interface.yml:34",
+   "source": "80-interface.yml:52",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1275,7 +1735,7 @@
    "type": "registry",
    "path": "HKCU\\Control Panel\\Desktop",
    "value": "WallpaperStyle",
-   "source": "80-interface.yml:35",
+   "source": "80-interface.yml:53",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1286,7 +1746,7 @@
    "type": "registry",
    "path": "HKCU\\Control Panel\\Desktop",
    "value": "TileWallpaper",
-   "source": "80-interface.yml:36",
+   "source": "80-interface.yml:54",
    "option": null,
    "builds": null,
    "absent": false,
@@ -1297,12 +1757,111 @@
    "type": "registry",
    "path": "HKCU\\Control Panel\\Desktop",
    "value": "JPEGImportQuality",
-   "source": "80-interface.yml:37",
+   "source": "80-interface.yml:55",
    "option": null,
    "builds": null,
    "absent": false,
    "data": "100",
    "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent",
+   "value": "AccentColorMenu",
+   "source": "80-interface.yml:62",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "4294345275",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent",
+   "value": "StartColorMenu",
+   "source": "80-interface.yml:63",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "4291127343",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent",
+   "value": "AccentPalette",
+   "source": "80-interface.yml:64",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "B1CDFB0089B4FA00629BF8003B82F6002F68C500234E940018346200EB121C00",
+   "regType": "REG_BINARY"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\DWM",
+   "value": "AccentColor",
+   "source": "80-interface.yml:65",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "4294345275",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\DWM",
+   "value": "ColorizationColor",
+   "source": "80-interface.yml:66",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "3292234486",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKCU\\SOFTWARE\\Microsoft\\Windows\\DWM",
+   "value": "ColorizationAfterglow",
+   "source": "80-interface.yml:67",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "3292234486",
+   "regType": "REG_DWORD"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OEMInformation",
+   "value": "Manufacturer",
+   "source": "80-interface.yml:72",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "TGOS",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OEMInformation",
+   "value": "Model",
+   "source": "80-interface.yml:73",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "Tech Gameplay Operating System",
+   "regType": "REG_SZ"
+  },
+  {
+   "type": "registry",
+   "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OEMInformation",
+   "value": "SupportURL",
+   "source": "80-interface.yml:74",
+   "option": null,
+   "builds": null,
+   "absent": false,
+   "data": "https://tgopremium.my.id",
+   "regType": "REG_SZ"
   },
   {
    "type": "task",

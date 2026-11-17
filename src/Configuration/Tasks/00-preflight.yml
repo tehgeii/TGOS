@@ -16,6 +16,18 @@ actions:
     showError: true
     handleExitCodes: { "!0": halt }
 
+  # Informasi saja (tidak menghentikan playbook): koneksi internet untuk unduhan
+  # software pilihan, dan ruang disk kosong.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Test-Prerequisites.ps1"'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 1
+    showOutput: true
+    showError: true
+
   # Restore point "Before TGOS <versi>" sebagai jaring pengaman untuk perubahan
   # registry. Tidak fatal: skrip selalu keluar 0 dan mencatat hasilnya di
   # %ProgramData%\TGOS\restore-point.txt, yang lalu disalin ke install-info.txt.

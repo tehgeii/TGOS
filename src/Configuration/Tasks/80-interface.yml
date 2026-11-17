@@ -6,16 +6,34 @@ actions:
   # Widgets sudah dimatikan lewat policy di modul privasi.
 
   # --- Taskbar ---------------------------------------------------------------------
-  # Pin taskbar ditetapkan lewat policy "Start Layout" resmi Windows, dari file yang
-  # disalin Install-Toolbox.ps1: File Explorer, Edge, Microsoft Store. Pin bawaan lain
-  # diganti, termasuk pin Copilot yang tertinggal setelah aplikasinya dihapus. Pin yang
-  # dibuat pengguna tidak disentuh, dan aplikasi yang tidak terpasang dilewati.
+  # Pin taskbar ditetapkan lewat policy "Start Layout" resmi Windows. File layout-nya
+  # ditulis Set-ShellLayout.ps1 di modul finalisasi, sesuai browser yang terpasang:
+  # File Explorer, browser, Microsoft Store. Skrip itu juga mereset daftar pin yang
+  # tersimpan di profil, karena policy ini saja tidak membuang pin yang sudah ada.
   - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer', value: 'StartLayoutFile', data: '%ProgramData%\TGOS\TaskbarLayout.xml', type: REG_EXPAND_SZ }
   - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer', value: 'LockedStartLayout', data: '1', type: REG_DWORD }
   # Pencarian tampil sebagai ikon saja (0 = sembunyi, 1 = ikon, 2 = kotak).
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search', value: 'SearchboxTaskbarMode', data: '1', type: REG_DWORD }
   # Tombol Task View disembunyikan (Win+Tab tetap jalan).
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'ShowTaskViewButton', data: '0', type: REG_DWORD }
+
+  # Opsi: ikon taskbar rata kiri seperti Windows 10 (0 = kiri, 1 = tengah).
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'TaskbarAl', data: '0', type: REG_DWORD, option: 'taskbar-left' }
+
+  # --- Opsi: menu klik kanan klasik ------------------------------------------------
+  # Kunci kosong ini membuat Explorer memakai menu klik kanan lengkap gaya Windows 10,
+  # tanpa perlu "Show more options". Nilai default kunci (nama nilai kosong) diisi teks
+  # kosong. Untuk kembali ke menu Windows 11, hapus kunci {86ca1aa0-...} itu.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32', value: '', data: '', type: REG_SZ, option: 'classic-context-menu' }
+
+  # --- Start menu ------------------------------------------------------------------
+  # Daftar pin Start ditulis Set-ShellLayout.ps1 (bergantung pada browser yang
+  # terpasang). Di sini hanya bagian "Recent"/rekomendasi yang disembunyikan: aplikasi
+  # yang baru dipasang, aplikasi yang sering dipakai, dan file terakhir.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer', value: 'HideRecentlyAddedApps', data: '1', type: REG_DWORD }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer', value: 'HideRecommendedSection', data: '1', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'Start_TrackDocs', data: '0', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'Start_TrackProgs', data: '0', type: REG_DWORD }
 
   # --- Mode gelap ------------------------------------------------------------------
   - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', value: 'AppsUseLightTheme', data: '0', type: REG_DWORD }
@@ -35,3 +53,22 @@ actions:
   - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'WallpaperStyle', data: '10', type: REG_SZ }
   - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'TileWallpaper', data: '0', type: REG_SZ }
   - !registryValue: { path: 'HKCU\Control Panel\Desktop', value: 'JPEGImportQuality', data: '100', type: REG_DWORD }
+
+  # --- Warna aksen TGO -------------------------------------------------------------
+  # Biru TGO #3B82F6, sama dengan website dan aplikasi TGO. Windows menyimpan warna
+  # sebagai ABGR (4294345275 = 0xFFF6823B) dan palet 8 warna (terang ke gelap, lalu
+  # merah logo TGO sebagai warna pelengkap). Berlaku setelah login ulang; bisa diganti di
+  # Settings > Personalization > Colors.
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Accent', value: 'AccentColorMenu', data: '4294345275', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Accent', value: 'StartColorMenu', data: '4291127343', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Accent', value: 'AccentPalette', data: 'B1CDFB0089B4FA00629BF8003B82F6002F68C500234E940018346200EB121C00', type: REG_BINARY }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\DWM', value: 'AccentColor', data: '4294345275', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\DWM', value: 'ColorizationColor', data: '3292234486', type: REG_DWORD }
+  - !registryValue: { path: 'HKCU\SOFTWARE\Microsoft\Windows\DWM', value: 'ColorizationAfterglow', data: '3292234486', type: REG_DWORD }
+
+  # --- Info sistem -----------------------------------------------------------------
+  # Tampil di Settings > System > About. Hanya teks; tidak mengubah lisensi atau
+  # dukungan pabrikan PC.
+  - !registryValue: { path: 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation', value: 'Manufacturer', data: 'TGOS', type: REG_SZ }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation', value: 'Model', data: 'Tech Gameplay Operating System', type: REG_SZ }
+  - !registryValue: { path: 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation', value: 'SupportURL', data: 'https://tgopremium.my.id', type: REG_SZ }

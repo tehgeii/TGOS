@@ -30,12 +30,19 @@
 
 .PARAMETER Options
     Opsi tambahan dipisah spasi. Opsi radio di sini menggantikan bawaan halamannya.
+
+.PARAMETER ForceItems
+    Program (dipisah spasi) yang diunduh dan dipasang ulang setelah playbook selesai,
+    lewat skrip di TGOS Toolbox. Image runner sudah berisi Chrome, Firefox, dan 7-Zip,
+    jadi tanpa ini jalur unduh dan pemeriksaan tanda tangan untuk program itu tidak
+    teruji (skrip hanya berkata "already installed").
 #>
 [CmdletBinding()]
 param(
     [ValidateSet('default', 'all')]
     [string]$OptionSet = 'default',
     [string]$Options = '',
+    [string]$ForceItems = '',
     [string]$WorkDirectory,
     [int]$TimeoutMinutes = 25
 )
@@ -313,6 +320,40 @@ else {
 }
 
 # =======================================================================================
+Write-Section 'Installer safety checks'
+$playbookScripts = Join-Path $playbook 'Executables\Scripts'
+$scratchData = Join-Path $WorkDirectory 'scratch-data'
+New-Item -ItemType Directory -Path $scratchData -Force | Out-Null
+
+# Unduhan yang gagal tidak boleh menghentikan apa pun: skrip melapor, mencatat, selesai.
+$command = 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -Item firefox -Force -UrlOverride "https://tgos-ci.invalid/setup.exe" -DataDirectory "{1}" 2>&1' -f (Join-Path $playbookScripts 'Install-Software.ps1'), $scratchData
+$output = & cmd.exe /c $command | Out-String
+$exit = $LASTEXITCODE
+$record = @()
+if (Test-Path -LiteralPath (Join-Path $scratchData 'software.txt')) { $record = @(Get-Content -LiteralPath (Join-Path $scratchData 'software.txt')) }
+$ok = ($exit -eq 1) -and ($output -match 'WARNING: Mozilla Firefox was not installed') -and (@($record | Where-Object { $_ -match '^firefox: failed' }).Count -eq 1)
+if (-not (Assert-That $ok 'software: a failed download is reported and recorded, and nothing is run')) {
+    Write-Host ('   exit {0}' -f $exit)
+    $output -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 4 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+}
+
+# Pengaman Edge: bila browser yang diminta tidak terpasang, Edge tidak dihapus.
+$edgeExe = @(${env:ProgramFiles(x86)}, $env:ProgramFiles) | Where-Object { $_ } |
+    ForEach-Object { Join-Path $_ 'Microsoft\Edge\Application\msedge.exe' } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if ($edgeExe) {
+    Set-Content -LiteralPath (Join-Path $scratchData 'software.txt') -Value 'brave: requested' -Encoding ASCII
+    $command = 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -DataDirectory "{1}" -AssumeNoBrowser 2>&1' -f (Join-Path $playbookScripts 'Remove-Edge.ps1'), $scratchData
+    $output = & cmd.exe /c $command | Out-String
+    $ok = ($output -match 'Microsoft Edge was kept') -and (Test-Path -LiteralPath $edgeExe)
+    if (-not (Assert-That $ok 'edge: kept when the requested browser is not installed')) {
+        $output -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 4 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+    }
+}
+else {
+    Write-Host '  skip  edge: Microsoft Edge is not installed on this runner'
+}
+
+# =======================================================================================
 Write-Section 'Pass test (runner edition allowed)'
 $playbookPass = Join-Path $WorkDirectory 'playbook-pass'
 Copy-Item -LiteralPath $playbook -Destination $playbookPass -Recurse -Force
@@ -324,6 +365,56 @@ $patchedArch = "if (`$Architecture -ne 'AMD64' -and `$Architecture -ne '{0}') {{
 $content = Get-Content -LiteralPath $compatibility -Raw
 $null = Assert-That ($content.Contains($original) -and $content.Contains($originalArch)) 'pass: the edition and architecture checks were found for patching'
 Set-Content -LiteralPath $compatibility -Value $content.Replace($original, $patched).Replace($originalArch, $patchedArch) -Encoding ASCII
+
+# Image runner sudah berisi Chrome, Firefox, dan 7-Zip. Supaya pemasangan oleh playbook
+# (sebagai sistem, lewat mesin AME) benar-benar teruji, program yang dipilih job ini
+# dicopot dulu. Fungsi bersama diambil dari Common.ps1 playbook.
+. (Join-Path $playbook 'Executables\Scripts\Common.ps1')
+$plannedOptions = @($optionList -split '\s+' | Where-Object { $_ })
+$preinstalled = @(
+    @{ Option = 'browser-chrome'; Name = 'Google Chrome'; Pattern = '^Google Chrome$'; Relative = 'Google\Chrome\Application\chrome.exe'; Silent = '--force-uninstall' },
+    @{ Option = 'browser-firefox'; Name = 'Mozilla Firefox'; Pattern = '^Mozilla Firefox'; Relative = 'Mozilla Firefox\firefox.exe'; Silent = '/S' },
+    @{ Option = 'install-7zip'; Name = '7-Zip'; Pattern = '^7-Zip'; Relative = '7-Zip\7z.exe'; Silent = '/S' })
+foreach ($program in $preinstalled) {
+    if ($plannedOptions -notcontains $program.Option) { continue }
+    $exePath = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
+        ForEach-Object { Join-Path $_ $program.Relative } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $exePath) {
+        Write-Host ('   {0} is not on this runner; the playbook installs it from scratch' -f $program.Name)
+        continue
+    }
+    # Entri MSI lebih dulu: uninstall MSI ikut menghapus program, dan pendaftaran MSI yang
+    # tertinggal bisa membuat pemasangan MSI berikutnya tidak memasang apa-apa.
+    $entries = @(Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+        Where-Object { $_.DisplayName -match $program.Pattern -and $_.UninstallString } |
+        Sort-Object { if ([string]$_.UninstallString -match '(?i)msiexec') { 0 } else { 1 } })
+    foreach ($entry in $entries) {
+        try {
+            if ([string]$entry.UninstallString -match '(?i)msiexec') {
+                $code = Invoke-TgosProcess -File (Join-Path $env:SystemRoot 'System32\msiexec.exe') -Arguments ('/x {0} /qn /norestart' -f $entry.PSChildName)
+            }
+            else {
+                $command = Split-TgosCommandLine ([string]$entry.UninstallString)
+                if (-not $command -or -not (Test-Path -LiteralPath $command.File)) {
+                    Write-Host ('   skipped uninstall entry {0}: its uninstaller is already gone' -f $entry.DisplayName)
+                    continue
+                }
+                $code = Invoke-TgosProcess -File $command.File -Arguments (($command.Arguments + ' ' + $program.Silent).Trim())
+            }
+            Write-Host ('   uninstalled {0} ({1}) before the run: exit {2}' -f $program.Name, $entry.DisplayName, $code)
+        }
+        catch {
+            Write-Host ('   could not run the uninstaller of {0}: {1}' -f $entry.DisplayName, (Format-LogLine $_.Exception.Message))
+        }
+    }
+    $gone = $false
+    for ($attempt = 0; $attempt -lt 30 -and -not $gone; $attempt++) {
+        $gone = -not (Test-Path -LiteralPath $exePath)
+        if (-not $gone) { Start-Sleep -Seconds 2 }
+    }
+    $null = Assert-That $gone ('setup: preinstalled {0} removed, so the playbook must install it' -f $program.Name)
+}
 
 # Image runner sudah menonaktifkan sebagian tugas telemetri. Supaya penonaktifan oleh
 # TGOS benar-benar teruji, tugas di daftar yang ada diaktifkan dulu.
@@ -365,7 +456,7 @@ if (Test-Path -LiteralPath $engineOutput) {
     Get-Content -LiteralPath $engineOutput |
         Where-Object { $_ -match 'TGOS: (?!recorded option|task disabled:|task not present)|PASSED:|REJECTED:|SUMMARY:' -or $_ -match 'WARNING: ' } |
         ForEach-Object { ($_ -replace '^.*?(TGOS: |PASSED:|REJECTED:|SUMMARY:|WARNING: )', '$1') } |
-        Select-Object -First 40 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+        Select-Object -First 80 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
 }
 
 Write-Host '   install-info.txt:'
@@ -378,6 +469,56 @@ if ($enabledTasks.Count -gt 0) {
         })
     $null = Assert-That ($stillEnabled.Count -eq 0) ('pass: all {0} task(s) enabled before the run are now Disabled' -f $enabledTasks.Count)
     $stillEnabled | ForEach-Object { Write-Host ('   still enabled: {0}{1}' -f $_.TaskPath, $_.TaskName) }
+}
+
+# =======================================================================================
+Write-Section 'Software'
+$selectedOptions = @($optionList -split '\s+' | Where-Object { $_ })
+$softwareChecks = @(
+    @{ Option = 'browser-brave'; Name = 'Brave'; Relative = 'BraveSoftware\Brave-Browser\Application\brave.exe' },
+    @{ Option = 'browser-chrome'; Name = 'Chrome'; Relative = 'Google\Chrome\Application\chrome.exe' },
+    @{ Option = 'browser-firefox'; Name = 'Firefox'; Relative = 'Mozilla Firefox\firefox.exe' },
+    @{ Option = 'install-7zip'; Name = '7-Zip'; Relative = '7-Zip\7z.exe' })
+foreach ($check in $softwareChecks) {
+    if ($selectedOptions -notcontains $check.Option) { continue }
+    $found = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
+        ForEach-Object { Join-Path $_ $check.Relative } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    $null = Assert-That ([bool]$found) ('software: {0} is installed after the run' -f $check.Name)
+    if ($found) { Write-Host ('   {0} {1}' -f $found, (Get-Item -LiteralPath $found).VersionInfo.ProductVersion) }
+    elseif ($check.Option -eq 'browser-brave') {
+        # Gejala installer per pengguna yang dijalankan sebagai sistem.
+        $systemCopy = Join-Path $env:SystemRoot 'System32\config\systemprofile\AppData\Local\BraveSoftware\Brave-Browser\Application\brave.exe'
+        Write-Host ('   Brave in the SYSTEM profile instead: {0}' -f (Test-Path -LiteralPath $systemCopy))
+    }
+}
+
+# Unduh, periksa tanda tangan, dan pasang ulang lewat skrip yang terpasang di Toolbox.
+$toolboxInstaller = Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox\Support\Install-Software.ps1'
+# Program yang versinya bisa dibaca: versi tidak boleh turun karena pemasangan ulang.
+$versionedExe = @{ '7zip' = '7-Zip\7z.exe'; firefox = 'Mozilla Firefox\firefox.exe'; chrome = 'Google\Chrome\Application\chrome.exe' }
+function Get-InstalledVersion {
+    param([string]$Relative)
+    $exe = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
+        ForEach-Object { Join-Path $_ $Relative } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $exe) { return $null }
+    return (ConvertTo-TgosVersion (Get-Item -LiteralPath $exe).VersionInfo.ProductVersion)
+}
+foreach ($item in @($ForceItems -split '\s+' | Where-Object { $_ })) {
+    $before = $null
+    if ($versionedExe.ContainsKey($item)) { $before = Get-InstalledVersion $versionedExe[$item] }
+    $command = 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -Item {1} -Force 2>&1' -f $toolboxInstaller, $item
+    $output = & cmd.exe /c $command | Out-String
+    $exit = $LASTEXITCODE
+    $ok = ($exit -eq 0) -and ($output -match 'verified:') -and ($output -match 'TGOS: .+ installed')
+    # Hanya 7-Zip yang boleh dilewati karena versi terpasang lebih baru.
+    $ok = $ok -and ($item -eq '7zip' -or $output -notmatch 'nothing changed')
+    $null = Assert-That $ok ('software: forced download of {0} is verified and installed' -f $item)
+    if ($null -ne $before) {
+        $after = Get-InstalledVersion $versionedExe[$item]
+        $null = Assert-That ($null -ne $after -and $after -ge $before) ('software: {0} version did not go down ({1} -> {2})' -f $item, $before, $after)
+    }
+    $output -split "`r?`n" | Where-Object { $_ -match 'TGOS: |WARNING: ' } | Select-Object -First 8 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+    if (-not $ok) { Write-Host ('   exit {0}' -f $exit) }
 }
 
 # =======================================================================================
@@ -414,6 +555,10 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
         @{ Feature = 'AutoUpdate'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'; Name = 'NoAutoUpdate'; Off = 1; On = $null },
         @{ Feature = 'Indexing'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\WSearch'; Name = 'Start'; Off = 4; On = 2 },
         @{ Feature = 'Hibernation'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'; Name = 'HiberbootEnabled'; Off = 0; On = 1 },
+        @{ Feature = 'Telemetry'; Path = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\CompatTelRunner.exe'; Name = 'Debugger'; Off = '%windir%\System32\taskkill.exe'; On = $null },
+        @{ Feature = 'ExtraServices'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\Spooler'; Name = 'Start'; Off = 4; On = 2 },
+        # Tanpa nilai registry: yang diperiksa kode keluarnya (0, atau 3 bila tidak didukung).
+        @{ Feature = 'CoreParking'; Path = $null; Name = 'exit code'; Off = $null; On = $null },
         @{ Feature = 'Defender'; Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection'; Name = 'DisableRealtimeMonitoring'; Off = 1; On = $null }
     )
 
@@ -440,6 +585,13 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
                 # skrip menolak, menjelaskan caranya, dan tidak mengubah apa pun.
                 $untouched = ($null -eq (Get-Value -Path $case.Path -Name $case.Name))
                 $null = Assert-That ($untouched -and $output -match 'Tamper Protection') 'toolbox: Defender Off is refused while Tamper Protection is on, and changes nothing'
+                continue
+            }
+            if ($null -eq $case.Path) {
+                if (-not (Assert-That ($exit -eq 0) ('toolbox: {0} {1} -> exit 0' -f $case.Feature, $state))) {
+                    Write-Host ('   exit {0}' -f $exit)
+                    $output -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 4 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+                }
                 continue
             }
             $actual = Get-Value -Path $case.Path -Name $case.Name
@@ -491,6 +643,27 @@ if ($python -and $after) {
 }
 
 # =======================================================================================
+# Pasang ulang Microsoft Store setelah dihapus playbook. Paling akhir, karena Store yang
+# kembali akan membuat pemeriksaan "Store dihapus" di atas gagal. Hanya informasi:
+# unduhannya asinkron dan bergantung pada layanan Microsoft.
+if ($plannedOptions -contains 'remove-store' -and $runnerEdition -notlike 'Server*') {
+    Write-Section 'Reinstall Microsoft Store (information only)'
+    if (Get-AppxPackage -AllUsers -Name 'Microsoft.WindowsStore' -ErrorAction SilentlyContinue) {
+        Write-Host '   the Microsoft Store is present, so there is nothing to reinstall'
+    }
+    else {
+        $code = Invoke-TgosProcess -File (Join-Path $env:SystemRoot 'System32\wsreset.exe') -Arguments '-i' -TimeoutMilliseconds 120000
+        Write-Host ('   wsreset -i exit code: {0}' -f $code)
+        $back = $false
+        for ($second = 0; $second -lt 300 -and -not $back; $second += 10) {
+            $back = [bool](Get-AppxPackage -AllUsers -Name 'Microsoft.WindowsStore' -ErrorAction SilentlyContinue)
+            if (-not $back) { Start-Sleep -Seconds 10 }
+        }
+        if ($back) { Write-Host ('   info  the Microsoft Store is back after about {0} s' -f $second) }
+        else { Write-Host '   info  the Microsoft Store did not come back within 5 minutes' }
+    }
+}
+
 Write-Section 'Result'
 Write-Host ('CI SUMMARY: {0} passed, {1} failed' -f $script:passed, $script:failures.Count)
 if ($script:failures.Count -gt 0) {

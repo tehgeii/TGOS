@@ -183,6 +183,7 @@ def main() -> int:
     # Paket yang dilindungi boleh hilang hanya bila opsi yang memang menghapusnya dipilih.
     allowed_by_option = {
         "remove-edge": ("Microsoft.MicrosoftEdge.Stable", "Microsoft.MicrosoftEdgeDevToolsClient"),
+        "remove-store": ("Microsoft.WindowsStore", "Microsoft.StorePurchaseApp"),
     }
     allowed = {name for option, names in allowed_by_option.items() if option in selected for name in names}
     protected_lost = [family for family in removed

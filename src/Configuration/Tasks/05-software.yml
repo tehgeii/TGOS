@@ -1,0 +1,81 @@
+---
+title: Software
+description: Mengunduh dan memasang program pilihan pengguna dari sumber resminya.
+actions:
+  # Dijalankan paling awal, selagi sistem masih utuh dan sebelum ada layanan yang
+  # dimatikan. Tiap program diunduh dari situs resminya, tanda tangan digitalnya
+  # diperiksa, baru dijalankan (rincian di Scripts\Install-Software.ps1).
+  #
+  # Tidak fatal: bila unduhan gagal (mis. tanpa internet) playbook tetap lanjut,
+  # hasilnya tercatat di laporan verifikasi, dan pemasangan bisa diulang dari TGOS
+  # Toolbox. Bila browser yang dipilih gagal terpasang, modul komponen TIDAK menghapus
+  # Edge.
+
+  # --- Opsi: browser ---------------------------------------------------------------
+  # Halaman browser di Wizard adalah pilihan tunggal; "None" tidak mengirim opsi apa pun.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item brave'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 30
+    showOutput: true
+    showError: true
+    option: 'browser-brave'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item chrome'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 30
+    showOutput: true
+    showError: true
+    option: 'browser-chrome'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item firefox'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 30
+    showOutput: true
+    showError: true
+    option: 'browser-firefox'
+
+  # --- Opsi: 7-Zip -----------------------------------------------------------------
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item 7zip'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 10
+    showOutput: true
+    showError: true
+    option: 'install-7zip'
+
+  # --- Opsi: runtime game ----------------------------------------------------------
+  # Visual C++ 2015-2022 (x64 dan x86) dan pustaka DirectX lama (Juni 2010) yang masih
+  # dibutuhkan banyak game dan launcher.
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item vcredist'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 15
+    showOutput: true
+    showError: true
+    option: 'install-runtimes'
+  - !run:
+    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Install-Software.ps1" -Item directx'
+    runas: trustedInstaller
+    exeDir: true
+    wait: true
+    weight: 15
+    showOutput: true
+    showError: true
+    option: 'install-runtimes'

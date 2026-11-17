@@ -3,11 +3,11 @@
     Memasang TGOS Toolbox dan wallpaper TGO ke sistem.
 
 .DESCRIPTION
-    1. Menyalin folder "TGOS Toolbox" dari playbook ke <drive sistem>\TGOS Toolbox.
+    1. Menyalin folder "TGOS Toolbox" dari playbook ke <drive sistem>\TGOS Toolbox,
+       ditambah tiga skrip playbook yang dipakai tombol Toolbox (Common.ps1,
+       Install-Software.ps1, Set-ShellLayout.ps1) ke subfolder Support.
     2. Membuat pintasan "TGOS Toolbox" di Desktop semua pengguna.
     3. Menyalin wallpaper ke %SystemRoot%\Web\Wallpaper\TGOS\TGOS.png.
-    4. Menyalin layout taskbar ke %ProgramData%\TGOS\TaskbarLayout.xml. File itu
-       ditunjuk policy "Start Layout" yang dipasang modul antarmuka.
 
     Kode keluar 1 hanya bila Toolbox gagal disalin. Langkah lain tidak fatal.
 
@@ -20,8 +20,7 @@ param(
     [string]$SourceRoot,
     [string]$ToolboxDestination,
     [string]$WallpaperDestination,
-    [string]$ShortcutDirectory,
-    [string]$DataDirectory
+    [string]$ShortcutDirectory
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,9 +38,6 @@ if (-not $WallpaperDestination) {
 if (-not $ShortcutDirectory) {
     $ShortcutDirectory = Join-Path $env:PUBLIC 'Desktop'
 }
-if (-not $DataDirectory) {
-    $DataDirectory = Join-Path $env:ProgramData 'TGOS'
-}
 
 try {
     $toolboxSource = Join-Path $SourceRoot 'TGOS Toolbox'
@@ -52,6 +48,11 @@ try {
         Remove-Item -LiteralPath $ToolboxDestination -Recurse -Force
     }
     Copy-Item -LiteralPath $toolboxSource -Destination $ToolboxDestination -Recurse -Force
+
+    # Skrip playbook yang juga dipakai tombol Toolbox (pasang software, susun ulang pin).
+    foreach ($name in @('Common.ps1', 'Install-Software.ps1', 'Set-ShellLayout.ps1')) {
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $ToolboxDestination 'Support') -Force
+    }
     Write-Output ("TGOS: Toolbox installed to {0}" -f $ToolboxDestination)
 }
 catch {
@@ -84,18 +85,6 @@ try {
 }
 catch {
     Write-Output ("WARNING: could not copy the wallpaper: {0}" -f (($_.Exception.Message -replace '\s+', ' ').Trim()))
-}
-
-try {
-    $layoutSource = Join-Path $SourceRoot 'TGOS\TaskbarLayout.xml'
-    if (-not (Test-Path -LiteralPath $DataDirectory)) {
-        New-Item -ItemType Directory -Path $DataDirectory -Force | Out-Null
-    }
-    Copy-Item -LiteralPath $layoutSource -Destination (Join-Path $DataDirectory 'TaskbarLayout.xml') -Force
-    Write-Output ("TGOS: taskbar layout copied to {0}" -f $DataDirectory)
-}
-catch {
-    Write-Output ("WARNING: could not copy the taskbar layout: {0}" -f (($_.Exception.Message -replace '\s+', ' ').Trim()))
 }
 
 exit 0

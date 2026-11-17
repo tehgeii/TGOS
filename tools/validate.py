@@ -73,6 +73,12 @@ PAGE_DESCRIPTION_ROOM = (2, 44)
 MAX_OPTION_TEXT = 44
 MAX_STATUS_TEXT = 22
 
+# Halaman RadioImagePage: gambar opsi ada di src/Images/<FileName>.png. Dokumentasi AME
+# menyarankan tinggi 128 piksel.
+IMAGES = SRC / "Images"
+OPTION_IMAGE_HEIGHT = 128
+GRADIENT_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
 ROOT_KEYS = {
     "title", "description", "actions", "iso", "oobe", "priority", "privilege",
     "option", "options", "builds", "cpuArch", "onUpgrade", "onUpgradeVersions",
@@ -203,6 +209,16 @@ PROTECTED_SERVICES = [
 ]
 ALLOWED_SERVICE_STARTUP = (2, 3, 4)  # Automatic, Manual, Disabled
 
+# Pengecualian dari dua daftar "dilindungi" di atas: boleh disentuh HANYA oleh aksi yang
+# terikat ke opsi ini, yaitu ketika pengguna sendiri memintanya di Wizard.
+OPTION_GATED_APPX = {
+    "Microsoft.WindowsStore": "remove-store",
+    "Microsoft.StorePurchaseApp": "remove-store",
+}
+OPTION_GATED_SERVICES = {
+    "Spooler": "trim-services",
+}
+
 # Akhiran contoh untuk menguji pola terhadap nama keluarga paket (nama_idpenerbit).
 _FAMILY_SUFFIX = "_8wekyb3d8bbwe"
 MIN_APPX_PREFIX = 8  # panjang minimum awalan nama sebelum wildcard
@@ -293,6 +309,41 @@ def text_of(root: ET.Element, tag: str) -> str | None:
     if node is None or node.text is None:
         return None
     return node.text.strip()
+
+
+def png_size(path: Path) -> tuple[int, int] | None:
+    """Lebar dan tinggi PNG dari header-nya, atau None bila bukan PNG."""
+    try:
+        header = path.read_bytes()[:24]
+    except OSError:
+        return None
+    if len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
+        return None
+    return int.from_bytes(header[16:20], "big"), int.from_bytes(header[20:24], "big")
+
+
+def validate_image_option(report: Report, where: str, option: ET.Element, name: str) -> None:
+    file_name = text_of(option, "FileName")
+    if not file_name:
+        report.error(where, f"opsi gambar '{name}' tanpa <FileName>")
+    else:
+        image = IMAGES / f"{file_name}.png"
+        size = png_size(image) if image.is_file() else None
+        if not image.is_file():
+            report.error(where, f"opsi gambar '{name}': {rel(image)} tidak ditemukan")
+        elif size is None:
+            report.error(where, f"opsi gambar '{name}': {rel(image)} bukan file PNG")
+        elif size[1] != OPTION_IMAGE_HEIGHT:
+            report.error(where, f"opsi gambar '{name}': {rel(image)} tingginya {size[1]} piksel; "
+                                f"harus {OPTION_IMAGE_HEIGHT}")
+
+    colors = [text_of(option, "GradientTopColor"), text_of(option, "GradientBottomColor")]
+    if not all(color and GRADIENT_RE.match(color) for color in colors):
+        report.error(where, f"opsi gambar '{name}': warna gradasi harus berformat #RRGGBB")
+    elif colors[0].lower() == colors[1].lower():
+        report.error(where, f"opsi gambar '{name}': dua warna gradasi tidak boleh sama")
+    elif any(color.lower() in ("#ffffff", "#000000") for color in colors):
+        report.error(where, f"opsi gambar '{name}': warna gradasi tidak boleh hitam atau putih")
 
 
 def validate_conf(report: Report) -> tuple[set[str], str | None]:
@@ -406,6 +457,7 @@ def validate_conf(report: Report) -> tuple[set[str], str | None]:
                 report.error(where, f"<{page.tag}>: elemen <{child.tag}> tidak dikenal")
 
         page_options: list[str] = []
+        has_none_option = False
         options_node = page.find("Options")
         option_nodes = list(options_node) if options_node is not None else []
         lines = sum(1 for tag in ("TopLine", "BottomLine") if page.find(tag) is not None)
@@ -423,10 +475,18 @@ def validate_conf(report: Report) -> tuple[set[str], str | None]:
                     report.error(where, f"<{option.tag}>: atribut '{attribute}' tidak dikenal")
                 elif attribute in BOOL_ATTRIBUTES and value not in ("true", "false"):
                     report.error(where, f"<{option.tag}>: {attribute} harus 'true' atau 'false', bukan '{value}'")
+            if option.tag == "RadioImageOption" and option.get("None") == "true":
+                # Opsi "None": tidak punya nama, jadi tidak ada opsi yang dikirim ke playbook.
+                if list(option):
+                    report.error(where, '<RadioImageOption None="true"> tidak boleh punya isi')
+                has_none_option = True
+                continue
             option_name = text_of(option, "Name")
             if not option_name:
                 report.error(where, f"<{option.tag}> tanpa <Name>")
                 continue
+            if option.tag == "RadioImageOption":
+                validate_image_option(report, where, option, option_name)
             option_text = text_of(option, "Text")
             if not option_text:
                 report.error(where, f"opsi '{option_name}' tanpa <Text>")
@@ -441,6 +501,8 @@ def validate_conf(report: Report) -> tuple[set[str], str | None]:
             page_options.append(option_name)
         if not page_options:
             report.error(where, f"<{page.tag}> tidak punya opsi")
+        if has_none_option and page.get("IsRequired") == "true":
+            report.error(where, f"<{page.tag}> punya opsi None tetapi IsRequired=\"true\"")
         default = page.get("DefaultOption")
         if default is not None and default not in page_options:
             report.error(where, f"DefaultOption '{default}' tidak ada di halamannya")
@@ -628,7 +690,12 @@ def validate_action(report: Report, where: str, action: Action, options: set[str
             if "*" in name:
                 report.error(where, f"!service: nama '{name}' tidak boleh memakai wildcard")
             elif name.lower() in {item.lower() for item in PROTECTED_SERVICES}:
-                report.error(where, f"!service: '{name}' adalah layanan yang dilindungi dan tidak boleh disentuh")
+                gate = {key.lower(): value for key, value in OPTION_GATED_SERVICES.items()}.get(name.lower())
+                if gate is None:
+                    report.error(where, f"!service: '{name}' adalah layanan yang dilindungi dan tidak boleh disentuh")
+                elif body.get("option") != gate:
+                    report.error(where, f"!service: '{name}' dilindungi; hanya boleh disentuh dengan "
+                                        f"option: '{gate}'")
 
     if tag == "scheduledTask":
         report.error(where, "!scheduledTask: tidak dipakai di TGOS karena gagal bila tugasnya tidak ada; "
@@ -659,8 +726,13 @@ def validate_action(report: Report, where: str, action: Action, options: set[str
             for protected in PROTECTED_APPX:
                 family = (protected + _FAMILY_SUFFIX).lower()
                 if fnmatch.fnmatchcase(family, name.lower()):
-                    report.error(where, f"!appx: nama '{name}' akan menghapus paket yang "
-                                        f"dilindungi '{protected}'")
+                    gate = OPTION_GATED_APPX.get(protected)
+                    if gate is None:
+                        report.error(where, f"!appx: nama '{name}' akan menghapus paket yang "
+                                            f"dilindungi '{protected}'")
+                    elif body.get("option") != gate:
+                        report.error(where, f"!appx: nama '{name}' mengenai paket yang dilindungi "
+                                            f"'{protected}'; hanya boleh dengan option: '{gate}'")
 
     if tag == "run" and body.get("exeDir") is True and isinstance(body.get("args"), str):
         for match in SCRIPT_REF.finditer(body["args"]):
@@ -789,7 +861,6 @@ def validate_install_record(report: Report, options: set[str]) -> None:
 REQUIRED_SUPPORT_FILES = [
     "TGOS/scheduled-tasks.txt",
     "TGOS/TGOS.png",
-    "TGOS/TaskbarLayout.xml",
     "TGOS Toolbox/README.txt",
     "TGOS Toolbox/Support/Set-TgosFeature.ps1",
     "TGOS Toolbox/Support/Test-TgosResult.ps1",

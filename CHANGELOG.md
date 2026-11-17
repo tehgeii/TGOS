@@ -3,6 +3,70 @@
 Semua perubahan penting pada TGOS dicatat di sini. Nomor versi mengikuti roadmap di
 [PLAN.md](PLAN.md#12-roadmap).
 
+## 1.0.0 — pilihan browser, opsi baru, dan perbaikan dari uji 0.9.1
+
+Versi `0.9.1` diuji pemilik di VMware (Windows 11 Pro 26H2 build 26300, AME Beta 0.8.4,
+semua opsi): 163 pemeriksaan lolos, 0 gagal; Edge terhapus di edisi Pro; RAM −32%. Tiga
+hal masih salah dan diperbaiki di sini. Lolos uji otomatis; belum diuji ulang di VM, dan
+uji di hardware asli (benchmark, anti-cheat) belum dilakukan.
+
+**Perbaikan**
+
+- **Copilot.** Di 26H2 Copilot bukan paket Store, tetapi program biasa (1,7 GB) dengan
+  uninstaller sejenis Edge. `0.9.1` membuang identitasnya dan meninggalkan programnya.
+  Sekarang uninstaller-nya dijalankan dulu (`Remove-Copilot.ps1`). Paket
+  `Microsoft.MicrosoftOfficeHub`, yang ternyata identitas aplikasi Copilot, pindah ke
+  opsi *Remove Copilot and Widgets*: tidak dicentang berarti Copilot utuh.
+- **Kotak abu-abu di taskbar.** Itu pin Copilot yang identitasnya terhapus. Daftar pin
+  taskbar sekarang direset paksa dan disusun ulang: File Explorer, browser, Store.
+- **Start menu.** Pin diganti set TGOS (File Explorer, Settings, Store, browser, Notepad,
+  Calculator, Terminal); ubin promosi dan bagian Recent hilang.
+- Sisa folder Widgets yang terkunci dijadwalkan terhapus saat restart.
+
+**Baru**
+
+- **Halaman pilihan browser** bergambar: Brave (bawaan), Chrome, Firefox, atau None.
+- **Software**: 7-Zip dan runtime game (Visual C++ x64/x86, DirectX). Semuanya diunduh
+  dari sumber resmi dan tanda tangan digitalnya diperiksa sebelum dijalankan; 7-Zip, yang
+  tidak ditandatangani pembuatnya, dicocokkan dengan checksum di manifest winget
+  Microsoft, dan tidak pernah diturunkan versinya. Brave
+  dipasang untuk semua pengguna, lengkap dengan updater-nya. Tanpa internet instalasi
+  tetap lanjut; pemasangan bisa diulang dari Toolbox.
+- **Pengaman Edge**: Edge tidak dihapus bila browser yang dipilih gagal terpasang.
+- **Opsi baru**: hapus Microsoft Store (default mati, ditandai *hard to undo*), matikan core parking CPU (pengaturan
+  itu jadi tampil di Advanced power settings), matikan animasi, pangkas layanan ekstra (printer, diagnostik, penemuan jaringan; default
+  mati), menu klik kanan klasik, taskbar rata kiri.
+- **Telemetri maksimal tanpa blokir jaringan**: policy tambahan, perekam otomatis
+  dimatikan, dan `CompatTelRunner.exe` serta `DeviceCensus.exe` dicegah jalan.
+- Jalan pintas Sticky/Filter/Toggle Keys dimatikan; warna aksen biru TGO; info TGOS di
+  Settings > About; Click to Do dimatikan bersama Copilot.
+- Aplikasi tambahan yang dihapus: Cross Device Experience Host, Start Experiences App,
+  Edge Game Assist (bersama Edge).
+- **TGOS Toolbox**: pasang browser / 7-Zip / runtime game, mencoba pasang ulang Microsoft
+  Store (`wsreset -i`; di uji otomatis Store tidak kembali dalam 5 menit, jadi tidak
+  dijamin),
+  reset taskbar dan Start, dan tombol ON/OFF untuk core parking, layanan ekstra, dan
+  pengumpul telemetri.
+- Laporan (`Collect TGOS Report`) sekarang memuat daftar program terpasang, ID aplikasi
+  Start, dan pin taskbar.
+
+**Alat**
+
+- Validator: halaman `RadioImagePage` dan gambarnya; Store dan `Spooler` hanya boleh
+  disentuh lewat opsinya sendiri.
+- Uji diri: pemindai yang menolak variabel PowerShell bernama sama dengan parameter skrip
+  (beda huruf besar-kecil; bug jenis ini sempat merusak satu tombol Toolbox sebelum
+  rilis), uji pembaca checksum winget dan pembanding versi, dan uji pemilihan browser
+  untuk pin taskbar.
+- Uji otomatis: tiap browser dipasang sungguhan oleh playbook di salah satu job (program
+  yang sudah ada di image runner dicopot dulu); pemasangan ulang lewat Toolbox, dengan
+  pemeriksaan versi tidak turun; uji unduhan gagal dan pengaman Edge; percobaan pasang
+  ulang Microsoft Store (hasilnya dicatat, tidak menggagalkan uji).
+
+**Perubahan perilaku dari 0.9.1**: animasi tidak lagi selalu dimatikan (sekarang opsi,
+bawaan tercentang); label "(experimental)" pada opsi hapus Edge dicabut; pin taskbar dan
+Start buatan pengguna ikut diganti saat instalasi.
+
 ## 0.9.1 — perbaikan dari uji pertama di Windows 11 Pro 26H2
 
 Versi `0.9.0` diuji pemilik di VMware (Windows 11 Pro 26H2 build 26300, AME Beta 0.8.4,
