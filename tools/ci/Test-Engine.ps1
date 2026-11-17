@@ -802,92 +802,30 @@ public static extern int AssocQueryString(int flags, int str, string assoc, stri
             $popups += @($found | Where-Object { $_ -notmatch '^wsl ' })
         }
         $null = Assert-That ($popups.Count -eq 0) 'gamebar: opening ms-gamebar: and ms-gamingoverlay: shows no window (control: the Notepad window was detected)'
-        if ($popups.Count) {
-            # Diagnosa lanjutan (hanya informasi; hasil di atas yang menentukan). reg.exe
-            # dijalankan lewat cmd supaya kunci yang tidak ada tidak menghentikan skrip.
-            function Show-RegistryTree {
-                param([string]$Key, [int]$Max = 12)
-                $lines = @(& cmd.exe /c ('reg query "{0}" /s 2>&1' -f $Key) | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() })
-                if ($lines.Count -and $lines[0] -match '^ERROR:') { Write-Host ('   reg {0}: (missing)' -f $Key); return }
-                Write-Host ('   reg {0}: {1} line(s)' -f $Key, $lines.Count)
-                $lines | Select-Object -First $Max | ForEach-Object { Write-Host ('     {0}' -f (Format-LogLine $_)) }
-            }
-            function Show-ProtocolTest {
-                param([string]$Label, [string[]]$Uris = @('ms-gamebar:', 'ms-gamingoverlay:'))
-                foreach ($uri in $Uris) {
-                    $name = $uri.TrimEnd(':')
-                    $windows = @(Test-ProtocolPopup $uri | Where-Object { $_ -notmatch '^wsl ' }) -join ' ; '
-                    if (-not $windows) { $windows = 'no window' }
-                    Write-Host ('   experiment {0}, {1}: shell command {2} -> {3}' -f $Label, $uri, (Get-ProtocolAssoc $name 1), (Format-LogLine $windows))
+        # Penyebab yang ditemukan di Windows 11 25H2: katalog protokol AppX masih menunjuk ke
+        # paket Game Bar yang sudah dihapus (lihat Set-TgosFeature.ps1, GameBar Off).
+        $catalogLeft = @()
+        $catalogRoots = @('HKLM:\SOFTWARE\Classes') + @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
+                Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+_Classes$' } | ForEach-Object { 'Registry::HKEY_USERS\{0}' -f $_.PSChildName })
+        foreach ($catalogRoot in $catalogRoots) {
+            foreach ($protocol in @('ms-gamebar', 'ms-gamebarservices', 'ms-gamingoverlay')) {
+                $catalog = '{0}\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\{1}' -f $catalogRoot, $protocol
+                foreach ($entry in @(Get-ChildItem -LiteralPath $catalog -ErrorAction SilentlyContinue)) {
+                    $catalogLeft += ('{0} -> {1}' -f ($entry.Name -replace '^.*\\windows\.protocol\\', ''), (@($entry.GetValueNames()) -join ', '))
                 }
             }
-            foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
-                Show-RegistryTree ('HKCU\Software\Classes\{0}' -f $protocol)
-                Show-RegistryTree ('HKLM\SOFTWARE\Classes\{0}' -f $protocol)
-                Show-RegistryTree ('HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\{0}' -f $protocol)
-                Show-RegistryTree ('HKLM\SOFTWARE\Microsoft\Windows\Shell\Associations\UrlAssociations\{0}' -f $protocol)
-                Show-RegistryTree ('HKCR\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\{0}' -f $protocol)
-            }
-            $contract = 'HKCU:\Software\Classes\Extensions\ContractId\Windows.Protocol\PackageId'
-            $contractLeft = @(Get-ChildItem -LiteralPath $contract -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '(?i)xbox|gaming' } | ForEach-Object { $_.PSChildName })
-            Write-Host ('   protocol contracts left for Xbox/gaming packages: {0}' -f $(if ($contractLeft.Count) { $contractLeft -join ', ' } else { 'none' }))
-            $oem = Join-Path $env:SystemRoot 'System32\OEMDefaultAssociations.xml'
-            if (Test-Path -LiteralPath $oem) {
-                $oemLines = @(Get-Content -LiteralPath $oem -ErrorAction SilentlyContinue | Where-Object { $_ -match '(?i)gam' })
-                Write-Host ('   OEMDefaultAssociations.xml lines about gaming: {0}' -f $oemLines.Count)
-                $oemLines | Select-Object -First 5 | ForEach-Object { Write-Host ('     {0}' -f (Format-LogLine $_.Trim())) }
-            }
-            $toasts = Get-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts' -ErrorAction SilentlyContinue
-            if ($toasts) { $toasts.GetValueNames() | Where-Object { $_ -match '(?i)gam' } | ForEach-Object { Write-Host ('   association toast: {0}' -f $_) } }
-            # Daftar paket provisioned dibaca dari registry, bukan Get-AppxProvisionedPackage
-            # (DISM; bisa lama sekali sesudah ResetBase).
-            $provisioned = @(Get-ChildItem -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Applications' -ErrorAction SilentlyContinue |
-                    Where-Object { $_.PSChildName -match '(?i)xbox|gaming' } | ForEach-Object { $_.PSChildName })
-            Write-Host ('   provisioned Xbox/gaming packages: {0}' -f $(if ($provisioned.Count) { $provisioned -join ', ' } else { 'none' }))
-            $allGaming = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)xbox|gaming' } | ForEach-Object { $_.Name })
-            Write-Host ('   installed Xbox/gaming packages: {0}' -f $(if ($allGaming.Count) { $allGaming -join ', ' } else { 'none' }))
-
-            # Percobaan (informasi). Masing-masing dibiarkan berlaku untuk percobaan
-            # berikutnya, jadi urutannya bertahap.
-            # 1. Protokol buatan sendiri dengan penangan yang sama: apakah Windows ini masih
-            #    memakai penangan protokol "lama" (HKCR\<protokol>\shell\open\command)?
-            $probe = 'HKCU:\Software\Classes\tgos-probe'
-            New-Item -Path (Join-Path $probe 'shell\open\command') -Force | Out-Null
-            Set-ItemProperty -LiteralPath $probe -Name '(default)' -Value 'URL:tgos-probe'
-            Set-ItemProperty -LiteralPath $probe -Name 'URL Protocol' -Value ''
-            Set-ItemProperty -LiteralPath (Join-Path $probe 'shell\open\command') -Name '(default)' -Value ('"{0}"' -f $systray)
-            Show-ProtocolTest 'custom protocol' @('tgos-probe:')
-            Remove-Item -LiteralPath $probe -Recurse -Force -ErrorAction SilentlyContinue
-            # 2. Tanpa NoOpenWith.
-            foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
-                foreach ($root in @('HKCU:\Software\Classes', 'HKLM:\SOFTWARE\Classes')) {
-                    Remove-ItemProperty -LiteralPath (Join-Path $root $protocol) -Name 'NoOpenWith' -ErrorAction SilentlyContinue
-                }
-            }
-            Show-ProtocolTest 'without NoOpenWith'
-            # 3. Penangan REG_SZ dengan jalur lengkap (bukan REG_EXPAND_SZ).
-            foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
-                foreach ($root in @('HKCU:\Software\Classes', 'HKLM:\SOFTWARE\Classes')) {
-                    Set-ItemProperty -LiteralPath ('{0}\{1}\shell\open\command' -f $root, $protocol) -Name '(default)' -Value ('"{0}"' -f $systray) -Type String
-                }
-            }
-            Show-ProtocolTest 'REG_SZ handler'
-            # 4. Pilihan aplikasi per pengguna dibuang total (termasuk UserChoiceLatest).
-            foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
-                Remove-Item -LiteralPath ('HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\{0}' -f $protocol) -Recurse -Force -ErrorAction SilentlyContinue
-            }
-            Show-ProtocolTest 'UrlAssociations removed'
-            # 5. Policy "Do not show the new application installed notification".
-            $explorerPolicy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer'
-            if (-not (Test-Path -LiteralPath $explorerPolicy)) { New-Item -Path $explorerPolicy -Force | Out-Null }
-            Set-ItemProperty -LiteralPath $explorerPolicy -Name 'NoNewAppAlert' -Value 1 -Type DWord
-            Show-ProtocolTest 'NoNewAppAlert'
-            Remove-ItemProperty -LiteralPath $explorerPolicy -Name 'NoNewAppAlert' -ErrorAction SilentlyContinue
-            foreach ($protocol in @('ms-gamebar', 'ms-gamingoverlay')) {
-                Show-RegistryTree ('HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\{0}' -f $protocol)
-            }
-            Get-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts' -ErrorAction SilentlyContinue |
-                ForEach-Object { $_.GetValueNames() } | Where-Object { $_ -match '(?i)gam|tgos' } | ForEach-Object { Write-Host ('   association toast after: {0}' -f $_) }
+        }
+        $null = Assert-That (-not @($catalogLeft | Where-Object { $_ -match 'XboxGamingOverlay' }).Count) 'gamebar: no protocol catalog entry points to the removed Game Bar'
+        $catalogLeft | ForEach-Object { Write-Host ('   protocol catalog: {0}' -f (Format-LogLine $_)) }
+        Get-Content -LiteralPath (Join-Path $env:ProgramData 'TGOS\toolbox.log') -ErrorAction SilentlyContinue | Where-Object { $_ -match 'GameBar' } |
+            Select-Object -First 4 | ForEach-Object { Write-Host ('   toolbox.log: {0}' -f (Format-LogLine $_)) }
+        # Pengaman di Set-TgosFeature: paket yang masih terpasang punya kunci di
+        # PackageRepository\Packages. Dibuktikan dengan satu paket yang pasti terpasang.
+        $sample = Get-AppxPackage -Name 'Microsoft.WindowsCalculator' -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $sample) { $sample = Get-AppxPackage -Name 'Microsoft.WindowsNotepad' -ErrorAction SilentlyContinue | Select-Object -First 1 }
+        if ($sample) {
+            $repositoryKey = 'HKLM:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Packages\{0}' -f $sample.PackageFullName
+            Write-Host ('   guard: PackageRepository\Packages key for installed {0}: {1}' -f $sample.Name, $(if (Test-Path -LiteralPath $repositoryKey) { 'present' } else { 'absent' }))
         }
     }
     else {

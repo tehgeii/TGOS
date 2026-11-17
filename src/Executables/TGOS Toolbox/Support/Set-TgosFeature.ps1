@@ -456,6 +456,51 @@ try {
                         }
                     }
                 }
+                # Katalog protokol AppX. Windows 11 25H2 menyimpan entri protokol untuk paket
+                # Game Bar walaupun paketnya sudah dihapus, dan shell memercayai katalog itu
+                # sebelum penangan di atas: hasilnya "no application is associated" dan
+                # jendela "Pick an app" (terbukti di uji otomatis; protokol buatan sendiri
+                # dengan penangan yang sama tidak memunculkan jendela). Hanya entri yang
+                # SELURUHNYA menunjuk ke paket Game Bar yang sudah tidak terpasang yang
+                # dihapus; bila Game Bar dipasang lagi, Windows membuat entrinya kembali.
+                $installedOverlay = @()
+                $appxKnown = $true
+                try {
+                    $installedOverlay = @(Get-AppxPackage -AllUsers -Name 'Microsoft.XboxGamingOverlay' -ErrorAction Stop | ForEach-Object { $_.PackageFullName })
+                }
+                catch { $appxKnown = $false }
+                $repository = 'HKLM:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository'
+                $catalogRoots = @('HKLM:\SOFTWARE\Classes') + @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
+                        Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+_Classes$' } |
+                        ForEach-Object { 'Registry::HKEY_USERS\{0}' -f $_.PSChildName })
+                $catalogRemoved = 0
+                $catalogFailed = 0
+                foreach ($catalogRoot in $catalogRoots) {
+                    foreach ($protocol in $protocols) {
+                        $catalog = '{0}\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\{1}' -f $catalogRoot, $protocol
+                        foreach ($entry in @(Get-ChildItem -LiteralPath $catalog -ErrorAction SilentlyContinue)) {
+                            $packages = @($entry.GetValueNames() | Where-Object { $_ })
+                            if (-not $packages.Count) { continue }
+                            $stale = $true
+                            foreach ($package in $packages) {
+                                if ($package -notmatch '^Microsoft\.XboxGamingOverlay_') { $stale = $false }
+                                elseif ($installedOverlay -contains $package) { $stale = $false }
+                                elseif (Test-Path -LiteralPath (Join-Path (Join-Path $repository 'Packages') $package)) { $stale = $false }
+                            }
+                            # Tanpa daftar paket AppX yang bisa dibaca, entri tidak disentuh.
+                            if (-not $appxKnown) { $stale = $false }
+                            if (-not $stale) { continue }
+                            try {
+                                Remove-Item -LiteralPath $entry.PSPath -Recurse -Force -ErrorAction Stop
+                                $catalogRemoved++
+                            }
+                            catch { $catalogFailed++ }
+                        }
+                    }
+                }
+                if ($catalogRemoved) { Write-Host ('Removed {0} leftover Game Bar protocol registration(s).' -f $catalogRemoved) }
+                if ($catalogFailed) { Write-Host ('WARNING: {0} leftover Game Bar protocol registration(s) could not be removed; Win+G may still show "Pick an app".' -f $catalogFailed) }
+                Write-Log ('GameBar Off: protocol catalog entries removed {0}, failed {1}' -f $catalogRemoved, $catalogFailed)
                 Write-Host 'Xbox Game Bar is now OFF: the controller buttons and Win+G no longer open it.'
             }
             else {

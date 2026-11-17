@@ -530,6 +530,33 @@ function Test-ScriptResults {
         }
     }
 
+    if (Test-Option 'remove-xbox') {
+        # Entri katalog protokol AppX untuk Game Bar yang sudah dihapus membuat Win+G
+        # memunculkan "Pick an app" di Windows 11 25H2 (dibersihkan Set-TgosFeature GameBar Off).
+        $overlay = @()
+        try { $overlay = @(Get-AppxPackage -AllUsers -Name 'Microsoft.XboxGamingOverlay' -ErrorAction Stop) } catch { }
+        $roots = @('HKLM:\SOFTWARE\Classes') + @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
+                Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+_Classes$' } | ForEach-Object { 'Registry::HKEY_USERS\{0}' -f $_.PSChildName })
+        $leftovers = 0
+        foreach ($root in $roots) {
+            foreach ($protocol in @('ms-gamebar', 'ms-gamebarservices', 'ms-gamingoverlay')) {
+                $catalog = '{0}\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository\Extensions\windows.protocol\{1}' -f $root, $protocol
+                foreach ($entry in @(Get-ChildItem -LiteralPath $catalog -ErrorAction SilentlyContinue)) {
+                    if (@($entry.GetValueNames() | Where-Object { $_ -match '^Microsoft\.XboxGamingOverlay_' }).Count) { $leftovers++ }
+                }
+            }
+        }
+        if ($overlay.Count) {
+            Add-Result 'SKIP' 'game bar' 'Win+G protocol' 'the Xbox Game Bar app is installed again' 'Set-TgosFeature.ps1'
+        }
+        elseif ($leftovers) {
+            Add-Result 'FAIL' 'game bar' 'Win+G protocol' ('{0} leftover registration(s) of the removed Game Bar; run "Xbox Game Bar - Turn OFF" in the Toolbox' -f $leftovers) 'Set-TgosFeature.ps1'
+        }
+        else {
+            Add-Result 'PASS' 'game bar' 'Win+G protocol' 'no leftover registration of the removed Game Bar' 'Set-TgosFeature.ps1'
+        }
+    }
+
     $restoreLine = @($installInfo | Where-Object { $_ -match '^Restore point\s*:' }) | Select-Object -First 1
     if ($restoreLine -and $restoreLine -match ':\s*created') {
         Add-Result 'PASS' 'restore point' 'Before TGOS' 'created' 'New-RestorePoint.ps1'
