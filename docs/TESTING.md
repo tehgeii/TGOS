@@ -314,7 +314,7 @@ Semuanya ditangani di `1.0.0`.
 
 | Lapis | Tanggal | Hasil | Catatan |
 |---|---|---|---|
-| 1. Uji bentuk | 17 Nov 2026 | Lolos | 91 pemeriksaan di `tools/selftest.py`; revisi kedua 97, revisi keempat 100 |
+| 1. Uji bentuk | 17 Nov 2026 | Lolos | 91 pemeriksaan di `tools/selftest.py`; revisi kedua 97, revisi keempat 100, revisi kelima 101 |
 | 2. Mesin AME | 17 Nov 2026 | Lolos di kelima job | Rincian di bawah |
 | 2. Mesin AME, revisi kedua | 17 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
 | 3. VM pemilik, build pertama | 17 Nov 2026 | 225 PASS, 1 FAIL; setelah restart 224 PASS, 2 FAIL | Rincian di bawah; dua FAIL itu diperbaiki di revisi |
@@ -324,7 +324,7 @@ Semuanya ditangani di `1.0.0`.
 | 3. VM pemilik, revisi ketiga | 16-18 Nov 2026 | Setelah restart 277 PASS, 1 FAIL, 2 WARN | Rincian di akhir bagian ini; jendela cmd, FAIL, dan WARN diperbaiki di revisi keempat |
 | 2. Mesin AME, revisi keempat | 18 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
 | 3. VM pemilik, revisi keempat | 18 Nov 2026 | Setelah restart 284 PASS, 1 FAIL, 2 WARN | Rincian di akhir bagian ini; FAIL dan pintasan yang hilang diperbaiki di revisi kelima |
-| 2. Mesin AME, revisi kelima | 18 Nov 2026 | @@CI5@@ | Rincian di akhir bagian ini |
+| 2. Mesin AME, revisi kelima | 18 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
 | 3. VM pemilik, revisi kelima | | Belum | Pemilik akan menguji di PC asli |
 | Hardware asli | | Belum | Benchmark dan anti-cheat belum diuji |
 
@@ -638,4 +638,30 @@ Masalah, dengan penyebabnya:
 - **Discord dan Ubisoft Connect tidak ada di Start dan Desktop** walau terpasang (PASS di
   laporan, tetapi tidak terlihat pengguna): daftar Start di potret tidak memuat keduanya.
 
-Lapis 2, revisi kelima: @@CI5TABLE@@
+Lapis 2, revisi kelima (runner command-line AME versi 0.8.4, run terakhir sebelum rilis):
+
+| Runner | Opsi, browser | Pemeriksaan diri | Pemeriksaan CI |
+|---|---|---|---|
+| Windows Server 2025, build 26100, x64 | bawaan, Brave | 0 FAIL | 87 dari 87 |
+| Windows Server 2025, build 26100, x64 | semua, Chrome, keenam aplikasi | 0 FAIL | 99 dari 99 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan, Brave | 0 FAIL | 87 dari 87 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua, Firefox | 0 FAIL | 88 dari 88 |
+
+Yang terbukti:
+
+- **Pintasan**: di job semua-opsi, log pemasangan memperlihatkan Steam, Epic, EA app, dan
+  Spotify sudah membuat pintasannya sendiri, sedangkan untuk **Ubisoft Connect dan Discord
+  TGOS harus menambahkan pintasan Start dan Desktop** (sama dengan yang hilang di VM).
+  Laporan verifikasi: keenam aplikasi PASS di Start dan Desktop. Percobaan sebelumnya
+  menemukan bug di pemeriksanya sendiri (pintasan per pengguna tidak dikenali saat diperiksa
+  sebagai TrustedInstaller), sudah diperbaiki.
+- **Antrean Windows Installer**: selama CI memegang mutex `Global\_MSIExecute`,
+  `Install-Software.ps1` menunggu ("Windows Installer is free after 24-27 s"), lalu memasang
+  7-Zip.
+- **Coba lagi setelah restart**: 7-Zip dicopot lalu dipasang lagi oleh tugas
+  `\TGOS\Finish after restart` sebagai SYSTEM di keempat job; di Windows 11 bawaan juga .NET
+  Framework 3.5 (203 detik). Pada satu percobaan, unduhan VC++ dari aka.ms terputus saat
+  playbook: VC++ otomatis dijadwalkan ulang dan diselesaikan oleh tugas itu (sejak itu
+  unduhan yang terputus juga dicoba lagi sampai 3 kali).
+- Lompatan jam tidak bisa dibuat di runner (mengubah jam runner berisiko memutus job);
+  validator menjamin skrip playbook tidak lagi memakai jam Windows untuk batas waktu.
