@@ -510,4 +510,28 @@ Masalah, dengan penyebabnya:
 
 Lapis 2, revisi ketiga (runner command-line AME versi 0.8.4, run terakhir sebelum rilis):
 
-@@REV3@@
+| Runner | Opsi, browser | Pemeriksaan diri | Pemeriksaan CI |
+|---|---|---|---|
+| Windows Server 2025, build 26100, x64 | bawaan, Brave | 213 PASS, 0 FAIL, 1 WARN, 73 SKIP | 79 dari 79 |
+| Windows Server 2025, build 26100, x64 | semua, Chrome | 274 PASS, 0 FAIL, 1 WARN, 19 SKIP | 90 dari 90 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan, Brave | 210 PASS, 0 FAIL, 0 WARN, 77 SKIP | 79 dari 79 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua, Firefox | 264 PASS, 0 FAIL, 0 WARN, 30 SKIP | 80 dari 80 |
+
+`WARN` di Server tetap restore point. Yang terbukti:
+
+- **Seperti AME Wizard**: mesin AME dijalankan tanpa konsol (`DETACHED_PROCESS`), dengan
+  Windows Terminal 1.24 sebagai terminal bawaan di runner Windows 11. Pemantau jendela tidak
+  melihat satu pun jendela dari TGOS. Jejak proses mencatat sekitar 110 konsol selama
+  playbook, semuanya tanpa jendela: PowerShell tiap langkah TGOS (44), `ame-assassin.exe`
+  milik AME (31), ngen/DISM/servicing Windows, dan updater WSL milik runner. Kontrol: konsol
+  tersembunyi dengan Windows Terminal maupun Console Host sebagai bawaan tetap tersembunyi,
+  jadi jendela kosong di VM pemilik **tidak bisa dibuat ulang** di runner.
+- **Terminal bawaan** disetel ke Console Host selama playbook dan kembali persis ke Windows
+  Terminal sesudahnya; catatannya terhapus; pemeriksaan diri memeriksanya.
+- **.NET Framework 3.5**: dicopot sampai payload-nya hilang
+  (`DisabledWithPayloadRemoved`), lalu dipasang lagi lewat Toolbox saat update di-pause:
+  berhasil dalam 188-221 detik. Jalur percobaan ulang (DISM gagal sekali) tidak terjadi di
+  runner, jadi belum teruji langsung.
+- **Reserved Storage**: tugas `\TGOS\Reserved Storage Off` terdaftar (SYSTEM, saat
+  startup, tersembunyi) dan menghapus dirinya sendiri setelah berhasil, di keempat job.
+  Kondisi "sedang dipakai" seperti di VM tidak bisa dibuat di runner.
