@@ -314,7 +314,7 @@ Semuanya ditangani di `1.0.0`.
 
 | Lapis | Tanggal | Hasil | Catatan |
 |---|---|---|---|
-| 1. Uji bentuk | 17 Nov 2026 | Lolos | 91 pemeriksaan di `tools/selftest.py`; revisi kedua 97 |
+| 1. Uji bentuk | 17 Nov 2026 | Lolos | 91 pemeriksaan di `tools/selftest.py`; revisi kedua 97, revisi keempat 100 |
 | 2. Mesin AME | 17 Nov 2026 | Lolos di kelima job | Rincian di bawah |
 | 2. Mesin AME, revisi kedua | 17 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
 | 3. VM pemilik, build pertama | 17 Nov 2026 | 225 PASS, 1 FAIL; setelah restart 224 PASS, 2 FAIL | Rincian di bawah; dua FAIL itu diperbaiki di revisi |
@@ -322,7 +322,7 @@ Semuanya ditangani di `1.0.0`.
 | 3. VM pemilik, revisi kedua | 16-18 Nov 2026 | Setelah restart 283 PASS, 1 FAIL, 2 WARN | Rincian di akhir bagian ini; FAIL dan WARN diperbaiki di revisi ketiga |
 | 2. Mesin AME, revisi ketiga | 18 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
 | 3. VM pemilik, revisi ketiga | 16-18 Nov 2026 | Setelah restart 277 PASS, 1 FAIL, 2 WARN | Rincian di akhir bagian ini; jendela cmd, FAIL, dan WARN diperbaiki di revisi keempat |
-| 2. Mesin AME, revisi keempat | 18 Nov 2026 | @@CI4@@ | Rincian di akhir bagian ini |
+| 2. Mesin AME, revisi keempat | 18 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
 | 3. VM pemilik, revisi keempat | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
 | Hardware asli | | Belum | Benchmark dan anti-cheat belum diuji |
 
@@ -573,4 +573,39 @@ Masalah, dengan penyebabnya:
   "ReservedStorage Off: not supported").
 - Permintaan pemilik: teks pilihan di Wizard tanpa titik koma.
 
-Lapis 2, revisi keempat: @@CI4TABLE@@
+Lapis 2, revisi keempat (runner command-line AME versi 0.8.4, run terakhir sebelum rilis):
+
+| Runner | Opsi, browser | Pemeriksaan diri | Pemeriksaan CI |
+|---|---|---|---|
+| Windows Server 2025, build 26100, x64 | bawaan, Brave | 213 PASS, 0 FAIL, 1 WARN, 73 SKIP | 85 dari 85 |
+| Windows Server 2025, build 26100, x64 | semua, Chrome | 274 PASS, 0 FAIL, 1 WARN, 19 SKIP | 96 dari 96 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan, Brave | 210 PASS, 0 FAIL, 0 WARN, 77 SKIP | 85 dari 85 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua, Firefox | 264 PASS, 0 FAIL, 0 WARN, 30 SKIP | 86 dari 86 |
+
+`WARN` di Server tetap restore point. Yang terbukti:
+
+- **Penyebab jendela cmd terbukti**: di runner Windows 11, OneDrive dipasang dan dijalankan
+  dulu untuk akun uji (seperti PC baru; folder ListSync ada). `Remove-OneDrive.ps1`
+  menghentikan OneDrive, uninstaller keluar 0, lalu menemukan dan menghapus **tiga perintah
+  sisa uninstaller di RunOnce** pengguna: `Delete Cached Update Binary`, `Delete Cached
+  Standalone Update Binary` (`cmd.exe /q /c del /q ...`), dan `Uninstall 26.212.1029.0006`
+  (`cmd.exe /q /c rmdir /s /q "...\AppData\Local\Microsoft\OneDrive..."`), persis isi
+  jendela di screenshot pemilik. Sebagian file aplikasi OneDrive masih terkunci dan
+  dijadwalkan dihapus Windows saat restart. Selama playbook, Explorer tidak menjalankan satu
+  pun `cmd.exe` (29-30 cmd.exe, semuanya dari PowerShell langkah TGOS), RunOnce bersih, tidak
+  ada proses OneDrive tersisa, dan pemantau jendela tidak melihat jendela.
+- Kontrol: di Server, entri RunOnce buatan memang dijalankan Explorer saat dinyalakan ulang
+  (mekanisme yang sama dengan pop up di VM). Di runner Windows 11 kontrol itu tidak memicu
+  apa pun, jadi buktinya di sana adalah entri yang sudah dihapus sebelum Explorer dinyalakan
+  ulang. Di Server tidak ada `OneDriveSetup.exe`.
+- **Langkah setelah restart**: tugas `\TGOS\Finish after restart` terdaftar (SYSTEM, startup
+  + 3 menit, tersembunyi), dijalankan lewat Task Scheduler, mengerjakan Reserved Storage di
+  keempat job, lalu menghapus dirinya dan folder `\TGOS`. Di job Windows 11 bawaan, .NET
+  Framework 3.5 dicopot sampai payload-nya hilang lalu dipasang oleh tugas itu sebagai SYSTEM
+  saat update di-pause (214-236 detik).
+- **Laporan**: `servicing.txt` ada; isi zip dipindai, tidak ada nama akun runner, nama
+  komputer, atau SID akun (14-15 file teks).
+- Terminal bawaan tidak lagi diubah TGOS (tetap Windows Terminal di runner Windows 11).
+- Percobaan pertama job semua-opsi Server gagal di satu pemeriksaan: installer EA app (dari
+  server EA) keluar 0 tanpa memasang aplikasinya. Bagian itu tidak diubah di revisi ini;
+  dijalankan ulang, lolos.
