@@ -278,8 +278,10 @@ function Wait-InstallerIdle {
 
 function Get-ShortcutPlace {
     <#
-    Folder Start Menu dan Desktop yang dilihat pengguna: milik mesin dan semua profil
-    pengguna biasa, ditambah milik akun ini bila $PerUser (program per pengguna).
+    Folder Start Menu dan Desktop yang dilihat pengguna. Program per mesin: milik mesin dan
+    semua profil pengguna biasa. Program per pengguna ($PerUser): milik mesin dan akun ini
+    saja (pintasan ke profil disimpan dengan %LOCALAPPDATA% dsb., jadi pintasan milik akun
+    lain akan terbaca seolah menunjuk ke profil akun ini).
     Mengembalikan @{ Path; Kind } (Kind: Start atau Desktop) untuk folder yang ada.
     #>
     param([switch]$PerUser)
@@ -290,9 +292,11 @@ function Get-ShortcutPlace {
         $places += @{ Path = [Environment]::GetFolderPath('Programs'); Kind = 'Start' }
         $places += @{ Path = [Environment]::GetFolderPath('Desktop'); Kind = 'Desktop' }
     }
-    foreach ($userProfile in @(Get-TgosUserProfiles)) {
-        $places += @{ Path = Join-Path $userProfile.Path 'AppData\Roaming\Microsoft\Windows\Start Menu\Programs'; Kind = 'Start' }
-        $places += @{ Path = Join-Path $userProfile.Path 'Desktop'; Kind = 'Desktop' }
+    else {
+        foreach ($userProfile in @(Get-TgosUserProfiles)) {
+            $places += @{ Path = Join-Path $userProfile.Path 'AppData\Roaming\Microsoft\Windows\Start Menu\Programs'; Kind = 'Start' }
+            $places += @{ Path = Join-Path $userProfile.Path 'Desktop'; Kind = 'Desktop' }
+        }
     }
     $seen = @{}
     $result = @()
@@ -637,6 +641,26 @@ function Write-SoftwareRecord {
 }
 
 function Save-Download {
+    # Unduhan yang terputus dicoba lagi (paling banyak 3 kali, jeda 10 detik). Di uji
+    # otomatis revisi kelima 1.0.0, unduhan VC++ dari aka.ms sekali terputus ("The
+    # connection was closed"). Unduhan yang melewati batas waktu tidak diulang.
+    param([string]$Url, [string]$Path)
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            Save-DownloadOnce -Url $Url -Path $Path
+            return
+        }
+        catch {
+            $message = Format-TgosError $_
+            if ($attempt -ge 3 -or $message -match 'did not finish within') { throw }
+            Write-Output ("TGOS: {0}; trying the download again ({1} of 3)" -f $message, ($attempt + 1))
+            Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 10
+        }
+    }
+}
+
+function Save-DownloadOnce {
     param([string]$Url, [string]$Path)
     $client = New-Object System.Net.WebClient
     try {

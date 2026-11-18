@@ -318,11 +318,17 @@ function Add-SoftwareResult {
 
 function Get-ShortcutKind {
     <#
-    Jenis pintasan (Start, Desktop) yang menunjuk ke dalam salah satu folder $Roots, di Start
+    Jenis pintasan (Start, Desktop) yang menunjuk ke dalam salah satu folder $Roots (program
+    per mesin), atau yang target-nya memuat \<$UserRelative>\ (program per pengguna), di Start
     Menu dan Desktop milik mesin dan semua profil pengguna biasa. Sama dengan
     Confirm-ProgramShortcut di Install-Software.ps1.
+
+    Program per pengguna dicocokkan dengan bagian jalurnya saja: pintasan ke folder profil
+    disimpan dengan %USERPROFILE%/%LOCALAPPDATA%, dan saat skrip ini berjalan sebagai
+    TrustedInstaller (akhir playbook) variabel itu menunjuk ke profil SYSTEM, sehingga
+    jalur lengkapnya tidak pernah sama (uji otomatis revisi kelima 1.0.0).
     #>
-    param([string[]]$Roots)
+    param([string[]]$Roots, [string]$UserRelative)
     $places = @(
         @{ Path = [Environment]::GetFolderPath('CommonPrograms'); Kind = 'Start' },
         @{ Path = [Environment]::GetFolderPath('CommonDesktopDirectory'); Kind = 'Desktop' })
@@ -335,8 +341,10 @@ function Get-ShortcutKind {
         $places += @{ Path = Join-Path $profilePath 'Desktop'; Kind = 'Desktop' }
     }
     $prefixes = @($Roots | Where-Object { $_ } | ForEach-Object { $_.TrimEnd('\') + '\' })
+    $part = ''
+    if ($UserRelative) { $part = '\' + $UserRelative.Trim('\') + '\' }
     $kinds = @()
-    if ($prefixes.Count -eq 0) { return $kinds }
+    if ($prefixes.Count -eq 0 -and -not $part) { return $kinds }
     $shell = New-Object -ComObject WScript.Shell
     foreach ($place in $places) {
         if (-not $place.Path -or -not (Test-Path -LiteralPath $place.Path -ErrorAction SilentlyContinue)) { continue }
@@ -346,24 +354,10 @@ function Get-ShortcutKind {
             foreach ($prefix in $prefixes) {
                 if ($target.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { $kinds += $place.Kind }
             }
+            if ($part -and $target.IndexOf($part, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { $kinds += $place.Kind }
         }
     }
     return @($kinds | Select-Object -Unique)
-}
-
-function Get-UserProgramRoot {
-    # Folder program per pengguna di semua profil pengguna biasa yang memilikinya.
-    param([string]$Relative)
-    $roots = @()
-    $profileList = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
-    foreach ($key in @(Get-ChildItem -LiteralPath $profileList -ErrorAction SilentlyContinue)) {
-        if ($key.PSChildName -notmatch '^S-1-5-21-[\d-]+$') { continue }
-        $profilePath = [string](Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue).ProfileImagePath
-        if (-not $profilePath) { continue }
-        $path = Join-Path $profilePath $Relative
-        if (Test-Path -LiteralPath $path) { $roots += $path }
-    }
-    return $roots
 }
 
 function Find-Program {
@@ -452,11 +446,9 @@ function Test-SoftwareResults {
             Add-Result 'PASS' 'software' $program.Name ("installed: {0}" -f $path) 'Install-Software.ps1'
             # Pintasan Start dan Desktop (Confirm-ProgramShortcut di Install-Software.ps1). Di
             # uji VM revisi keempat Discord dan Ubisoft Connect terpasang tanpa pintasan.
-            $roots = @()
-            if ($program.Root) { $roots = @(Find-Program $program.Root) }
-            elseif ($program.UserRoot) { $roots = @(Get-UserProgramRoot $program.UserRoot) }
             if ($program.Root -or $program.UserRoot) {
-                $kinds = @(Get-ShortcutKind -Roots $roots)
+                if ($program.Root) { $kinds = @(Get-ShortcutKind -Roots @(Find-Program $program.Root)) }
+                else { $kinds = @(Get-ShortcutKind -UserRelative $program.UserRoot) }
                 if ($kinds -contains 'Start') {
                     Add-Result 'PASS' 'software' ('{0} in Start' -f $program.Name) 'Start menu shortcut present' 'Install-Software.ps1'
                 }
