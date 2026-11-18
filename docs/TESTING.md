@@ -321,7 +321,9 @@ Semuanya ditangani di `1.0.0`.
 | 3. VM pemilik, revisi pertama | 17 Nov 2026 | Setelah restart 226 PASS, 0 FAIL, 0 WARN | Rincian di bawah |
 | 3. VM pemilik, revisi kedua | 16-18 Nov 2026 | Setelah restart 283 PASS, 1 FAIL, 2 WARN | Rincian di akhir bagian ini; FAIL dan WARN diperbaiki di revisi ketiga |
 | 2. Mesin AME, revisi ketiga | 18 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
-| 3. VM pemilik, revisi ketiga | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
+| 3. VM pemilik, revisi ketiga | 16-18 Nov 2026 | Setelah restart 277 PASS, 1 FAIL, 2 WARN | Rincian di akhir bagian ini; jendela cmd, FAIL, dan WARN diperbaiki di revisi keempat |
+| 2. Mesin AME, revisi keempat | 18 Nov 2026 | @@CI4@@ | Rincian di akhir bagian ini |
+| 3. VM pemilik, revisi keempat | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
 | Hardware asli | | Belum | Benchmark dan anti-cheat belum diuji |
 
 Lapis 2, runner command-line AME versi 0.8.4 (run terakhir sebelum rilis):
@@ -535,3 +537,40 @@ Lapis 2, revisi ketiga (runner command-line AME versi 0.8.4, run terakhir sebelu
 - **Reserved Storage**: tugas `\TGOS\Reserved Storage Off` terdaftar (SYSTEM, saat
   startup, tersembunyi) dan menghapus dirinya sendiri setelah berhasil, di keempat job.
   Kondisi "sedang dipakai" seperti di VM tidak bisa dibuat di runner.
+
+Lapis 3, uji pemilik revisi ketiga: Windows 11 Pro 26H2 build 26300.9974 di VMware, AME
+Beta 0.8.4, hampir semua opsi (tanpa browser dengan Edge dihapus, tanpa launcher dan
+aplikasi, Deep clean+, Pause). Setelah restart **277 PASS, 1 FAIL, 2 WARN, 8 SKIP**.
+
+| | Sesudah restart | Revisi kedua |
+|---|---|---|
+| Proses | 117 | 118 |
+| Thread | 1.386 | 1.250 |
+| RAM terpakai | 2.219 MB | 2.252 MB |
+| Layanan berjalan | 82 | 82 |
+| Disk terpakai | 23,3 GB | 27,0 GB |
+
+Terbukti di VM: terminal bawaan kembali ke "Let Windows decide" sesudah instalasi; Start
+berisi set TGOS; Installed apps hanya program yang dipilih (7-Zip, VC++, XNA, .NET Desktop
+Runtime) ditambah aplikasi sistem.
+
+Masalah, dengan penyebabnya:
+
+- **Jendela cmd muncul lalu hilang di akhir instalasi** (screenshot 13:00 waktu VM = 06:00
+  UTC): `rd /s` pada `AppData\Local\Microsoft\OneDrive\ListSync\...` gagal karena file
+  masih dipakai. Waktunya tepat saat TGOS menyalakan ulang Explorer (06:00:08 dan 06:00:13);
+  uninstaller OneDrive berjalan 05:49:48-05:50:00. Penyebab: TGOS hanya menghentikan
+  `OneDrive.exe`, sementara `Microsoft.SharePoint.exe` masih mengunci file ListSync, dan
+  uninstaller meninggalkan perintah bersih-bersih yang dijalankan Explorer. Pengaturan
+  terminal sementara revisi ketiga bukan penyebabnya (jendela kini tampil sebagai Console
+  Host biasa).
+- **FAIL .NET Framework 3.5**: DISM `0x8024001E` dua kali, juga sesudah layanan Windows
+  Update dijalankan ulang (`dism.log`: "DISM Package Manager processed the command line but
+  failed. HRESULT=8024001E").
+- **WARN Reserved Storage**: saat instalasi sedang dipakai (`0x800F0975`). Tugas startup
+  berjalan setelah restart, tetapi TGOS keliru membaca pesan "not supported when reserved
+  storage is in use" sebagai "tidak didukung" dan menghapus tugasnya (`toolbox.log`:
+  "ReservedStorage Off: not supported").
+- Permintaan pemilik: teks pilihan di Wizard tanpa titik koma.
+
+Lapis 2, revisi keempat: @@CI4TABLE@@

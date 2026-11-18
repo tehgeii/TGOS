@@ -838,7 +838,8 @@ playbook yang sedang berjalan dan folder AME dilewati. Deep clean+ (`Windows.old
 
 ### 8.11 Revisi ketiga `1.0.0`: dari uji VM revisi kedua
 
-**Terminal bawaan selama instalasi** (`Set-ConsoleHost.ps1`). Pemilik melihat beberapa
+**Terminal bawaan selama instalasi** (`Set-ConsoleHost.ps1`, dicabut di revisi keempat,
+lihat 8.12). Pemilik melihat beberapa
 jendela kosong bergaya terminal di akhir instalasi, dengan Windows Terminal aktif di
 taskbar. Fakta yang terkumpul: (1) AME menjalankan tiap `!run` dengan
 `CreateNoWindow = true` (kode sumber AME, `RunAction.cs`), jadi langkah TGOS tidak membuat
@@ -868,6 +869,58 @@ skrip itu menghapus tugasnya setelah berhasil, bila tidak didukung, atau setelah
 percobaan (penghitung di `ProgramData\TGOS\reserved-storage-retry.txt`), dan juga saat
 pengguna memakai tombol Toolbox Reserved Storage. Kondisi "sedang dipakai" tidak bisa
 dibuat di runner; pendaftaran dan penghapusan-diri diuji langsung.
+
+### 8.12 Revisi keempat `1.0.0`: dari uji VM revisi ketiga
+
+**Jendela cmd di akhir instalasi: sisa uninstaller OneDrive.** Screenshot revisi ketiga
+memperlihatkan isinya: `C:\Windows\System32\cmd.exe` menjalankan `rd /s` pada
+`%LOCALAPPDATA%\Microsoft\OneDrive\ListSync\...` dan gagal ("being used by another
+process"), pukul 06:00 UTC, tepat saat `Set-ShellLayout.ps1` menghentikan Explorer dan
+`Start-Shell.ps1` menjalankannya lagi. Uninstaller OneDrive berjalan 10 menit sebelumnya.
+`Remove-OneDrive.ps1` dulu hanya menghentikan `OneDrive.exe`; `Microsoft.SharePoint.exe`
+(sinkronisasi Microsoft Lists) masih mengunci file ListSync, sehingga uninstaller
+meninggalkan perintah bersih-bersih yang dijalankan Explorer saat start (di revisi kedua
+jendela yang sama tampil kosong lewat Windows Terminal). Perbaikan di `Remove-OneDrive.ps1`:
+hentikan semua proses keluarga OneDrive di sesi pengguna (`OneDrive`, `OneDriveSetup`,
+`OneDriveStandaloneUpdater`, `OneDriveLauncher`, `OneDriveFileLauncher`,
+`Microsoft.SharePoint`, `FileCoAuth`, `FileSyncConfig`) sebelum dan sesudah uninstall;
+entri RunOnce (HKCU, HKLM, WOW6432Node) yang menyebut OneDrive dicatat isinya lalu dihapus;
+folder aplikasi `%LOCALAPPDATA%\Microsoft\OneDrive` dihapus lewat `Remove-TgosFolder`
+(Common.ps1: file terkunci dihapus saat restart dengan MoveFileEx, folder yang berisi link
+tidak disentuh). Folder file pengguna `%USERPROFILE%\OneDrive` tidak pernah disentuh.
+`Test-TgosResult.ps1` memeriksa RunOnce semua pengguna yang login. CI memasang dan
+menjalankan OneDrive per pengguna di runner sebelum playbook, mencatat setiap `cmd.exe`
+beserta induk dan baris perintahnya, dan gagal bila Explorer menjalankan `cmd.exe` selama
+playbook; kontrol: entri RunOnce buatan harus dijalankan Explorer saat dinyalakan ulang.
+Pengaturan terminal sementara (8.11) dicabut atas keputusan pemilik: terbukti bukan
+penyebab.
+
+**Langkah yang menunggu restart** (`Complete-AfterRestart.ps1`). Di VM, .NET 3.5 tetap gagal
+(`0x8024001E` dua kali) dan Reserved Storage tetap dipakai servicing selama instalasi.
+`Add-TgosAfterRestartItem` (Common.ps1) menulis langkah ke
+`%ProgramData%\TGOS\after-restart.txt` (`langkah|percobaan`) dan mendaftarkan
+`\TGOS\Finish after restart` (SYSTEM, startup + 3 menit, Hidden, batas 2 jam) bila TGOS
+Toolbox sudah terpasang; bila belum (.NET 3.5 di `05-software`), `Install-Toolbox.ps1`
+mendaftarkannya. Tugas yang sudah ada tidak didaftarkan ulang (bisa sedang berjalan).
+`Complete-AfterRestart.ps1` menjalankan `Set-TgosFeature.ps1 -Feature ReservedStorage
+-State Off` dan `Install-Software.ps1 -Item netfx3` tanpa jendela; keduanya tidak mengubah
+apa pun bila keadaannya sudah benar, jadi langkah yang sudah dikerjakan dari Toolbox
+langsung selesai. Maksimal 3 percobaan per langkah, hasil di `toolbox.log`, lalu tugas dan
+folder `\TGOS` dihapus. Menggantikan `\TGOS\Reserved Storage Off` dan `-FromStartupTask`.
+
+**Bug pembeda Reserved Storage.** Pesan DISM untuk `0x800F0975` berbunyi "...is not supported
+when reserved storage is in use"; pola lama `not supported` cocok dengannya, sehingga tugas
+startup revisi ketiga menganggapnya tidak didukung dan menghapus dirinya. Sekarang
+`Get-ReservedStorageProblem` (Set-TgosFeature.ps1) mengecek "in use"/`0x800F0975` lebih dulu
+(kode keluar baru 4); diuji di `tools/selftest.py` lewat AST dengan 7 contoh.
+
+**Diagnosa.** `Collect-TgosReport.ps1` menulis `servicing.txt` (Reserved Storage, NetFx3,
+layanan WU/UsoSvc/BITS/DoSvc/TrustedInstaller, tanda restart tertunda, daftar dan tugas
+"after restart", RunOnce, 80 baris terakhir `dism.log`), dengan nama pengguna dan nama
+komputer disamarkan.
+
+**Teks Wizard** tanpa titik koma (permintaan pemilik); `validate.py` menolak `;` di semua
+teks `playbook.conf`, dengan mutasi uji diri.
 
 ## 9. Yang sengaja tidak dilakukan
 
