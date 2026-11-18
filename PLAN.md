@@ -928,6 +928,48 @@ kasus) dan di CI (isi zip dipindai untuk nama akun runner, nama komputer, dan SI
 **Teks Wizard** tanpa titik koma (permintaan pemilik); `validate.py` menolak `;` di semua
 teks `playbook.conf`, dengan mutasi uji diri.
 
+### 8.13 Revisi kelima `1.0.0`: dari uji VM revisi keempat
+
+**Batas waktu installer dan antrean Windows Installer** (`Install-Software.ps1`). Di VM, waktu
+log melompat dari 05:39 ke 11:35 di tengah pemasangan Epic dan `restore-point.txt` bertanggal
+dua hari lebih awal: snapshot VM dipulihkan dengan jam lama, lalu VMware Tools
+menyinkronkannya. `Invoke-Installer` mengukur batas waktu dengan `[DateTime]::UtcNow`, jadi
+installer Epic (MSI) langsung "lewat 15 menit" dan klien msiexec dihentikan, padahal Windows
+Installer tetap memasang Epic (akhirnya terpasang). EA app dijalankan saat itu dan keluar
+dengan kode 1. Sekarang: `Stopwatch` untuk semua batas waktu (validator menolak
+`[DateTime]::Now/UtcNow` dan aritmetika `(Get-Date)` di `Scripts\*.ps1`); sebelum tiap installer,
+tunggu selama mutex `Global\_MSIExecute` ada (sampai 30 menit, `Test-InstallerBusy`,
+`Wait-InstallerIdle`); installer MSI yang melewati batas waktu tidak dihentikan, melainkan
+ditunggu sampai 30 menit lagi lalu diperiksa seperti biasa. CI memegang mutex itu 25 detik
+saat memasang 7-Zip: skrip harus menunggu, lalu memasang.
+
+**Pintasan Start dan Desktop** (`Confirm-ProgramShortcut`). Potret VM tidak memuat Discord dan
+Ubisoft Connect di daftar Start walaupun keduanya terpasang. Katalog Steam, Epic, EA app,
+Ubisoft Connect, Discord, dan Spotify mendapat `Shortcut` (nama, folder Start, folder
+program, target, argumen, ikon). Setelah terpasang (juga bila sudah terpasang, supaya tombol
+Toolbox memperbaikinya), `.lnk` yang target-nya di folder program dicari di Start Menu dan
+Desktop milik mesin dan semua profil; yang belum ada dibuat (per mesin: Start Menu dan
+Desktop umum; per pengguna: milik akun itu). Discord memakai pintasan seperti Squirrel
+(`Update.exe --processStart Discord.exe`, ikon `app.ico`). Pintasan yang ditaruh installer di
+profil SYSTEM hanya dicatat. `Test-TgosResult.ps1`: FAIL bila tidak ada di Start, WARN bila
+tidak ada di Desktop (mungkin dihapus pengguna).
+
+**Coba lagi setelah restart untuk software per mesin.** Kegagalan `Install-Software.ps1`
+untuk item per mesin (bukan Discord/Spotify, bukan mode uji `-UrlOverride`) menambah item itu
+ke `after-restart.txt`; `Complete-AfterRestart.ps1` memasangnya sebagai SYSTEM (maks. 3 kali).
+Laporan verifikasi: WARN selama terjadwal. CI: 7-Zip dicopot, dijadwalkan, tugas dijalankan,
+7-Zip terpasang lagi.
+
+**Pemeriksa pintasan per pengguna.** Pintasan ke folder profil disimpan dengan variabel
+lingkungan (`%LOCALAPPDATA%`), jadi saat `Test-TgosResult.ps1` berjalan sebagai
+TrustedInstaller di akhir playbook, target-nya terbaca di profil SYSTEM. Program per pengguna
+dicocokkan dengan bagian jalurnya (`\AppData\Local\Discord\`), program per mesin dengan
+awalan folder program. `Confirm-ProgramShortcut` untuk program per pengguna hanya melihat
+Start/Desktop milik mesin dan akun itu sendiri.
+
+**Unduhan terputus** dicoba lagi sampai 3 kali dengan jeda 10 detik (bukan bila melewati
+batas waktu 15 menit).
+
 ## 9. Yang sengaja tidak dilakukan
 
 - Tidak mengutak-atik aktivasi atau lisensi Windows.

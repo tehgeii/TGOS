@@ -10,9 +10,11 @@
 
       reserved-storage  Reserved Storage dimatikan. Saat instalasi Windows sedang memakainya
                         untuk update yang disiapkan (DISM 0x800F0975).
-      netfx3            .NET Framework 3.5 dipasang. Saat instalasi DISM gagal mengunduhnya
-                        lewat Windows Update (mis. 0x8024001E, layanan sedang sibuk; uji VM
-                        revisi kedua dan ketiga 1.0.0).
+      <program>         Program per mesin yang gagal dipasang saat instalasi, dengan nama
+                        -Item Install-Software.ps1 (netfx3, steam, epic, ea, ubisoft, browser,
+                        runtime). Contoh: .NET Framework 3.5 saat Windows Update sibuk (uji VM
+                        revisi kedua sampai keempat 1.0.0), EA app saat Windows Installer
+                        masih memasang program lain (uji VM revisi keempat).
 
     Daftarnya di %ProgramData%\TGOS\after-restart.txt, satu baris "langkah|percobaan".
     Langkah yang ternyata sudah beres (mis. sudah dikerjakan dari Toolbox) langsung selesai,
@@ -32,6 +34,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Common.ps1')
 
 $MaxAttempts = 3
+$Software = @('netfx3', 'brave', 'chrome', 'firefox', '7zip', 'vcredist', 'vcredist-legacy', 'xna', 'directx',
+    'dotnet', 'steam', 'epic', 'ea', 'ubisoft')
 
 function Write-Log {
     param([string]$Message)
@@ -83,14 +87,17 @@ try {
                 elseif ($result.Exit -eq 4) { $detail = 'Windows is still using it for an update' }
                 else { $detail = Get-LastLine $result.Output }
             }
-            'netfx3' {
-                $result = Invoke-SupportScript -Script 'Install-Software.ps1' -Arguments '-Item netfx3'
-                if ($result.Exit -eq 0) { $done = $true; $detail = '.NET Framework 3.5 is installed' }
-                else { $detail = Get-LastLine $result.Output 'WARNING|TGOS:' }
-            }
             default {
-                $done = $true
-                $detail = 'unknown step; dropped'
+                if ($Software -contains $item.Name) {
+                    # Program yang sudah terpasang (mis. dari Toolbox) langsung selesai.
+                    $result = Invoke-SupportScript -Script 'Install-Software.ps1' -Arguments ('-Item {0}' -f $item.Name)
+                    if ($result.Exit -eq 0) { $done = $true; $detail = Get-LastLine $result.Output 'TGOS: .*(installed|skipped)' }
+                    else { $detail = Get-LastLine $result.Output 'WARNING|TGOS:' }
+                }
+                else {
+                    $done = $true
+                    $detail = 'unknown step; dropped'
+                }
             }
         }
         $attempt = $item.Attempts + 1

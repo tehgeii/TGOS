@@ -304,6 +304,62 @@ function Test-AfterRestartStep {
     return [bool](Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart' -ErrorAction SilentlyContinue)
 }
 
+function Add-SoftwareResult {
+    # FAIL untuk program yang tidak terpasang, kecuali bila dijadwalkan dipasang otomatis
+    # setelah restart (Complete-AfterRestart.ps1): itu WARN.
+    param([string]$Name, [string]$Item, [string]$Message)
+    if ($Item -and (Test-AfterRestartStep $Item)) {
+        Add-Result 'WARN' 'software' $Name 'not installed yet; it is installed automatically a few minutes after the next restart' 'Install-Software.ps1'
+    }
+    else {
+        Add-Result 'FAIL' 'software' $Name $Message 'Install-Software.ps1'
+    }
+}
+
+function Get-ShortcutKind {
+    <#
+    Jenis pintasan (Start, Desktop) yang menunjuk ke dalam salah satu folder $Roots (program
+    per mesin), atau yang target-nya memuat \<$UserRelative>\ (program per pengguna), di Start
+    Menu dan Desktop milik mesin dan semua profil pengguna biasa. Sama dengan
+    Confirm-ProgramShortcut di Install-Software.ps1.
+
+    Program per pengguna dicocokkan dengan bagian jalurnya saja: pintasan ke folder profil
+    disimpan dengan %USERPROFILE%/%LOCALAPPDATA%, dan saat skrip ini berjalan sebagai
+    TrustedInstaller (akhir playbook) variabel itu menunjuk ke profil SYSTEM, sehingga
+    jalur lengkapnya tidak pernah sama (uji otomatis revisi kelima 1.0.0).
+    #>
+    param([string[]]$Roots, [string]$UserRelative)
+    $places = @(
+        @{ Path = [Environment]::GetFolderPath('CommonPrograms'); Kind = 'Start' },
+        @{ Path = [Environment]::GetFolderPath('CommonDesktopDirectory'); Kind = 'Desktop' })
+    $profileList = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+    foreach ($key in @(Get-ChildItem -LiteralPath $profileList -ErrorAction SilentlyContinue)) {
+        if ($key.PSChildName -notmatch '^S-1-5-21-[\d-]+$') { continue }
+        $profilePath = [string](Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue).ProfileImagePath
+        if (-not $profilePath) { continue }
+        $places += @{ Path = Join-Path $profilePath 'AppData\Roaming\Microsoft\Windows\Start Menu\Programs'; Kind = 'Start' }
+        $places += @{ Path = Join-Path $profilePath 'Desktop'; Kind = 'Desktop' }
+    }
+    $prefixes = @($Roots | Where-Object { $_ } | ForEach-Object { $_.TrimEnd('\') + '\' })
+    $part = ''
+    if ($UserRelative) { $part = '\' + $UserRelative.Trim('\') + '\' }
+    $kinds = @()
+    if ($prefixes.Count -eq 0 -and -not $part) { return $kinds }
+    $shell = New-Object -ComObject WScript.Shell
+    foreach ($place in $places) {
+        if (-not $place.Path -or -not (Test-Path -LiteralPath $place.Path -ErrorAction SilentlyContinue)) { continue }
+        foreach ($link in @(Get-ChildItem -LiteralPath $place.Path -Filter '*.lnk' -Force -Recurse:($place.Kind -eq 'Start') -ErrorAction SilentlyContinue)) {
+            $target = ''
+            try { $target = [string]$shell.CreateShortcut($link.FullName).TargetPath } catch { continue }
+            foreach ($prefix in $prefixes) {
+                if ($target.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { $kinds += $place.Kind }
+            }
+            if ($part -and $target.IndexOf($part, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { $kinds += $place.Kind }
+        }
+    }
+    return @($kinds | Select-Object -Unique)
+}
+
 function Find-Program {
     # Jalur pertama yang ada di Program Files (64-bit lalu 32-bit), atau $null.
     param([string]$Relative)
@@ -365,18 +421,18 @@ function Test-SoftwareResults {
     $native = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -ErrorAction SilentlyContinue).PROCESSOR_ARCHITECTURE
     $x64 = (-not $native) -or $native -eq 'AMD64'
     $programs = @(
-        @{ Option = 'browser-brave'; Name = 'Brave'; Relative = @('BraveSoftware\Brave-Browser\Application\brave.exe') },
-        @{ Option = 'browser-chrome'; Name = 'Google Chrome'; Relative = @('Google\Chrome\Application\chrome.exe') },
-        @{ Option = 'browser-firefox'; Name = 'Mozilla Firefox'; Relative = @('Mozilla Firefox\firefox.exe') },
-        @{ Option = 'install-7zip'; Name = '7-Zip'; Relative = @('7-Zip\7z.exe') },
-        @{ Option = 'install-steam'; Name = 'Steam'; Relative = @('Steam\steam.exe'); X64Only = $true },
-        @{ Option = 'install-epic'; Name = 'Epic Games Launcher'; X64Only = $true
+        @{ Option = 'browser-brave'; Item = 'brave'; Name = 'Brave'; Relative = @('BraveSoftware\Brave-Browser\Application\brave.exe') },
+        @{ Option = 'browser-chrome'; Item = 'chrome'; Name = 'Google Chrome'; Relative = @('Google\Chrome\Application\chrome.exe') },
+        @{ Option = 'browser-firefox'; Item = 'firefox'; Name = 'Mozilla Firefox'; Relative = @('Mozilla Firefox\firefox.exe') },
+        @{ Option = 'install-7zip'; Item = '7zip'; Name = '7-Zip'; Relative = @('7-Zip\7z.exe') },
+        @{ Option = 'install-steam'; Item = 'steam'; Name = 'Steam'; Relative = @('Steam\steam.exe'); Root = 'Steam'; X64Only = $true },
+        @{ Option = 'install-epic'; Item = 'epic'; Name = 'Epic Games Launcher'; Root = 'Epic Games\Launcher'; X64Only = $true
             Relative = @('Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe', 'Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe') },
-        @{ Option = 'install-ea'; Name = 'EA app'; Relative = @('Electronic Arts\EA Desktop\EA Desktop\EADesktop.exe'); X64Only = $true },
-        @{ Option = 'install-ubisoft'; Name = 'Ubisoft Connect'; X64Only = $true
+        @{ Option = 'install-ea'; Item = 'ea'; Name = 'EA app'; Relative = @('Electronic Arts\EA Desktop\EA Desktop\EADesktop.exe'); Root = 'Electronic Arts\EA Desktop'; X64Only = $true },
+        @{ Option = 'install-ubisoft'; Item = 'ubisoft'; Name = 'Ubisoft Connect'; Root = 'Ubisoft\Ubisoft Game Launcher'; X64Only = $true
             Relative = @('Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe', 'Ubisoft\Ubisoft Game Launcher\upc.exe') },
-        @{ Option = 'install-discord'; Name = 'Discord'; UserRelative = 'AppData\Local\Discord\Update.exe'; X64Only = $true },
-        @{ Option = 'install-spotify'; Name = 'Spotify'; UserRelative = 'AppData\Roaming\Spotify\Spotify.exe'; X64Only = $true })
+        @{ Option = 'install-discord'; Name = 'Discord'; UserRelative = 'AppData\Local\Discord\Update.exe'; UserRoot = 'AppData\Local\Discord'; X64Only = $true },
+        @{ Option = 'install-spotify'; Name = 'Spotify'; UserRelative = 'AppData\Roaming\Spotify\Spotify.exe'; UserRoot = 'AppData\Roaming\Spotify'; X64Only = $true })
     foreach ($program in $programs) {
         if (-not (Test-Option $program.Option)) { continue }
         if ($program.X64Only -and -not $x64) {
@@ -388,9 +444,27 @@ function Test-SoftwareResults {
         else { $path = @($program.Relative | ForEach-Object { Find-Program $_ } | Where-Object { $_ }) | Select-Object -First 1 }
         if ($path) {
             Add-Result 'PASS' 'software' $program.Name ("installed: {0}" -f $path) 'Install-Software.ps1'
+            # Pintasan Start dan Desktop (Confirm-ProgramShortcut di Install-Software.ps1). Di
+            # uji VM revisi keempat Discord dan Ubisoft Connect terpasang tanpa pintasan.
+            if ($program.Root -or $program.UserRoot) {
+                if ($program.Root) { $kinds = @(Get-ShortcutKind -Roots @(Find-Program $program.Root)) }
+                else { $kinds = @(Get-ShortcutKind -UserRelative $program.UserRoot) }
+                if ($kinds -contains 'Start') {
+                    Add-Result 'PASS' 'software' ('{0} in Start' -f $program.Name) 'Start menu shortcut present' 'Install-Software.ps1'
+                }
+                else {
+                    Add-Result 'FAIL' 'software' ('{0} in Start' -f $program.Name) 'no Start menu shortcut; run Install Software in the TGOS Toolbox for this program' 'Install-Software.ps1'
+                }
+                if ($kinds -contains 'Desktop') {
+                    Add-Result 'PASS' 'software' ('{0} on the desktop' -f $program.Name) 'desktop shortcut present' 'Install-Software.ps1'
+                }
+                else {
+                    Add-Result 'WARN' 'software' ('{0} on the desktop' -f $program.Name) 'no desktop shortcut (it may have been deleted); Install Software in the TGOS Toolbox adds it' 'Install-Software.ps1'
+                }
+            }
         }
         else {
-            Add-Result 'FAIL' 'software' $program.Name 'not installed; retry from the TGOS Toolbox (needs internet)' 'Install-Software.ps1'
+            Add-SoftwareResult $program.Name $program.Item 'not installed; retry from the TGOS Toolbox (needs internet)'
         }
     }
 
@@ -399,7 +473,7 @@ function Test-SoftwareResults {
             Add-Result 'PASS' 'software' 'Visual C++ Redistributable' 'x64 and x86 installed' 'Install-Software.ps1'
         }
         else {
-            Add-Result 'FAIL' 'software' 'Visual C++ Redistributable' 'x64 or x86 runtime missing; retry from the TGOS Toolbox' 'Install-Software.ps1'
+            Add-SoftwareResult 'Visual C++ Redistributable' 'vcredist' 'x64 or x86 runtime missing; retry from the TGOS Toolbox'
         }
         $legacy = @('System32', 'SysWOW64') | ForEach-Object { Join-Path $env:SystemRoot ('{0}\d3dx9_43.dll' -f $_) } |
             Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
@@ -410,7 +484,7 @@ function Test-SoftwareResults {
             Add-Result 'PASS' 'software' 'DirectX End-User Runtime' 'legacy DirectX libraries present' 'Install-Software.ps1'
         }
         else {
-            Add-Result 'FAIL' 'software' 'DirectX End-User Runtime' 'd3dx9_43.dll missing; retry from the TGOS Toolbox' 'Install-Software.ps1'
+            Add-SoftwareResult 'DirectX End-User Runtime' 'directx' 'd3dx9_43.dll missing; retry from the TGOS Toolbox'
         }
 
         # Visual C++ 2005-2013 (x86 dan x64) dan XNA 4.0, dari daftar program terpasang.
@@ -434,7 +508,9 @@ function Test-SoftwareResults {
                 Add-Result 'PASS' 'software' $runtime.Name 'installed' 'Install-Software.ps1'
             }
             else {
-                Add-Result 'FAIL' 'software' $runtime.Name 'not installed; retry from the TGOS Toolbox' 'Install-Software.ps1'
+                $runtimeItem = 'vcredist-legacy'
+                if ($runtime.Name -like 'XNA*') { $runtimeItem = 'xna' }
+                Add-SoftwareResult $runtime.Name $runtimeItem 'not installed; retry from the TGOS Toolbox'
             }
         }
     }
@@ -448,7 +524,7 @@ function Test-SoftwareResults {
             Add-Result 'WARN' 'software' '.NET Framework 3.5' 'not installed yet (Windows Update was busy); it is installed automatically a few minutes after the next restart' 'Install-Software.ps1'
         }
         else {
-            Add-Result 'FAIL' 'software' '.NET Framework 3.5' 'not installed; retry from the TGOS Toolbox (needs internet)' 'Install-Software.ps1'
+            Add-SoftwareResult '.NET Framework 3.5' 'netfx3' 'not installed; retry from the TGOS Toolbox (needs internet)'
         }
         foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
             $label = '.NET Desktop Runtime 10 ({0})' -f $(if ($base -eq $env:ProgramFiles) { 'x64' } else { 'x86' })
@@ -462,7 +538,7 @@ function Test-SoftwareResults {
                 Add-Result 'PASS' 'software' $label ('installed: {0}' -f ($found | Select-Object -Last 1).Name) 'Install-Software.ps1'
             }
             else {
-                Add-Result 'FAIL' 'software' $label 'not installed; retry from the TGOS Toolbox' 'Install-Software.ps1'
+                Add-SoftwareResult $label 'dotnet' 'not installed; retry from the TGOS Toolbox'
             }
         }
     }
