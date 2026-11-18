@@ -7,10 +7,14 @@
       - verify-report.txt     hasil pemeriksaan tiap tweak (PASS / FAIL / SKIP / WARN)
       - TGOS-snapshot-after.json  potret sistem (proses, RAM, layanan, aplikasi, tugas)
       - isi %ProgramData%\TGOS (install-info.txt, restore-point.txt, dan lainnya)
+      - servicing.txt         keadaan servicing Windows: Reserved Storage, .NET 3.5,
+                              layanan Windows Update, tanda restart tertunda, langkah
+                              yang menunggu restart, entri RunOnce, akhir dism.log
       - log AME bila ditemukan
 
     Tidak mengubah pengaturan Windows. Tidak mengumpulkan nama komputer, nama pengguna,
-    alamat jaringan, atau file pribadi.
+    alamat jaringan, atau file pribadi (nama folder pengguna di servicing.txt diganti
+    <user>, nama komputer diganti <computer>).
 
     Harus dijalankan sebagai Administrator.
 
@@ -47,6 +51,60 @@ try {
     }
     catch {
         $notes += ('snapshot: {0}' -f $_.Exception.Message)
+    }
+
+    Write-Host 'Reading the Windows servicing state...'
+    try {
+        $lines = @()
+        $dism = Join-Path $env:SystemRoot 'System32\dism.exe'
+        $lines += '[reserved storage]'
+        $lines += @(& cmd.exe /c ('"{0}" /Online /Get-ReservedStorageState 2>&1' -f $dism) | Where-Object { $_.Trim() } | Select-Object -Last 3)
+        $lines += '', '[.NET Framework 3.5]'
+        $lines += ('NDP\v3.5 Install = {0}' -f (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5' -ErrorAction SilentlyContinue).Install)
+        $lines += '', '[services]'
+        foreach ($serviceName in @('wuauserv', 'UsoSvc', 'BITS', 'DoSvc', 'TrustedInstaller')) {
+            $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+            if ($service) { $lines += ('{0}: {1}, {2}' -f $serviceName, $service.Status, $service.StartType) }
+        }
+        $lines += '', '[restart pending]'
+        $lines += ('CBS RebootPending: {0}' -f (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'))
+        $lines += ('Windows Update RebootRequired: {0}' -f (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'))
+        $lines += ('WinSxS pending.xml: {0}' -f (Test-Path -LiteralPath (Join-Path $env:SystemRoot 'WinSxS\pending.xml')))
+        $renames = @((Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -ErrorAction SilentlyContinue).PendingFileRenameOperations | Where-Object { $_ })
+        $lines += ('PendingFileRenameOperations: {0} path(s)' -f $renames.Count)
+        $lines += '', '[after restart]'
+        $afterRestart = Join-Path $env:ProgramData 'TGOS\after-restart.txt'
+        if (Test-Path -LiteralPath $afterRestart) { $lines += @(Get-Content -LiteralPath $afterRestart) } else { $lines += 'no steps waiting' }
+        $task = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart' -ErrorAction SilentlyContinue
+        if ($task) {
+            $info = $task | Get-ScheduledTaskInfo -ErrorAction SilentlyContinue
+            $lines += ('task \TGOS\Finish after restart: {0}, last run {1}, last result 0x{2:X8}' -f $task.State, $info.LastRunTime, [int64]$info.LastTaskResult)
+        }
+        else { $lines += 'task \TGOS\Finish after restart: not registered' }
+        $lines += '', '[RunOnce]'
+        $keys = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce')
+        $keys += @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
+                Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+$' } |
+                ForEach-Object { 'Registry::HKEY_USERS\{0}\Software\Microsoft\Windows\CurrentVersion\RunOnce' -f $_.PSChildName })
+        foreach ($key in $keys) {
+            $item = Get-Item -LiteralPath $key -ErrorAction SilentlyContinue
+            if (-not $item) { continue }
+            foreach ($valueName in @($item.GetValueNames())) {
+                $lines += ('{0} | {1} = {2}' -f ($key -replace '^Registry::HKEY_USERS\\S-1-5-21-[\d-]+', 'HKU\<user>'), $valueName, $item.GetValue($valueName, '', 'DoNotExpandEnvironmentNames'))
+            }
+        }
+        $lines += '', '[dism.log, last 80 lines]'
+        $dismLog = Join-Path $env:SystemRoot 'Logs\DISM\dism.log'
+        if (Test-Path -LiteralPath $dismLog) { $lines += @(Get-Content -LiteralPath $dismLog -Tail 80 -ErrorAction SilentlyContinue) }
+        # Tanpa nama pengguna dan nama komputer.
+        $lines = @($lines | ForEach-Object { ('' + $_) -replace '(?i)([A-Z]:\\Users\\)[^\\"]+?(?=\\|"|\s*$)', '$1<user>' })
+        if ($env:COMPUTERNAME -and $env:COMPUTERNAME.Length -ge 3) {
+            $lines = @($lines | ForEach-Object { $_ -replace [regex]::Escape($env:COMPUTERNAME), '<computer>' })
+        }
+        Set-Content -LiteralPath (Join-Path $work 'servicing.txt') -Value $lines -Encoding ASCII
+    }
+    catch {
+        $notes += ('servicing: {0}' -f $_.Exception.Message)
     }
 
     $data = Join-Path $env:ProgramData 'TGOS'

@@ -182,6 +182,8 @@ MUTATIONS = [
      "teks opsi 'updates-default' 47 karakter"),
     ("status terlalu panjang", MAIN, "status: 'Removing components'",
      "status: 'Removing optional components'", "Wizard memotong status di atas 22"),
+    ("titik koma di teks Wizard", CONF, "1 GB, needs internet.", "1 GB; needs internet.",
+     "teks Wizard memakai titik koma"),
     ("atribut halaman salah ketik", CONF, "<CheckboxPage Description=", "<CheckboxPage Descripton=",
      "atribut 'Descripton' tidak dikenal"),
     ("jenis opsi salah", CONF, '<CheckboxOption IsChecked="false">', "<RadioOption>",
@@ -507,6 +509,52 @@ def test_common_functions() -> int:
     return 0
 
 
+RESERVED_STORAGE_CASES = r"""
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($args[0], [ref]$null, [ref]$null)
+$function = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-ReservedStorageProblem' }, $true)
+if (-not $function) { Write-Output 'Get-ReservedStorageProblem tidak ditemukan'; exit 9 }
+. ([scriptblock]::Create($function.Extent.Text))
+$inUse = "Deployment Image Servicing and Management tool`r`n`r`nError: 0x800f0975`r`n`r`nThis operation is not supported when reserved storage is in use. Please wait for any ongoing servicing operations to complete and try again later.`r`n"
+$checks = @(
+    @('sedang dipakai (kode dan teks)', (Get-ReservedStorageProblem -Code -2146498187 -Output $inUse), 'in-use'),
+    @('sedang dipakai (teks saja)', (Get-ReservedStorageProblem -Code 1 -Output $inUse), 'in-use'),
+    @('sedang dipakai (kode saja)', (Get-ReservedStorageProblem -Code -2146498187 -Output ''), 'in-use'),
+    @('tidak didukung (0x80070032)', (Get-ReservedStorageProblem -Code -2147024846 -Output 'Error: 0x80070032'), 'not-supported'),
+    @('tidak didukung (teks)', (Get-ReservedStorageProblem -Code 50 -Output 'Error: 50 The request is not supported.'), 'not-supported'),
+    @('gagal lain', (Get-ReservedStorageProblem -Code 87 -Output 'Error: 87 The parameter is incorrect.'), 'failed'),
+    @('berhasil', (Get-ReservedStorageProblem -Code 0 -Output 'The operation completed successfully.'), 'none')
+)
+$bad = 0
+foreach ($check in $checks) {
+    if ($check[1] -ne $check[2]) { Write-Output ('GAGAL {0}: dapat "{1}", seharusnya "{2}"' -f $check[0], $check[1], $check[2]); $bad++ }
+}
+Write-Output ('checked {0}' -f $checks.Count)
+exit $bad
+"""
+
+
+def test_reserved_storage_problem() -> int:
+    """Uji VM revisi ketiga 1.0.0: pesan "not supported when reserved storage is in use"
+    keliru dibaca sebagai "tidak didukung", sehingga percobaan setelah restart berhenti."""
+    shell = find_powershell()
+    if not shell:
+        print("lewat  pembeda Reserved Storage: PowerShell tidak terpasang")
+        return 0
+    with tempfile.TemporaryDirectory(prefix="tgos-reserved-") as tmp:
+        runner = Path(tmp) / "Test-Reserved.ps1"
+        runner.write_text(RESERVED_STORAGE_CASES, encoding="ascii")
+        result = subprocess.run(
+            [shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-File", str(runner),
+             str(ROOT / "src" / "Executables" / "TGOS Toolbox" / "Support" / "Set-TgosFeature.ps1")],
+            capture_output=True, text=True, errors="replace")
+    if result.returncode != 0 or "checked 7" not in result.stdout:
+        print(f"GAGAL  pembeda Reserved Storage:\n{(result.stdout + result.stderr).strip()}")
+        return 1
+    print("lolos  pembeda Reserved Storage: 'sedang dipakai' tidak dibaca sebagai 'tidak didukung' (7 kasus)")
+    return 0
+
+
 def test_generated_files() -> int:
     """File yang dibuat dari YAML tidak boleh usang."""
     failures = 0
@@ -567,7 +615,8 @@ def test_compare_frameworks() -> int:
 
 def main() -> int:
     failures = (test_validator() + test_compatibility() + test_shell_layout() + test_ps_variable_names()
-                + test_common_functions() + test_generated_files() + test_compare_frameworks())
+                + test_common_functions() + test_reserved_storage_problem() + test_generated_files()
+                + test_compare_frameworks())
     if failures:
         print(f"\nUji diri GAGAL: {failures} kegagalan")
         return 1

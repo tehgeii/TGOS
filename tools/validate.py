@@ -429,6 +429,14 @@ def validate_conf(report: Report) -> tuple[set[str], str | None]:
     check_room(report, where, "<ShortDescription>", text_of(root, "ShortDescription"), SHORT_DESCRIPTION_ROOM)
     check_room(report, where, "<Description>", text_of(root, "Description"), DESCRIPTION_ROOM)
 
+    # Permintaan pemilik: teks yang tampil di Wizard tidak memakai titik koma (terasa aneh
+    # bagi pembaca); pakai koma atau titik.
+    for element in root.iter():
+        for value in (element.text, element.get("Description"), element.get("Text")):
+            if value and ";" in value:
+                report.error(where, f"<{element.tag}>: teks Wizard memakai titik koma, pakai koma: "
+                                    f"'{value.strip()[:60]}'")
+
     for tag in ("Overhaul", "UseKernelDriver", "AllowUnsupportedUpgrades", "SupportsISO"):
         value = text_of(root, tag)
         if value is not None and value not in ("true", "false"):
@@ -885,6 +893,7 @@ REQUIRED_SUPPORT_FILES = [
     "TGOS Toolbox/Support/Test-TgosResult.ps1",
     "TGOS Toolbox/Support/Collect-TgosReport.ps1",
     "TGOS Toolbox/Support/Get-SystemSnapshot.ps1",
+    "TGOS Toolbox/Support/Complete-AfterRestart.ps1",
     "TGOS Toolbox/Support/expected-state.json",
 ]
 TASK_PATH_RE = re.compile(r"^\\(?:[^\\]+\\)+[^\\]+$")

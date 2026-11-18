@@ -129,18 +129,6 @@ actions:
     showOutput: true
     showError: true
 
-  # Terminal bawaan dikembalikan seperti sebelum instalasi (disetel sementara di
-  # 00-preflight), sesudah langkah terakhir yang menjalankan ulang Explorer.
-  - !run:
-    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
-    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Set-ConsoleHost.ps1" -Action Restore'
-    runas: trustedInstaller
-    exeDir: true
-    wait: true
-    weight: 1
-    showOutput: true
-    showError: true
-
   # Mencocokkan sistem dengan expected-state.json dan menulis
   # %ProgramData%\TGOS\verify-report.txt. Hanya membaca; tidak fatal.
   - !run:

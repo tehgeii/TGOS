@@ -53,6 +53,15 @@ Most changes need a restart.
   TGO Login Screen       ON = TGO picture on the lock and sign-in screens.
                          OFF = the Windows picture.
 
+After a restart
+---------------
+If Windows was busy during the install (for example .NET Framework 3.5 could not be
+downloaded, or Windows was using its reserved storage for an update), TGOS finishes
+that step by itself a few minutes after the next restart, in the background, up to
+three times. The result is written to toolbox.log.
+Bila Windows sedang sibuk saat instalasi, TGOS menyelesaikan langkah itu sendiri
+beberapa menit setelah restart berikutnya, di latar belakang.
+
 Firewall, UAC, Secure Boot and TPM are never changed by TGOS.
 
 Every change made here is written to C:\ProgramData\TGOS\toolbox.log.

@@ -35,7 +35,8 @@
     setelah restart.
 
     Kode keluar: 0 berhasil, 1 gagal, 2 butuh tindakan pengguna (Tamper Protection),
-    3 fitur tidak didukung di PC ini (tidak ada yang diubah).
+    3 fitur tidak didukung di PC ini (tidak ada yang diubah), 4 Windows sedang memakainya
+    (ReservedStorage saat update sedang disiapkan; coba lagi setelah restart).
 
     File ini harus tetap ASCII murni dan kompatibel dengan Windows PowerShell 5.1.
 #>
@@ -49,11 +50,7 @@ param(
 
     [Parameter(Mandatory = $true)]
     [ValidateSet('On', 'Off')]
-    [string]$State,
-
-    # Dipakai tugas terjadwal \TGOS\Reserved Storage Off (didaftarkan Invoke-DeepClean.ps1):
-    # percobaan dihitung, dan tugas itu dihapus setelah berhasil atau setelah 3 percobaan.
-    [switch]$FromStartupTask
+    [string]$State
 )
 
 $ErrorActionPreference = 'Stop'
@@ -96,23 +93,23 @@ function Write-Log {
     }
 }
 
-function Remove-ReservedStorageRetry {
-    # Tugas percobaan ulang saat startup tidak diperlukan lagi.
-    param([string]$Reason)
-    $task = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Reserved Storage Off' -ErrorAction SilentlyContinue
-    if ($task) {
-        Unregister-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Reserved Storage Off' -Confirm:$false -ErrorAction SilentlyContinue
-        Write-Log ('ReservedStorage: startup retry task removed ({0})' -f $Reason)
-        try {
-            # Folder \TGOS di Task Scheduler ikut dihapus bila sudah kosong.
-            $scheduler = New-Object -ComObject 'Schedule.Service'
-            $scheduler.Connect()
-            $folder = $scheduler.GetFolder('\TGOS')
-            if ($folder.GetTasks(1).Count -eq 0 -and $folder.GetFolders(0).Count -eq 0) { $scheduler.GetFolder('\').DeleteFolder('TGOS', 0) }
-        }
-        catch { }
-    }
-    Remove-Item -LiteralPath (Join-Path $env:ProgramData 'TGOS\reserved-storage-retry.txt') -Force -ErrorAction SilentlyContinue
+function Get-ReservedStorageProblem {
+    <#
+    .SYNOPSIS
+        Membaca hasil DISM /Set-ReservedStorageState: 'none', 'in-use', 'not-supported',
+        atau 'failed'.
+
+    .DESCRIPTION
+        "In use" (0x800F0975) dicek LEBIH DULU: pesannya ("...is not supported when reserved
+        storage is in use") juga memuat kata "not supported". Di uji VM revisi ketiga 1.0.0
+        pesan itu keliru dibaca sebagai "tidak didukung", sehingga percobaan setelah restart
+        berhenti. Diuji di tools/selftest.py.
+    #>
+    param([int]$Code, [string]$Output)
+    if ($Output -match '(?i)in use|0x800F0975' -or $Code -eq -2146498187) { return 'in-use' }
+    if ($Output -match '(?i)0x80070032|not supported' -or $Code -eq -2147024846 -or $Code -eq 50) { return 'not-supported' }
+    if ($Code -ne 0) { return 'failed' }
+    return 'none'
 }
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -531,15 +528,21 @@ try {
             $dism = Join-Path $env:SystemRoot 'System32\dism.exe'
             $output = (& cmd.exe /c ('"{0}" /Online /Set-ReservedStorageState /State:{1} 2>&1' -f $dism, $value) | Out-String)
             $code = $LASTEXITCODE
-            if ($output -match '(?i)not supported|0x80070032') {
-                Write-Host 'Reserved storage is not supported on this PC. Nothing was changed.'
-                Write-Log ('ReservedStorage {0}: not supported' -f $State)
-                Remove-ReservedStorageRetry 'not supported on this PC'
-                exit 3
-            }
-            if ($code -ne 0) {
-                # Contoh: Windows sedang memakai cadangan itu untuk update yang belum selesai.
-                throw ('DISM returned {0}: {1}' -f $code, (($output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 2) -join ' '))
+            switch (Get-ReservedStorageProblem -Code $code -Output $output) {
+                'in-use' {
+                    Write-Host 'Windows is using reserved storage for an update right now. Nothing was changed.'
+                    Write-Host 'Restart Windows, wait a few minutes, then try again.'
+                    Write-Log ('ReservedStorage {0}: in use by Windows (DISM {1})' -f $State, $code)
+                    exit 4
+                }
+                'not-supported' {
+                    Write-Host 'Reserved storage is not supported on this PC. Nothing was changed.'
+                    Write-Log ('ReservedStorage {0}: not supported (DISM {1})' -f $State, $code)
+                    exit 3
+                }
+                'failed' {
+                    throw ('DISM returned {0}: {1}' -f $code, (($output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 2) -join ' '))
+                }
             }
             if ($State -eq 'Off') {
                 Write-Host 'Reserved storage is now OFF: the space Windows kept for updates is free again.'
@@ -547,7 +550,6 @@ try {
             else {
                 Write-Host 'Reserved storage is now ON: Windows keeps some space for updates again.'
             }
-            Remove-ReservedStorageRetry ('turned {0}' -f $State.ToLower())
             $restart = $false
         }
         'LoginTheme' {
@@ -581,14 +583,5 @@ catch {
     $reason = ($_.Exception.Message -replace '\s+', ' ').Trim()
     Write-Host ('FAILED: {0}' -f $reason)
     Write-Log ('{0} {1}: FAILED: {2}' -f $Feature, $State, $reason)
-    if ($FromStartupTask -and $Feature -eq 'ReservedStorage') {
-        # Percobaan dari tugas startup: paling banyak 3 kali, lalu tugasnya dihapus.
-        $counter = Join-Path $env:ProgramData 'TGOS\reserved-storage-retry.txt'
-        $attempts = 0
-        try { $attempts = [int](@(Get-Content -LiteralPath $counter -ErrorAction Stop)[0]) } catch { }
-        $attempts++
-        if ($attempts -ge 3) { Remove-ReservedStorageRetry ('gave up after {0} attempts' -f $attempts) }
-        else { Set-Content -LiteralPath $counter -Value $attempts -Encoding ASCII }
-    }
     exit 1
 }

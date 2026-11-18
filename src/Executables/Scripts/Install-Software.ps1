@@ -575,7 +575,23 @@ try {
                 if ($lastError) { $detail = ' (dism.log: {0})' -f (($lastError -replace '\s+', ' ').Trim()) }
             }
             if ($detail.Length -gt 300) { $detail = $detail.Substring(0, 300) + ' ...)' }
-            throw ('DISM returned exit code {0} (0x{0:X8}) twice{1}' -f $code, $detail)
+            # Di uji VM revisi ketiga 1.0.0 kedua percobaan gagal (0x8024001E) walau layanan
+            # Windows Update sudah dijalankan ulang: Windows yang baru dipasang sedang sibuk
+            # dengan update. Dicoba lagi otomatis setelah restart (Complete-AfterRestart.ps1),
+            # saat instalasi TGOS tidak lagi berjalan.
+            $later = ''
+            try {
+                if (Add-TgosAfterRestartItem -Step $Item) { $later = '; it is tried again automatically after the next restart' }
+                else { $later = '; it is tried again automatically after the next restart (once the TGOS Toolbox is installed)' }
+            }
+            catch {
+                $later = ('; the retry after restart could not be scheduled: {0}' -f (Format-TgosError $_))
+            }
+            $services = @(foreach ($name in @('wuauserv', 'UsoSvc', 'TrustedInstaller')) {
+                    $service = Get-Service -Name $name -ErrorAction SilentlyContinue
+                    if ($service) { '{0} {1}' -f $name, $service.Status }
+                }) -join ', '
+            throw ('DISM returned exit code {0} (0x{0:X8}) twice{1} [{2}]{3}' -f $code, $detail, $services, $later)
         }
         Write-Output ("TGOS: DISM finished with exit code {0}" -f $code)
     }

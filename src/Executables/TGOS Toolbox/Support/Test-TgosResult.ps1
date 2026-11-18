@@ -294,6 +294,16 @@ function Test-TaskCheck {
 
 # --- Pemeriksaan hasil skrip (tidak berasal dari YAML) -------------------------------
 
+function Test-AfterRestartStep {
+    # Langkah yang dijadwalkan dicoba lagi setelah restart (Complete-AfterRestart.ps1): ada
+    # di after-restart.txt DAN tugas startup-nya terdaftar.
+    param([string]$Step)
+    $file = Join-Path $dataDirectory 'after-restart.txt'
+    if (-not (Test-Path -LiteralPath $file)) { return $false }
+    if (-not @(Get-Content -LiteralPath $file -ErrorAction SilentlyContinue | Where-Object { $_ -like ('{0}|*' -f $Step) }).Count) { return $false }
+    return [bool](Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart' -ErrorAction SilentlyContinue)
+}
+
 function Find-Program {
     # Jalur pertama yang ada di Program Files (64-bit lalu 32-bit), atau $null.
     param([string]$Relative)
@@ -433,6 +443,9 @@ function Test-SoftwareResults {
         $netfx3 = Read-RegistryValue ([Microsoft.Win32.Registry]::LocalMachine) 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5' 'Install'
         if ($netfx3.Found -and [int]$netfx3.Data -eq 1) {
             Add-Result 'PASS' 'software' '.NET Framework 3.5' 'installed' 'Install-Software.ps1'
+        }
+        elseif (Test-AfterRestartStep 'netfx3') {
+            Add-Result 'WARN' 'software' '.NET Framework 3.5' 'not installed yet (Windows Update was busy); it is installed automatically a few minutes after the next restart' 'Install-Software.ps1'
         }
         else {
             Add-Result 'FAIL' 'software' '.NET Framework 3.5' 'not installed; retry from the TGOS Toolbox (needs internet)' 'Install-Software.ps1'
@@ -617,11 +630,10 @@ function Test-ScriptResults {
             Add-Result 'PASS' 'deep clean' 'reserved storage' 'off' 'Invoke-DeepClean.ps1'
         }
         elseif ($reserved -match '(?i)reserved storage is enabled') {
-            # Invoke-DeepClean.ps1 mendaftarkan percobaan ulang saat startup bila Windows
+            # Invoke-DeepClean.ps1 menjadwalkan percobaan ulang setelah restart bila Windows
             # sedang memakai cadangan itu.
-            $retry = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Reserved Storage Off' -ErrorAction SilentlyContinue
-            if ($retry) {
-                Add-Result 'WARN' 'deep clean' 'reserved storage' 'still on (Windows was using it for an update); it is turned off automatically after the next restart' 'Invoke-DeepClean.ps1'
+            if (Test-AfterRestartStep 'reserved-storage') {
+                Add-Result 'WARN' 'deep clean' 'reserved storage' 'still on (Windows was using it for an update); it is turned off automatically a few minutes after the next restart' 'Invoke-DeepClean.ps1'
             }
             else {
                 Add-Result 'WARN' 'deep clean' 'reserved storage' 'still on (Windows may be using it for an update); use Reserved Storage - Turn OFF in the Toolbox later' 'Invoke-DeepClean.ps1'
@@ -630,15 +642,6 @@ function Test-ScriptResults {
         else {
             Add-Result 'SKIP' 'deep clean' 'reserved storage' 'state could not be read on this PC' 'Invoke-DeepClean.ps1'
         }
-    }
-
-    # Terminal bawaan disetel sementara ke Windows Console Host selama instalasi
-    # (Set-ConsoleHost.ps1); catatan nilai lamanya dihapus begitu nilai itu dikembalikan.
-    if (Test-Path -LiteralPath (Join-Path $dataDirectory 'terminal-previous.txt')) {
-        Add-Result 'WARN' 'terminal' 'default terminal' 'not restored after the install; choose it again in Settings > System > For developers > Terminal' 'Set-ConsoleHost.ps1'
-    }
-    else {
-        Add-Result 'PASS' 'terminal' 'default terminal' 'as before the install' 'Set-ConsoleHost.ps1'
     }
 
     if (Test-Option 'updates-pause') {
@@ -686,6 +689,30 @@ function Test-ScriptResults {
         }
         else {
             Add-Result 'FAIL' 'onedrive' 'OneDrive.exe' ("still installed in {0} profile(s)" -f $copies.Count) 'Remove-OneDrive.ps1'
+        }
+
+        # Perintah bersih-bersih yang ditinggalkan uninstaller OneDrive di RunOnce dijalankan
+        # Explorer dalam jendela cmd (uji VM revisi ketiga 1.0.0). Remove-OneDrive.ps1
+        # menghapusnya dan mengerjakan bersih-bersih itu sendiri tanpa jendela.
+        $runOnce = @()
+        $roots = @(@{ Root = [Microsoft.Win32.Registry]::LocalMachine; Path = 'SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce' },
+            @{ Root = [Microsoft.Win32.Registry]::LocalMachine; Path = 'SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce' })
+        foreach ($sid in $userHives) { $roots += @{ Root = [Microsoft.Win32.Registry]::Users; Path = ('{0}\Software\Microsoft\Windows\CurrentVersion\RunOnce' -f $sid) } }
+        foreach ($entry in $roots) {
+            $key = $entry.Root.OpenSubKey($entry.Path)
+            if ($null -eq $key) { continue }
+            try {
+                foreach ($valueName in $key.GetValueNames()) {
+                    if (($valueName + ' ' + [string]$key.GetValue($valueName, '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)) -match '(?i)onedrive') { $runOnce += $valueName }
+                }
+            }
+            finally { $key.Dispose() }
+        }
+        if ($runOnce.Count -eq 0) {
+            Add-Result 'PASS' 'onedrive' 'RunOnce' 'no OneDrive cleanup command left to open a window' 'Remove-OneDrive.ps1'
+        }
+        else {
+            Add-Result 'FAIL' 'onedrive' 'RunOnce' ("OneDrive cleanup command(s) left: {0}" -f ($runOnce -join ', ')) 'Remove-OneDrive.ps1'
         }
     }
 
