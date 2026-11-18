@@ -35,8 +35,10 @@ dihapus, tanpa launcher): setelah restart **277 PASS, 1 FAIL, 2 WARN**; 117 pros
   menghapus dirinya sendiri. Selama masih menunggu, laporan verifikasi memberi WARN
   "otomatis setelah restart", bukan FAIL.
 - *Collect TGOS Report* menyertakan `servicing.txt`: keadaan Reserved Storage, .NET 3.5,
-  layanan Windows Update, tanda restart tertunda, entri RunOnce, dan akhir `dism.log`
-  (nama pengguna dan nama komputer disamarkan).
+  layanan Windows Update, tanda restart tertunda, entri RunOnce, dan akhir `dism.log`.
+- *Collect TGOS Report* menyamarkan seluruh isi laporan sebelum di-zip: log AME ternyata
+  memuat jalur `C:\Users\<nama akun>` dan SID akun. Sekarang nama folder pengguna menjadi
+  `<user>`, nama komputer `<computer>`, dan bagian mesin dari SID `<machine>`.
 - Teks di Wizard tidak lagi memakai titik koma (permintaan pemilik); validator menolaknya.
 
 Revisi ketiga (setelah uji VM revisi kedua):

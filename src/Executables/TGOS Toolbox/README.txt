@@ -18,7 +18,8 @@ In this folder
                          Rebuilds the taskbar and Start pins as the TGOS set.
                          Your own pins are removed.
   Collect TGOS Report    Makes TGOS-report.zip on the Desktop: a check of every TGOS
-                         change plus a system snapshot. It changes nothing.
+                         change plus a system snapshot. It changes nothing. User and
+                         computer names in it are replaced by <user> and <computer>.
 
 Turn ON or OFF (folder)
 -----------------------

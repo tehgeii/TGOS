@@ -12,9 +12,10 @@
                               yang menunggu restart, entri RunOnce, akhir dism.log
       - log AME bila ditemukan
 
-    Tidak mengubah pengaturan Windows. Tidak mengumpulkan nama komputer, nama pengguna,
-    alamat jaringan, atau file pribadi (nama folder pengguna di servicing.txt diganti
-    <user>, nama komputer diganti <computer>).
+    Tidak mengubah pengaturan Windows. Tidak mengumpulkan alamat jaringan atau file
+    pribadi. Sebelum di-zip, semua file teks laporan disamarkan (ConvertTo-PrivateText): log
+    AME memuat jalur profil pengguna, jadi nama folder pengguna diganti <user>, nama
+    komputer diganti <computer>, dan bagian mesin dari SID akun diganti <machine>.
 
     Harus dijalankan sebagai Administrator.
 
@@ -27,6 +28,29 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+function ConvertTo-PrivateText {
+    <#
+    .SYNOPSIS
+        Menyamarkan nama folder pengguna, nama komputer, dan bagian mesin dari SID akun.
+
+    .DESCRIPTION
+        X:\Users\<nama> (juga X:\\Users\\<nama> di JSON) menjadi X:\Users\<user>; folder
+        bersama Windows (Public, Default, Default User, All Users) tidak diubah.
+        S-1-5-21-a-b-c-1001 menjadi S-1-5-21-<machine>-1001 (nomor akun tetap, supaya akun
+        yang berbeda masih bisa dibedakan). Nama komputer (3 huruf atau lebih, sebagai kata
+        utuh) menjadi <computer>. Diuji di tools/selftest.py.
+    #>
+    param([string]$Text, [string]$ComputerName)
+    if (-not $Text) { return $Text }
+    $users = '(?i)\b([A-Z]:(\\{1,2})Users\2)(?!(?:Public|Default|All Users)(?=\\|"|\s|$))[^\\"\r\n]+?(?=\\|"|\r|\n|$)'
+    $result = [regex]::Replace($Text, $users, '$1<user>')
+    $result = [regex]::Replace($result, 'S-1-5-21-\d+-\d+-\d+(?=-\d)', 'S-1-5-21-<machine>')
+    if ($ComputerName -and $ComputerName.Length -ge 3) {
+        $result = [regex]::Replace($result, ('(?i)\b{0}\b' -f [regex]::Escape($ComputerName)), '<computer>')
+    }
+    return $result
+}
 
 if (-not $OutputDirectory) {
     $OutputDirectory = [Environment]::GetFolderPath('Desktop')
@@ -96,11 +120,7 @@ try {
         $lines += '', '[dism.log, last 80 lines]'
         $dismLog = Join-Path $env:SystemRoot 'Logs\DISM\dism.log'
         if (Test-Path -LiteralPath $dismLog) { $lines += @(Get-Content -LiteralPath $dismLog -Tail 80 -ErrorAction SilentlyContinue) }
-        # Tanpa nama pengguna dan nama komputer.
-        $lines = @($lines | ForEach-Object { ('' + $_) -replace '(?i)([A-Z]:\\Users\\)[^\\"]+?(?=\\|"|\s*$)', '$1<user>' })
-        if ($env:COMPUTERNAME -and $env:COMPUTERNAME.Length -ge 3) {
-            $lines = @($lines | ForEach-Object { $_ -replace [regex]::Escape($env:COMPUTERNAME), '<computer>' })
-        }
+        # Nama pengguna dan nama komputer disamarkan bersama file lain sebelum di-zip.
         Set-Content -LiteralPath (Join-Path $work 'servicing.txt') -Value $lines -Encoding ASCII
     }
     catch {
@@ -137,7 +157,26 @@ try {
             }
     }
 
+    # Semua file teks laporan disamarkan; encoding dan BOM tiap file dipertahankan.
+    foreach ($file in @(Get-ChildItem -LiteralPath $work -Recurse -File | Where-Object { $_.Extension -in '.txt', '.log', '.yml', '.conf', '.json', '.xml' })) {
+        try {
+            $bytes = [IO.File]::ReadAllBytes($file.FullName)
+            $encoding = New-Object System.Text.UTF8Encoding($false)
+            if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) { $encoding = New-Object System.Text.UTF8Encoding($true) }
+            elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) { $encoding = [System.Text.Encoding]::Unicode }
+            $text = [IO.File]::ReadAllText($file.FullName, $encoding)
+            $private = ConvertTo-PrivateText -Text $text -ComputerName $env:COMPUTERNAME
+            if ($private -cne $text) { [IO.File]::WriteAllText($file.FullName, $private, $encoding) }
+        }
+        catch {
+            # File yang tidak bisa disamarkan tidak ikut dikirim.
+            Remove-Item -LiteralPath $file.FullName -Force -ErrorAction SilentlyContinue
+            $notes += ('private: {0} left out: {1}' -f $file.Name, $_.Exception.Message)
+        }
+    }
+
     if ($notes.Count -gt 0) {
+        $notes = @($notes | ForEach-Object { ConvertTo-PrivateText -Text ('' + $_) -ComputerName $env:COMPUTERNAME })
         Set-Content -LiteralPath (Join-Path $work 'collect-notes.txt') -Value $notes -Encoding ASCII
     }
 

@@ -1420,6 +1420,23 @@ if (Assert-That (Test-Path -LiteralPath $collectScript) 'collect: Collect-TgosRe
         $null = Assert-That ($entries -contains 'verify-report.txt') 'collect: the zip contains verify-report.txt'
         $null = Assert-That (@($entries | Where-Object { $_ -like 'TGOS-snapshot-*.json' }).Count -eq 1) 'collect: the zip contains the system snapshot'
         Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $artifacts 'report') -Force
+        $null = Assert-That ($entries -contains 'servicing.txt') 'collect: the zip contains servicing.txt'
+        # Nama akun uji, nama komputer, dan bagian mesin dari SID tidak boleh ada di laporan.
+        $leaks = @()
+        $files = @(Get-ChildItem -LiteralPath (Join-Path $artifacts 'report') -Recurse -File | Where-Object { $_.Extension -in '.txt', '.log', '.yml', '.conf', '.json', '.xml' })
+        $sid = ([Security.Principal.WindowsIdentity]::GetCurrent()).User.Value
+        $machine = ''
+        if ($sid -match '^(S-1-5-21-\d+-\d+-\d+)-\d+$') { $machine = $Matches[1] }
+        foreach ($file in $files) {
+            $text = [IO.File]::ReadAllText($file.FullName)
+            if ($text -match ('(?i)\\{1,2}Users\\{1,2}' + [regex]::Escape($env:USERNAME) + '(\\|"|\s|$)')) { $leaks += ('{0}: user name' -f $file.Name) }
+            if ($env:COMPUTERNAME.Length -ge 3 -and $text -match ('(?i)\b' + [regex]::Escape($env:COMPUTERNAME) + '\b')) { $leaks += ('{0}: computer name' -f $file.Name) }
+            if ($machine -and $text.Contains($machine)) { $leaks += ('{0}: account SID' -f $file.Name) }
+        }
+        $null = Assert-That ($leaks.Count -eq 0) ('collect: no user name, computer name, or account SID in the {0} text file(s) of the report' -f $files.Count)
+        $leaks | Select-Object -First 8 | ForEach-Object { Write-Host ('   leak: {0}' -f $_) }
+        Get-Content -LiteralPath (Join-Path $artifacts 'report\servicing.txt') -ErrorAction SilentlyContinue | Select-Object -First 24 |
+            ForEach-Object { Write-Host ('   servicing | {0}' -f (Format-LogLine $_)) }
     }
     else {
         $collectOutput -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 6 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }

@@ -555,6 +555,54 @@ def test_reserved_storage_problem() -> int:
     return 0
 
 
+PRIVATE_TEXT_CASES = r"""
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($args[0], [ref]$null, [ref]$null)
+$function = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'ConvertTo-PrivateText' }, $true)
+if (-not $function) { Write-Output 'ConvertTo-PrivateText tidak ditemukan'; exit 9 }
+. ([scriptblock]::Create($function.Extent.Text))
+$checks = @(
+    @('jalur profil', (ConvertTo-PrivateText -Text 'C:\Users\testing\AppData\Local\Packages\x' -ComputerName ''), 'C:\Users\<user>\AppData\Local\Packages\x'),
+    @('nama berspasi dalam kutip', (ConvertTo-PrivateText -Text 'rmdir /s /q "C:\Users\John Doe\AppData"' -ComputerName ''), 'rmdir /s /q "C:\Users\<user>\AppData"'),
+    @('JSON dengan \\', (ConvertTo-PrivateText -Text '{"path":"C:\\Users\\testing\\Desktop"}' -ComputerName ''), '{"path":"C:\\Users\\<user>\\Desktop"}'),
+    @('akhir baris', (ConvertTo-PrivateText -Text ("profile C:\Users\testing`r`nnext") -ComputerName ''), ("profile C:\Users\<user>`r`nnext")),
+    @('Public tidak diubah', (ConvertTo-PrivateText -Text 'C:\Users\Public\Desktop\TGOS Toolbox.lnk' -ComputerName ''), 'C:\Users\Public\Desktop\TGOS Toolbox.lnk'),
+    @('Default User tidak diubah', (ConvertTo-PrivateText -Text 'C:\Users\Default User\x' -ComputerName ''), 'C:\Users\Default User\x'),
+    @('SID akun', (ConvertTo-PrivateText -Text 'HKU\S-1-5-21-706074668-1947857381-4134796278-1001\Software' -ComputerName ''), 'HKU\S-1-5-21-<machine>-1001\Software'),
+    @('SID sistem tidak diubah', (ConvertTo-PrivateText -Text 'S-1-5-18 S-1-5-32-544' -ComputerName ''), 'S-1-5-18 S-1-5-32-544'),
+    @('nama komputer', (ConvertTo-PrivateText -Text 'Host DESKTOP-AB12CD ok, desktop-ab12cd' -ComputerName 'DESKTOP-AB12CD'), 'Host <computer> ok, <computer>'),
+    @('bukan kata utuh', (ConvertTo-PrivateText -Text 'XPCX' -ComputerName 'PCX'), 'XPCX'),
+    @('teks tanpa data pribadi', (ConvertTo-PrivateText -Text 'TGOS: 7-Zip installed' -ComputerName 'DESKTOP-AB12CD'), 'TGOS: 7-Zip installed')
+)
+$bad = 0
+foreach ($check in $checks) {
+    if ($check[1] -cne $check[2]) { Write-Output ('GAGAL {0}: dapat "{1}", seharusnya "{2}"' -f $check[0], $check[1], $check[2]); $bad++ }
+}
+Write-Output ('checked {0}' -f $checks.Count)
+exit $bad
+"""
+
+
+def test_private_text() -> int:
+    """Laporan pemilik revisi ketiga: log AME memuat C:\\Users\\<nama> dan SID akun."""
+    shell = find_powershell()
+    if not shell:
+        print("lewat  penyamaran laporan: PowerShell tidak terpasang")
+        return 0
+    with tempfile.TemporaryDirectory(prefix="tgos-private-") as tmp:
+        runner = Path(tmp) / "Test-Private.ps1"
+        runner.write_text(PRIVATE_TEXT_CASES, encoding="ascii")
+        result = subprocess.run(
+            [shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-File", str(runner),
+             str(ROOT / "src" / "Executables" / "TGOS Toolbox" / "Support" / "Collect-TgosReport.ps1")],
+            capture_output=True, text=True, errors="replace")
+    if result.returncode != 0 or "checked 11" not in result.stdout:
+        print(f"GAGAL  penyamaran laporan:\n{(result.stdout + result.stderr).strip()}")
+        return 1
+    print("lolos  penyamaran laporan: nama pengguna, SID akun, dan nama komputer (11 kasus)")
+    return 0
+
+
 def test_generated_files() -> int:
     """File yang dibuat dari YAML tidak boleh usang."""
     failures = 0
@@ -615,7 +663,8 @@ def test_compare_frameworks() -> int:
 
 def main() -> int:
     failures = (test_validator() + test_compatibility() + test_shell_layout() + test_ps_variable_names()
-                + test_common_functions() + test_reserved_storage_problem() + test_generated_files()
+                + test_common_functions() + test_reserved_storage_problem() + test_private_text()
+                + test_generated_files()
                 + test_compare_frameworks())
     if failures:
         print(f"\nUji diri GAGAL: {failures} kegagalan")

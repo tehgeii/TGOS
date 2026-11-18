@@ -916,8 +916,14 @@ startup revisi ketiga menganggapnya tidak didukung dan menghapus dirinya. Sekara
 
 **Diagnosa.** `Collect-TgosReport.ps1` menulis `servicing.txt` (Reserved Storage, NetFx3,
 layanan WU/UsoSvc/BITS/DoSvc/TrustedInstaller, tanda restart tertunda, daftar dan tugas
-"after restart", RunOnce, 80 baris terakhir `dism.log`), dengan nama pengguna dan nama
-komputer disamarkan.
+"after restart", RunOnce, 80 baris terakhir `dism.log`). Laporan revisi ketiga memperlihatkan
+log AME memuat `C:\Users\<nama>` (52 kali) dan SID akun, padahal kolektor menyatakan tidak
+mengumpulkan nama pengguna. Sekarang semua file teks di laporan (`.txt .log .yml .conf .json
+.xml`) disamarkan lewat `ConvertTo-PrivateText` sebelum di-zip, dengan encoding/BOM
+dipertahankan: `X:\Users\<nama>` (juga bentuk JSON) → `<user>` kecuali folder bersama
+Windows, nama komputer sebagai kata utuh → `<computer>`, `S-1-5-21-a-b-c-RID` →
+`S-1-5-21-<machine>-RID`. File yang gagal disamarkan tidak ikut. Diuji di `selftest.py` (11
+kasus) dan di CI (isi zip dipindai untuk nama akun runner, nama komputer, dan SID).
 
 **Teks Wizard** tanpa titik koma (permintaan pemilik); `validate.py` menolak `;` di semua
 teks `playbook.conf`, dengan mutasi uji diri.
