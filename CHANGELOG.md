@@ -5,6 +5,34 @@ Semua perubahan penting pada TGOS dicatat di sini. Nomor versi mengikuti roadmap
 
 ## 1.0.0 — pilihan browser, opsi baru, dan perbaikan dari uji 0.9.1
 
+**Revisi ketiga setelah uji VM revisi kedua** (nomor versi tetap). Revisi kedua diuji
+pemilik di VMware (Windows 11 Pro 26H2, semua opsi, Firefox, semua launcher): setelah
+restart **283 PASS, 1 FAIL, 2 WARN**. Terbukti di VM: Pause update tampil di Settings
+sampai 2036 dengan tombol Resume, kedua toggle Game Bar Off dan Win+G diblokir, layar kunci
+terlewati, semua launcher, Discord, Spotify, VC++ 2005-2022, XNA, DirectX, dan .NET Desktop
+Runtime terpasang. Angka setelah restart tetap ringan walau 6 launcher/aplikasi ditambah:
+118 proses, RAM 2.252 MB, 82 layanan berjalan. Yang diperbaiki:
+
+- **.NET Framework 3.5 gagal** (FAIL): DISM keluar `0x8024001E` (layanan Windows Update
+  sedang berhenti). Sekarang layanan itu dipastikan berjalan dulu, dan bila DISM gagal,
+  layanannya dijalankan ulang lalu dicoba sekali lagi; baris error dari `dism.log` ikut
+  dicatat. Uji otomatis: .NET 3.5 dicopot sampai payload-nya hilang, lalu dipasang lagi
+  lewat Toolbox saat update di-pause (berhasil, sekitar 3 menit).
+- **Reserved Storage tidak bisa dimatikan** (WARN, Deep clean+ hanya 1,26 GB): DISM
+  `0x800F0975`, Windows sedang memakainya untuk update. Sekarang TGOS mendaftarkan tugas
+  terjadwal tersembunyi yang mencobanya lagi sekali setelah restart (SYSTEM, tanpa jendela),
+  dan tugas itu menghapus dirinya sendiri setelah berhasil atau setelah 3 percobaan.
+- **Jendela terminal kosong di akhir instalasi**: selama instalasi terminal bawaan disetel
+  sementara ke Windows Console Host dan dikembalikan persis seperti semula di akhir; laporan
+  verifikasi memeriksa pengembaliannya. Uji otomatis sekarang menjalankan mesin AME tanpa
+  konsol seperti AME Wizard, dengan Windows Terminal sebagai terminal bawaan, dan mencatat
+  setiap program yang membuka konsol: tidak ada jendela dari langkah TGOS. Penyebab pasti
+  di VM belum bisa dipastikan (lihat docs/TESTING.md); potret sistem sekarang mencatat
+  versi Windows Terminal dan pengaturan terminal bawaan untuk laporan berikutnya.
+- Halaman launcher menyebut ukuran unduhan (sampai sekitar 1 GB).
+
+Revisi kedua (setelah uji VM revisi pertama):
+
 **Revisi kedua setelah uji VM revisi pertama** (nomor versi tetap). Revisi pertama diuji
 pemilik di VMware (Windows 11 Pro 26H2, semua opsi, Brave): setelah restart **226 PASS,
 0 FAIL, 0 WARN**, instalasi ~10 menit; dibanding Windows bersih RAM −35%, thread −37%,

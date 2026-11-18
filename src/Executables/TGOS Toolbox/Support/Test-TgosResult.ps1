@@ -617,11 +617,28 @@ function Test-ScriptResults {
             Add-Result 'PASS' 'deep clean' 'reserved storage' 'off' 'Invoke-DeepClean.ps1'
         }
         elseif ($reserved -match '(?i)reserved storage is enabled') {
-            Add-Result 'WARN' 'deep clean' 'reserved storage' 'still on (Windows may be using it for an update); use Reserved Storage - Turn OFF in the Toolbox later' 'Invoke-DeepClean.ps1'
+            # Invoke-DeepClean.ps1 mendaftarkan percobaan ulang saat startup bila Windows
+            # sedang memakai cadangan itu.
+            $retry = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Reserved Storage Off' -ErrorAction SilentlyContinue
+            if ($retry) {
+                Add-Result 'WARN' 'deep clean' 'reserved storage' 'still on (Windows was using it for an update); it is turned off automatically after the next restart' 'Invoke-DeepClean.ps1'
+            }
+            else {
+                Add-Result 'WARN' 'deep clean' 'reserved storage' 'still on (Windows may be using it for an update); use Reserved Storage - Turn OFF in the Toolbox later' 'Invoke-DeepClean.ps1'
+            }
         }
         else {
             Add-Result 'SKIP' 'deep clean' 'reserved storage' 'state could not be read on this PC' 'Invoke-DeepClean.ps1'
         }
+    }
+
+    # Terminal bawaan disetel sementara ke Windows Console Host selama instalasi
+    # (Set-ConsoleHost.ps1); catatan nilai lamanya dihapus begitu nilai itu dikembalikan.
+    if (Test-Path -LiteralPath (Join-Path $dataDirectory 'terminal-previous.txt')) {
+        Add-Result 'WARN' 'terminal' 'default terminal' 'not restored after the install; choose it again in Settings > System > For developers > Terminal' 'Set-ConsoleHost.ps1'
+    }
+    else {
+        Add-Result 'PASS' 'terminal' 'default terminal' 'as before the install' 'Set-ConsoleHost.ps1'
     }
 
     if (Test-Option 'updates-pause') {

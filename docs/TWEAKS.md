@@ -50,6 +50,7 @@ dipasang lagi dari Store (lihat [TESTING.md](TESTING.md)).
 | `Scripts\Test-Compatibility.ps1` |  | AME Wizard hanya memeriksa nomor build (SupportedBuilds), tidak memeriksa edisi. Skrip ini keluar dengan kode bukan 0 bila edisi bukan Pro, build terlalu lama, atau arsitektur bukan x64. Kode bukan 0 menghentikan seluruh playbook. |
 | `Scripts\Test-Prerequisites.ps1` |  | Informasi saja (tidak menghentikan playbook): koneksi internet untuk unduhan software pilihan, dan ruang disk kosong. |
 | `Scripts\New-RestorePoint.ps1` |  | Restore point "Before TGOS <versi>" sebagai jaring pengaman untuk perubahan registry. Tidak fatal: skrip selalu keluar 0 dan mencatat hasilnya di %ProgramData%\TGOS\restore-point.txt, yang lalu disalin ke install-info.txt. |
+| `Scripts\Set-ConsoleHost.ps1` `-Action Save` |  | Terminal bawaan sementara Windows Console Host (dikembalikan di 90-finalize). Di Windows 11 dengan Windows Terminal sebagai terminal bawaan, konsol tersembunyi yang dibuka program lain selama instalasi bisa tampil sebagai jendela kosong (uji VM revisi kedua 1.0.0). Dijalankan sesudah restore point, supaya restore point memuat nilai asli. |
 
 
 ## Software pilihan (`05-software.yml`)
@@ -755,4 +756,5 @@ Tugas yang dinonaktifkan (dari `src/Executables/TGOS/scheduled-tasks.txt`; tugas
 | `Scripts\Set-ShellLayout.ps1` |  | Menyusun ulang pin taskbar dan Start menjadi set TGOS. Dijalankan setelah opsi tercatat (skrip membaca opsi "remove-store" dari install-info.txt) dan setelah browser terpasang. Skrip ini menghentikan Explorer; aksi berikutnya menjalankannya lagi sebagai pengguna yang login. |
 | `Scripts\Start-Shell.ps1` |  |  |
 | `Scripts\Install-Toolbox.ps1` `-Part Shortcut` |  | Pintasan "TGOS Toolbox" di Desktop, dibuat SETELAH Explorer hidup lagi, supaya Explorer menaruhnya di petak kosong berikutnya. Di uji VM v1.0.0 pintasan yang dibuat sebelum Explorer dihentikan muncul di tengah Desktop. |
+| `Scripts\Set-ConsoleHost.ps1` `-Action Restore` |  | Terminal bawaan dikembalikan seperti sebelum instalasi (disetel sementara di 00-preflight), sesudah langkah terakhir yang menjalankan ulang Explorer. |
 | `TGOS Toolbox\Support\Test-TgosResult.ps1` |  | Mencocokkan sistem dengan expected-state.json dan menulis %ProgramData%\TGOS\verify-report.txt. Hanya membaca; tidak fatal. |

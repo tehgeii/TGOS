@@ -49,7 +49,11 @@ param(
 
     [Parameter(Mandatory = $true)]
     [ValidateSet('On', 'Off')]
-    [string]$State
+    [string]$State,
+
+    # Dipakai tugas terjadwal \TGOS\Reserved Storage Off (didaftarkan Invoke-DeepClean.ps1):
+    # percobaan dihitung, dan tugas itu dihapus setelah berhasil atau setelah 3 percobaan.
+    [switch]$FromStartupTask
 )
 
 $ErrorActionPreference = 'Stop'
@@ -90,6 +94,25 @@ function Write-Log {
     catch {
         # Log hanya catatan; kegagalannya tidak boleh menggagalkan perubahan.
     }
+}
+
+function Remove-ReservedStorageRetry {
+    # Tugas percobaan ulang saat startup tidak diperlukan lagi.
+    param([string]$Reason)
+    $task = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Reserved Storage Off' -ErrorAction SilentlyContinue
+    if ($task) {
+        Unregister-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Reserved Storage Off' -Confirm:$false -ErrorAction SilentlyContinue
+        Write-Log ('ReservedStorage: startup retry task removed ({0})' -f $Reason)
+        try {
+            # Folder \TGOS di Task Scheduler ikut dihapus bila sudah kosong.
+            $scheduler = New-Object -ComObject 'Schedule.Service'
+            $scheduler.Connect()
+            $folder = $scheduler.GetFolder('\TGOS')
+            if ($folder.GetTasks(1).Count -eq 0 -and $folder.GetFolders(0).Count -eq 0) { $scheduler.GetFolder('\').DeleteFolder('TGOS', 0) }
+        }
+        catch { }
+    }
+    Remove-Item -LiteralPath (Join-Path $env:ProgramData 'TGOS\reserved-storage-retry.txt') -Force -ErrorAction SilentlyContinue
 }
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -511,6 +534,7 @@ try {
             if ($output -match '(?i)not supported|0x80070032') {
                 Write-Host 'Reserved storage is not supported on this PC. Nothing was changed.'
                 Write-Log ('ReservedStorage {0}: not supported' -f $State)
+                Remove-ReservedStorageRetry 'not supported on this PC'
                 exit 3
             }
             if ($code -ne 0) {
@@ -523,6 +547,7 @@ try {
             else {
                 Write-Host 'Reserved storage is now ON: Windows keeps some space for updates again.'
             }
+            Remove-ReservedStorageRetry ('turned {0}' -f $State.ToLower())
             $restart = $false
         }
         'LoginTheme' {
@@ -556,5 +581,14 @@ catch {
     $reason = ($_.Exception.Message -replace '\s+', ' ').Trim()
     Write-Host ('FAILED: {0}' -f $reason)
     Write-Log ('{0} {1}: FAILED: {2}' -f $Feature, $State, $reason)
+    if ($FromStartupTask -and $Feature -eq 'ReservedStorage') {
+        # Percobaan dari tugas startup: paling banyak 3 kali, lalu tugasnya dihapus.
+        $counter = Join-Path $env:ProgramData 'TGOS\reserved-storage-retry.txt'
+        $attempts = 0
+        try { $attempts = [int](@(Get-Content -LiteralPath $counter -ErrorAction Stop)[0]) } catch { }
+        $attempts++
+        if ($attempts -ge 3) { Remove-ReservedStorageRetry ('gave up after {0} attempts' -f $attempts) }
+        else { Set-Content -LiteralPath $counter -Value $attempts -Encoding ASCII }
+    }
     exit 1
 }

@@ -319,7 +319,9 @@ Semuanya ditangani di `1.0.0`.
 | 2. Mesin AME, revisi kedua | 17 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
 | 3. VM pemilik, build pertama | 17 Nov 2026 | 225 PASS, 1 FAIL; setelah restart 224 PASS, 2 FAIL | Rincian di bawah; dua FAIL itu diperbaiki di revisi |
 | 3. VM pemilik, revisi pertama | 17 Nov 2026 | Setelah restart 226 PASS, 0 FAIL, 0 WARN | Rincian di bawah |
-| 3. VM pemilik, revisi kedua | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
+| 3. VM pemilik, revisi kedua | 16-18 Nov 2026 | Setelah restart 283 PASS, 1 FAIL, 2 WARN | Rincian di akhir bagian ini; FAIL dan WARN diperbaiki di revisi ketiga |
+| 2. Mesin AME, revisi ketiga | 18 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
+| 3. VM pemilik, revisi ketiga | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
 | Hardware asli | | Belum | Benchmark dan anti-cheat belum diuji |
 
 Lapis 2, runner command-line AME versi 0.8.4 (run terakhir sebelum rilis):
@@ -476,3 +478,60 @@ Lapis 2, revisi kedua (runner command-line AME versi 0.8.4, run terakhir sebelum
   membuang .NET Native 2.2 karena Store adalah pemakai terakhirnya. Perbandingan potret
   sekarang membedakan ini (framework tanpa pemakai) dari framework yang hilang padahal
   masih dipakai.
+
+Lapis 3, uji pemilik revisi kedua: Windows 11 Pro 26H2 build 26300.9974 di VMware, AME
+Beta 0.8.4, semua opsi, Firefox, semua launcher dan aplikasi. Instalasi 78 menit, hampir
+seluruhnya unduhan (sekitar 1 GB pada 0,5-1 MB/s) ditambah installer EA sekitar 10 menit.
+Setelah restart **283 PASS, 1 FAIL, 2 WARN, 8 SKIP**.
+
+| | Sesudah restart | Revisi pertama |
+|---|---|---|
+| Proses | 118 | 111 |
+| Thread | 1.250 | 1.225 |
+| RAM terpakai | 2.252 MB | 2.181 MB |
+| Layanan berjalan | 82 | 76 |
+| Disk terpakai | 27,0 GB | 24,9 GB |
+
+Terbukti di VM: "Updates paused until 11/13/2036" dengan tombol Resume; kedua toggle Game
+Bar Off dan Win+G diblokir; layar kunci terlewati langsung ke sign-in; Steam, Epic, EA app,
+Ubisoft Connect, Discord, Spotify, VC++ 2005-2022, XNA, DirectX, dan .NET Desktop Runtime 10
+terpasang; layanan launcher semuanya Manual.
+
+Masalah, dengan penyebabnya:
+
+- **FAIL .NET Framework 3.5**: DISM `0x8024001E` (layanan Windows Update sedang berhenti),
+  tanpa percobaan ulang.
+- **WARN Reserved Storage**: DISM `0x800F0975` (cadangan sedang dipakai operasi servicing),
+  sehingga Deep clean+ hanya membebaskan 1,26 GB.
+- **Jendela terminal kosong di akhir instalasi** (screenshot pukul 13:45: empat jendela
+  bertumpuk, Windows Terminal aktif di taskbar, status AME "Reticulating splines...").
+  Bukan dari langkah TGOS menurut uji otomatis revisi ketiga (lihat di bawah); penyebab pasti
+  di VM belum diketahui.
+
+Lapis 2, revisi ketiga (runner command-line AME versi 0.8.4, run terakhir sebelum rilis):
+
+| Runner | Opsi, browser | Pemeriksaan diri | Pemeriksaan CI |
+|---|---|---|---|
+| Windows Server 2025, build 26100, x64 | bawaan, Brave | 213 PASS, 0 FAIL, 1 WARN, 73 SKIP | 79 dari 79 |
+| Windows Server 2025, build 26100, x64 | semua, Chrome | 274 PASS, 0 FAIL, 1 WARN, 19 SKIP | 90 dari 90 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | bawaan, Brave | 210 PASS, 0 FAIL, 0 WARN, 77 SKIP | 79 dari 79 |
+| Windows 11 Enterprise 25H2, build 26200, ARM64 | semua, Firefox | 264 PASS, 0 FAIL, 0 WARN, 30 SKIP | 80 dari 80 |
+
+`WARN` di Server tetap restore point. Yang terbukti:
+
+- **Seperti AME Wizard**: mesin AME dijalankan tanpa konsol (`DETACHED_PROCESS`), dengan
+  Windows Terminal 1.24 sebagai terminal bawaan di runner Windows 11. Pemantau jendela tidak
+  melihat satu pun jendela dari TGOS. Jejak proses mencatat sekitar 110 konsol selama
+  playbook, semuanya tanpa jendela: PowerShell tiap langkah TGOS (44), `ame-assassin.exe`
+  milik AME (31), ngen/DISM/servicing Windows, dan updater WSL milik runner. Kontrol: konsol
+  tersembunyi dengan Windows Terminal maupun Console Host sebagai bawaan tetap tersembunyi,
+  jadi jendela kosong di VM pemilik **tidak bisa dibuat ulang** di runner.
+- **Terminal bawaan** disetel ke Console Host selama playbook dan kembali persis ke Windows
+  Terminal sesudahnya; catatannya terhapus; pemeriksaan diri memeriksanya.
+- **.NET Framework 3.5**: dicopot sampai payload-nya hilang
+  (`DisabledWithPayloadRemoved`), lalu dipasang lagi lewat Toolbox saat update di-pause:
+  berhasil dalam 188-221 detik. Jalur percobaan ulang (DISM gagal sekali) tidak terjadi di
+  runner, jadi belum teruji langsung.
+- **Reserved Storage**: tugas `\TGOS\Reserved Storage Off` terdaftar (SYSTEM, saat
+  startup, tersembunyi) dan menghapus dirinya sendiri setelah berhasil, di keempat job.
+  Kondisi "sedang dipakai" seperti di VM tidak bisa dibuat di runner.

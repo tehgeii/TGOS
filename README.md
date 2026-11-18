@@ -3,12 +3,16 @@
 Playbook AME Wizard yang mengubah Windows 11 Pro menjadi OS gaming yang sangat ringan,
 dengan prioritas performa.
 
-> **Status: `1.0.0` (revisi kedua).** Lolos uji otomatis lewat mesin AME di Windows Server
-> 2025 dan Windows 11 Enterprise 25H2. Revisi pertama `1.0.0` sudah diuji pemilik di
-> Windows 11 Pro 26H2 (VMware, AME Beta): 226 pemeriksaan lolos, 0 gagal setelah restart.
-> Revisi kedua (Pause update, launcher, opsi baru, deep clean) **belum** diuji ulang di VM.
-> Uji di hardware asli (benchmark, anti-cheat) belum dilakukan. Buat cadangan dulu sebelum
-> memasang di komputer utama.
+> **Status: `1.0.0` (revisi ketiga).** Lolos uji otomatis lewat mesin AME di Windows Server
+> 2025 dan Windows 11 Enterprise 25H2. Revisi kedua sudah diuji pemilik di Windows 11 Pro
+> 26H2 (VMware, AME Beta, semua opsi): 283 pemeriksaan lolos setelah restart; satu FAIL
+> (.NET 3.5) dan dua WARN (Reserved Storage) diperbaiki di revisi ketiga, yang **belum**
+> diuji ulang di VM. Uji di hardware asli (benchmark, anti-cheat) belum dilakukan. Buat
+> cadangan dulu sebelum memasang di komputer utama.
+>
+> Selama instalasi, terminal bawaan Windows disetel sementara ke Windows Console Host dan
+> dikembalikan di akhir. Bila instalasi berhenti di tengah, pilih lagi di *Settings >
+> System > For developers > Terminal*.
 
 ## Yang dilakukan TGOS
 

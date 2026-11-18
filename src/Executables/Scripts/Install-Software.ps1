@@ -544,12 +544,39 @@ try {
     }
 
     if ($entry.Dism) {
-        # Fitur Windows: DISM mengunduh dan memasangnya sendiri (butuh internet).
-        Write-Output ("TGOS: enabling the Windows feature {0} (Windows downloads it)" -f $entry.Dism)
+        # Fitur Windows: DISM mengunduh dan memasangnya sendiri lewat layanan Windows Update
+        # (butuh internet). Di uji VM revisi kedua 1.0.0, DISM gagal dengan 0x8024001E
+        # (layanan Windows Update sedang berhenti), jadi layanan itu dipastikan berjalan,
+        # dan bila gagal dicoba sekali lagi sesudah layanannya dijalankan ulang.
         $dismArguments = '/Online /Enable-Feature /FeatureName:{0} /All /NoRestart /Quiet' -f $entry.Dism
-        $code = Invoke-TgosProcess -File (Join-Path $env:SystemRoot 'System32\dism.exe') -Arguments $dismArguments -TimeoutMilliseconds 1800000
-        if ($null -eq $code) { throw 'DISM did not finish within 30 minutes' }
-        if (@(0, 3010) -notcontains $code) { throw ("DISM returned exit code {0}" -f $code) }
+        $updateService = Get-Service -Name 'wuauserv' -ErrorAction SilentlyContinue
+        if ($updateService -and $updateService.StartType -eq 'Disabled') {
+            throw ('the Windows Update service is disabled; {0} is downloaded through it' -f $entry.Name)
+        }
+        $code = $null
+        for ($attempt = 1; $attempt -le 2; $attempt++) {
+            if ($attempt -gt 1) {
+                Write-Output ('TGOS: DISM returned 0x{0:X8}; restarting the Windows Update service and trying once more' -f $code)
+                Restart-Service -Name 'wuauserv' -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 30
+            }
+            if ($updateService) { Start-Service -Name 'wuauserv' -ErrorAction SilentlyContinue }
+            Write-Output ("TGOS: enabling the Windows feature {0} (Windows downloads it)" -f $entry.Dism)
+            $code = Invoke-TgosProcess -File (Join-Path $env:SystemRoot 'System32\dism.exe') -Arguments $dismArguments -TimeoutMilliseconds 1800000
+            if ($null -eq $code) { throw 'DISM did not finish within 30 minutes' }
+            if (@(0, 3010) -contains $code) { break }
+        }
+        if (@(0, 3010) -notcontains $code) {
+            # Baris error terakhir dari log DISM, supaya penyebabnya terlihat di laporan.
+            $detail = ''
+            $dismLog = Join-Path $env:SystemRoot 'Logs\DISM\dism.log'
+            if (Test-Path -LiteralPath $dismLog) {
+                $lastError = @(Get-Content -LiteralPath $dismLog -Tail 400 -ErrorAction SilentlyContinue | Where-Object { $_ -match ', Error\s' }) | Select-Object -Last 1
+                if ($lastError) { $detail = ' (dism.log: {0})' -f (($lastError -replace '\s+', ' ').Trim()) }
+            }
+            if ($detail.Length -gt 300) { $detail = $detail.Substring(0, 300) + ' ...)' }
+            throw ('DISM returned exit code {0} (0x{0:X8}) twice{1}' -f $code, $detail)
+        }
         Write-Output ("TGOS: DISM finished with exit code {0}" -f $code)
     }
 

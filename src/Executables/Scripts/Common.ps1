@@ -116,6 +116,35 @@ function Invoke-TgosProcess {
     return $process.ExitCode
 }
 
+function Register-TgosReservedStorageRetry {
+    <#
+    .SYNOPSIS
+        Mendaftarkan percobaan ulang "Reserved Storage OFF" saat startup berikutnya.
+
+    .DESCRIPTION
+        Dipakai Invoke-DeepClean.ps1 bila Windows sedang memakai reserved storage untuk
+        operasi servicing (DISM 0x800F0975), yang biasanya selesai setelah restart.
+        Tugas terjadwal \TGOS\Reserved Storage Off berjalan sebagai SYSTEM (sesi 0, jadi
+        tanpa jendela), 2 menit setelah startup, menjalankan
+        Set-TgosFeature.ps1 -Feature ReservedStorage -State Off -FromStartupTask yang
+        terpasang di TGOS Toolbox. Skrip itu menghapus tugas ini setelah berhasil atau
+        setelah 3 percobaan.
+    #>
+    $script = Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox\Support\Set-TgosFeature.ps1'
+    if (-not (Test-Path -LiteralPath $script)) { throw ('the TGOS Toolbox is not installed ({0})' -f $script) }
+    $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $argument = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -Feature ReservedStorage -State Off -FromStartupTask' -f $script
+    $action = New-ScheduledTaskAction -Execute $powershell -Argument $argument
+    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $trigger.Delay = 'PT2M'
+    $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -Hidden `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
+    Register-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Reserved Storage Off' -Action $action -Trigger $trigger `
+        -Principal $principal -Settings $settings -Force `
+        -Description 'TGOS: turns reserved storage off once after a restart, then removes itself.' | Out-Null
+}
+
 function Remove-TgosChromiumProduct {
     <#
     .SYNOPSIS
