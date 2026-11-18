@@ -3,13 +3,13 @@
 Playbook AME Wizard yang mengubah Windows 11 Pro menjadi OS gaming yang sangat ringan,
 dengan prioritas performa.
 
-> **Status: `1.0.0` (revisi keempat).** Lolos uji otomatis lewat mesin AME di Windows Server
-> 2025 dan Windows 11 Enterprise 25H2. Revisi ketiga sudah diuji pemilik di Windows 11 Pro
-> 26H2 (VMware, AME Beta): 277 pemeriksaan lolos setelah restart; jendela cmd di akhir
-> instalasi (sisa uninstaller OneDrive), satu FAIL (.NET 3.5), dan dua WARN (Reserved
-> Storage) diperbaiki di revisi keempat, yang **belum** diuji ulang di VM. Uji di hardware
-> asli (benchmark, anti-cheat) belum dilakukan. Buat cadangan dulu sebelum memasang di
-> komputer utama.
+> **Status: `1.0.0` (revisi kelima).** Lolos uji otomatis lewat mesin AME di Windows Server
+> 2025 dan Windows 11 Enterprise 25H2. Revisi keempat sudah diuji pemilik di Windows 11 Pro
+> 26H2 (VMware, AME Beta, semua opsi dan semua aplikasi): 284 pemeriksaan lolos setelah
+> restart, tanpa jendela cmd di akhir instalasi; EA app yang gagal dipasang dan pintasan
+> Discord/Ubisoft Connect yang hilang diperbaiki di revisi kelima, yang **belum** diuji ulang
+> di VM. Uji di hardware asli (benchmark, anti-cheat) belum dilakukan. Buat cadangan dulu
+> sebelum memasang di komputer utama.
 
 ## Yang dilakukan TGOS
 

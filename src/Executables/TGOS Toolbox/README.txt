@@ -9,6 +9,8 @@ In this folder
   Install Software       Menu: downloads a program from its official site, checks its
                          digital signature, then installs it (browsers, 7-Zip, game
                          runtimes). Type a number and press Enter. Needs internet.
+                         It also adds a missing Start menu or desktop shortcut for an
+                         app that is already installed.
   Reinstall Microsoft Store
                          Tries to bring the Store back if you removed it. Not
                          guaranteed: if it has not come back after a restart, use

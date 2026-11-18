@@ -5,6 +5,30 @@ Semua perubahan penting pada TGOS dicatat di sini. Nomor versi mengikuti roadmap
 
 ## 1.0.0 — pilihan browser, opsi baru, dan perbaikan dari uji 0.9.1
 
+**Revisi kelima setelah uji VM revisi keempat** (nomor versi tetap). Revisi keempat diuji
+pemilik di VMware dengan semua opsi, Chrome, dan keenam aplikasi: setelah restart **284 PASS,
+1 FAIL, 2 WARN**; 116 proses, RAM 2.932 MB. Terbukti di VM: TGOS menghapus 10 perintah
+bersih-bersih OneDrive dari RunOnce (dulu masing-masing satu jendela cmd), dan .NET
+Framework 3.5 yang gagal saat instalasi terpasang otomatis setelah restart. Yang diperbaiki:
+
+- **EA app tidak terpasang, Epic tercatat gagal**: jam VM melompat dua hari di tengah
+  instalasi (snapshot VM dipulihkan, lalu jamnya disinkronkan). TGOS mengukur batas waktu
+  installer dengan jam Windows, jadi installer Epic langsung dianggap lewat 15 menit, padahal
+  Windows Installer tetap memasangnya. EA dijalankan saat Windows Installer masih sibuk dengan
+  Epic, lalu gagal. Sekarang batas waktu diukur dengan stopwatch (tidak terpengaruh jam),
+  installer berikutnya menunggu sampai Windows Installer selesai, dan installer MSI yang
+  lambat ditunggu sampai selesai, tidak dihentikan.
+- **Discord dan Ubisoft Connect tidak ada di Start dan Desktop** walau sudah terpasang:
+  installernya tidak membuat pintasan saat dipasang senyap. Sekarang TGOS memastikan setiap
+  aplikasi pilihan (Steam, Epic, EA app, Ubisoft Connect, Discord, Spotify) punya pintasan di
+  Start dan Desktop, tanpa menggandakan yang sudah ada. Laporan verifikasi memeriksanya, dan
+  tombol *Install Software* di Toolbox juga memperbaikinya.
+- Program per mesin (browser, runtime, .NET, launcher) yang tetap gagal saat instalasi
+  sekarang dicoba lagi otomatis beberapa menit setelah restart, sama seperti .NET 3.5. Selama
+  menunggu, laporan verifikasi memberi WARN, bukan FAIL.
+
+Revisi keempat (setelah uji VM revisi ketiga):
+
 **Revisi keempat setelah uji VM revisi ketiga** (nomor versi tetap). Revisi ketiga diuji
 pemilik di VMware (Windows 11 Pro 26H2, hampir semua opsi, tanpa browser dengan Edge
 dihapus, tanpa launcher): setelah restart **277 PASS, 1 FAIL, 2 WARN**; 117 proses, RAM

@@ -323,7 +323,9 @@ Semuanya ditangani di `1.0.0`.
 | 2. Mesin AME, revisi ketiga | 18 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
 | 3. VM pemilik, revisi ketiga | 16-18 Nov 2026 | Setelah restart 277 PASS, 1 FAIL, 2 WARN | Rincian di akhir bagian ini; jendela cmd, FAIL, dan WARN diperbaiki di revisi keempat |
 | 2. Mesin AME, revisi keempat | 18 Nov 2026 | Lolos di kelima job | Rincian di akhir bagian ini |
-| 3. VM pemilik, revisi keempat | | Belum | Menunggu uji ulang di Windows 11 Pro 26H2 |
+| 3. VM pemilik, revisi keempat | 18 Nov 2026 | Setelah restart 284 PASS, 1 FAIL, 2 WARN | Rincian di akhir bagian ini; FAIL dan pintasan yang hilang diperbaiki di revisi kelima |
+| 2. Mesin AME, revisi kelima | 18 Nov 2026 | @@CI5@@ | Rincian di akhir bagian ini |
+| 3. VM pemilik, revisi kelima | | Belum | Pemilik akan menguji di PC asli |
 | Hardware asli | | Belum | Benchmark dan anti-cheat belum diuji |
 
 Lapis 2, runner command-line AME versi 0.8.4 (run terakhir sebelum rilis):
@@ -609,3 +611,31 @@ Lapis 2, revisi keempat (runner command-line AME versi 0.8.4, run terakhir sebel
 - Percobaan pertama job semua-opsi Server gagal di satu pemeriksaan: installer EA app (dari
   server EA) keluar 0 tanpa memasang aplikasinya. Bagian itu tidak diubah di revisi ini;
   dijalankan ulang, lolos.
+
+Lapis 3, uji pemilik revisi keempat: Windows 11 Pro 26H2 build 26300.9974 di VMware, AME Beta
+0.8.4, semua opsi, Chrome, dan keenam aplikasi (Steam, Epic, EA app, Ubisoft Connect, Discord,
+Spotify). Setelah restart **284 PASS, 1 FAIL, 2 WARN, 8 SKIP**; 116 proses, RAM 2.932 MB,
+disk terpakai 27,5 GB.
+
+Terbukti di VM:
+
+- **Tidak ada lagi jendela cmd**: `Remove-OneDrive.ps1` menghapus 10 perintah bersih-bersih
+  OneDrive dari RunOnce (`cmd.exe /q /c rmdir /s /q ...\OneDrive\ListSync...` dan
+  sejenisnya), yang dulu masing-masing tampil sebagai jendela saat Explorer dinyalakan ulang.
+- **.NET Framework 3.5** gagal saat instalasi (`0x8024001E`, `wuauserv` berhenti), lalu
+  dipasang otomatis oleh `\TGOS\Finish after restart` setelah restart (PASS).
+- **Reserved Storage** masih dipakai Windows pada restart pertama; tugasnya tetap terdaftar
+  untuk restart berikutnya (percobaan 1 dari 3), laporan memberi WARN yang menjelaskannya.
+- Laporan disamarkan (`C:\Users\<user>`).
+
+Masalah, dengan penyebabnya:
+
+- **FAIL EA app**: jam VM melompat dua hari di tengah instalasi (snapshot dipulihkan dengan
+  jam lama, lalu disinkronkan; log melompat dari 05:39 ke 11:35). Batas waktu installer diukur
+  dengan jam Windows, jadi installer Epic (MSI) langsung dianggap lewat 15 menit, padahal
+  Windows Installer tetap memasangnya (Epic akhirnya PASS). EA app dijalankan saat Windows
+  Installer masih sibuk dan keluar dengan kode 1.
+- **Discord dan Ubisoft Connect tidak ada di Start dan Desktop** walau terpasang (PASS di
+  laporan, tetapi tidak terlihat pengguna): daftar Start di potret tidak memuat keduanya.
+
+Lapis 2, revisi kelima: @@CI5TABLE@@
