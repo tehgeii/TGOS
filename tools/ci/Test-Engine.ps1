@@ -150,12 +150,68 @@ function Get-PlaybookOptions {
 
 # --- Mesin AME -------------------------------------------------------------------------
 
+# Meniru AME Wizard: Wizard adalah aplikasi GUI tanpa konsol, jadi proses yang dibuatnya
+# tanpa CREATE_NO_WINDOW mendapat konsol BARU. CLI di sini dijalankan dengan
+# DETACHED_PROCESS (tanpa konsol) dan keluarannya dialihkan ke file, supaya pemantau
+# jendela melihat apa yang dilihat pengguna Wizard (uji VM revisi kedua 1.0.0: jendela
+# terminal kosong di akhir instalasi, yang tidak pernah terlihat di CI).
+Add-Type -Namespace TgosCi -Name Detached -MemberDefinition @'
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+public struct StartupInfo {
+    public int cb; public string lpReserved; public string lpDesktop; public string lpTitle;
+    public int dwX; public int dwY; public int dwXSize; public int dwYSize; public int dwXCountChars; public int dwYCountChars;
+    public int dwFillAttribute; public int dwFlags; public short wShowWindow; public short cbReserved2;
+    public System.IntPtr lpReserved2; public System.IntPtr hStdInput; public System.IntPtr hStdOutput; public System.IntPtr hStdError;
+}
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+public struct ProcessInformation { public System.IntPtr hProcess; public System.IntPtr hThread; public int dwProcessId; public int dwThreadId; }
+[System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+static extern bool CreateProcess(string app, System.Text.StringBuilder command, System.IntPtr pa, System.IntPtr ta, bool inherit, uint flags, System.IntPtr env, string cwd, ref StartupInfo si, out ProcessInformation pi);
+[System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+static extern bool SetHandleInformation(System.IntPtr handle, uint mask, uint flags);
+[System.Runtime.InteropServices.DllImport("kernel32.dll")]
+static extern uint WaitForSingleObject(System.IntPtr handle, uint milliseconds);
+[System.Runtime.InteropServices.DllImport("kernel32.dll")]
+static extern bool GetExitCodeProcess(System.IntPtr handle, out uint code);
+[System.Runtime.InteropServices.DllImport("kernel32.dll")]
+static extern bool CloseHandle(System.IntPtr handle);
+// Mengembalikan kode keluar, atau -100000 bila melewati batas waktu (pemanggil menghentikan prosesnya).
+public static long Run(string exe, string arguments, string cwd, string stdoutPath, string stderrPath, int timeoutMs, out int processId) {
+    using (var output = new System.IO.FileStream(stdoutPath, System.IO.FileMode.Create, System.IO.FileAccess.Write, System.IO.FileShare.ReadWrite))
+    using (var error = new System.IO.FileStream(stderrPath, System.IO.FileMode.Create, System.IO.FileAccess.Write, System.IO.FileShare.ReadWrite)) {
+        System.IntPtr outHandle = output.SafeFileHandle.DangerousGetHandle();
+        System.IntPtr errHandle = error.SafeFileHandle.DangerousGetHandle();
+        SetHandleInformation(outHandle, 1, 1);
+        SetHandleInformation(errHandle, 1, 1);
+        var si = new StartupInfo();
+        si.cb = System.Runtime.InteropServices.Marshal.SizeOf(typeof(StartupInfo));
+        si.dwFlags = 0x100;
+        si.hStdOutput = outHandle;
+        si.hStdError = errHandle;
+        ProcessInformation pi;
+        var command = new System.Text.StringBuilder("\"" + exe + "\" " + arguments);
+        // 0x8 = DETACHED_PROCESS
+        if (!CreateProcess(null, command, System.IntPtr.Zero, System.IntPtr.Zero, true, 0x8, System.IntPtr.Zero, cwd, ref si, out pi)) {
+            throw new System.ComponentModel.Win32Exception();
+        }
+        processId = pi.dwProcessId;
+        uint wait = WaitForSingleObject(pi.hProcess, (uint)timeoutMs);
+        long result = -100000;
+        if (wait == 0) { uint code; GetExitCodeProcess(pi.hProcess, out code); result = unchecked((int)code); }
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        return result;
+    }
+}
+'@
+
 function Invoke-Playbook {
     param(
         [string]$CliDirectory,
         [string]$PlaybookDirectory,
         [string]$OptionList,
-        [string]$Name
+        [string]$Name,
+        [switch]$Detached
     )
 
     $exe = Join-Path $CliDirectory 'TrustedUninstaller.CLI.exe'
@@ -167,17 +223,28 @@ function Invoke-Playbook {
     # Jendela tersembunyi sendiri, bukan konsol job: proses anak mesin AME menulis
     # langsung ke konsol, dan itu membanjiri log job.
     $started = Get-Date
-    $process = Start-Process -FilePath $exe -ArgumentList $argumentList -WorkingDirectory $CliDirectory `
-        -RedirectStandardOutput $stdout -RedirectStandardError $stderr -WindowStyle Hidden -PassThru
-    # Tanpa ini ExitCode kosong di Windows PowerShell 5.1 saat keluaran dialihkan.
-    $null = $process.Handle
-
     $timedOut = $false
-    if (-not $process.WaitForExit($TimeoutMinutes * 60 * 1000)) {
-        $timedOut = $true
-        & taskkill.exe /PID $process.Id /T /F | Out-Null
+    if ($Detached) {
+        $processId = 0
+        $exitCode = [TgosCi.Detached]::Run($exe, $argumentList, $CliDirectory, $stdout, $stderr, $TimeoutMinutes * 60 * 1000, [ref]$processId)
+        if ($exitCode -eq -100000) {
+            $timedOut = $true
+            & taskkill.exe /PID $processId /T /F | Out-Null
+            Start-Sleep -Seconds 5
+        }
     }
-    $process.WaitForExit()
+    else {
+        $process = Start-Process -FilePath $exe -ArgumentList $argumentList -WorkingDirectory $CliDirectory `
+            -RedirectStandardOutput $stdout -RedirectStandardError $stderr -WindowStyle Hidden -PassThru
+        # Tanpa ini ExitCode kosong di Windows PowerShell 5.1 saat keluaran dialihkan.
+        $null = $process.Handle
+        if (-not $process.WaitForExit($TimeoutMinutes * 60 * 1000)) {
+            $timedOut = $true
+            & taskkill.exe /PID $process.Id /T /F | Out-Null
+        }
+        $process.WaitForExit()
+        $exitCode = $process.ExitCode
+    }
     $seconds = [int]((Get-Date) - $started).TotalSeconds
 
     $output = ''
@@ -195,9 +262,9 @@ function Invoke-Playbook {
         }
     }
 
-    Write-Host ('   engine exit code {0}, {1}s, timed out: {2}' -f $process.ExitCode, $seconds, $timedOut)
+    Write-Host ('   engine exit code {0}, {1}s, timed out: {2}{3}' -f $exitCode, $seconds, $timedOut, $(if ($Detached) { ', started without a console like AME Wizard' } else { '' }))
     return [pscustomobject]@{
-        ExitCode = $process.ExitCode
+        ExitCode = $exitCode
         Output   = $output
         TimedOut = $timedOut
         Stdout   = $stdout
@@ -450,6 +517,79 @@ if ($diagTrack -and [string]$diagTrack.Status -ne 'Running') {
 if ($diagTrack) { Write-Host ('   DiagTrack before the run: {0}' -f (Get-Service -Name 'DiagTrack').Status) }
 else { Write-Host '   DiagTrack is not on this runner' }
 
+# Terminal bawaan seperti di PC pengguna Windows 11 (VM pemilik): Windows Terminal. Runner
+# memakai Windows Console Host, sehingga jendela terminal kosong di VM pemilik tidak pernah
+# terlihat di CI. Kontrol: konsol tersembunyi dengan Windows Terminal sebagai bawaan
+# (diharapkan terlihat) dan dengan Console Host (diharapkan tidak).
+$startupKey = 'HKCU:\Console\%%Startup'
+$terminalGuids = @{ DelegationConsole = '{2EACA947-7F5F-4CFA-BA87-8F7FBEEFBE69}'; DelegationTerminal = '{E12CFF52-A866-4C77-9A90-F570A7AA2C6B}' }
+$consoleHostGuid = '{B23D10C0-E52E-411E-9D5B-C09FDF709C7D}'
+function Set-TestTerminal {
+    param([string]$Console, [string]$Terminal)
+    if (-not (Test-Path -LiteralPath $startupKey)) { New-Item -Path $startupKey -Force | Out-Null }
+    Set-ItemProperty -LiteralPath $startupKey -Name 'DelegationConsole' -Value $Console -Type String
+    Set-ItemProperty -LiteralPath $startupKey -Name 'DelegationTerminal' -Value $Terminal -Type String
+}
+function Test-HiddenConsoleWindow {
+    $before = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | ForEach-Object { $_.Id })
+    $null = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\cmd.exe') -ArgumentList '/c ping -n 8 127.0.0.1 >nul' -WindowStyle Hidden -PassThru
+    $seen = @{}
+    for ($attempt = 0; $attempt -lt 14; $attempt++) {
+        Start-Sleep -Milliseconds 500
+        foreach ($process in @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $before -notcontains $_.Id -and $_.ProcessName -ne 'wsl' })) {
+            $seen[$process.Id] = '{0} "{1}"' -f $process.ProcessName, $process.MainWindowTitle
+        }
+    }
+    Get-Process -Name 'WindowsTerminal', 'OpenConsole' -ErrorAction SilentlyContinue | Where-Object { $before -notcontains $_.Id } |
+        Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 4
+    return @($seen.Values)
+}
+$terminalPackage = Get-AppxPackage -Name 'Microsoft.WindowsTerminal' -ErrorAction SilentlyContinue | Select-Object -First 1
+$terminalEmulated = $false
+if ($terminalPackage) {
+    Write-Host ('   Windows Terminal {0} is installed for the test user' -f $terminalPackage.Version)
+    Set-TestTerminal $terminalGuids.DelegationConsole $terminalGuids.DelegationTerminal
+    $withTerminal = @(Test-HiddenConsoleWindow)
+    Set-TestTerminal $consoleHostGuid $consoleHostGuid
+    $withConsoleHost = @(Test-HiddenConsoleWindow)
+    Write-Host ('   control: hidden console with Windows Terminal as default -> {0}' -f $(if ($withTerminal.Count) { 'VISIBLE: ' + ($withTerminal -join ', ') } else { 'no window' }))
+    Write-Host ('   control: hidden console with Windows Console Host as default -> {0}' -f $(if ($withConsoleHost.Count) { 'VISIBLE: ' + ($withConsoleHost -join ', ') } else { 'no window' }))
+    # Untuk playbook: seperti VM pemilik.
+    Set-TestTerminal $terminalGuids.DelegationConsole $terminalGuids.DelegationTerminal
+    $terminalEmulated = $true
+}
+else {
+    Write-Host '   Windows Terminal is not installed on this runner; the default terminal is Windows Console Host'
+}
+
+# Jejak pembuatan proses selama playbook: setiap konsol baru (conhost.exe) dan setiap
+# penyerahan ke Windows Terminal (OpenConsole.exe, WindowsTerminal.exe), dengan proses
+# induknya, supaya terlihat program mana yang membuka konsol.
+$traceLog = Join-Path $artifacts 'process-trace.txt'
+Set-Content -LiteralPath $traceLog -Value @() -Encoding ASCII
+$tracer = Start-Job -ArgumentList $traceLog -ScriptBlock {
+    param($Path)
+    foreach ($process in @(Get-CimInstance -ClassName Win32_Process -ErrorAction SilentlyContinue)) {
+        Add-Content -LiteralPath $Path -Value ('INIT|{0}|{1}|{2}' -f $process.ProcessId, $process.ParentProcessId, $process.Name) -Encoding ASCII
+    }
+    Register-CimIndicationEvent -Query 'SELECT * FROM Win32_ProcessStartTrace' -SourceIdentifier 'TgosTrace' -ErrorAction Stop
+    Add-Content -LiteralPath $Path -Value 'READY' -Encoding ASCII
+    while ($true) {
+        foreach ($event in @(Get-Event -SourceIdentifier 'TgosTrace' -ErrorAction SilentlyContinue)) {
+            $new = $event.SourceEventArgs.NewEvent
+            Add-Content -LiteralPath $Path -Value ('{0:HH:mm:ss}|{1}|{2}|{3}' -f $event.TimeGenerated, $new.ProcessID, $new.ParentProcessID, $new.ProcessName) -Encoding ASCII
+            Remove-Event -EventIdentifier $event.EventIdentifier
+        }
+        Start-Sleep -Milliseconds 200
+    }
+}
+for ($attempt = 0; $attempt -lt 120; $attempt++) {
+    if (@(Get-Content -LiteralPath $traceLog -ErrorAction SilentlyContinue) -contains 'READY') { break }
+    Start-Sleep -Milliseconds 500
+}
+Write-Host ('   process trace: {0}' -f $(if (@(Get-Content -LiteralPath $traceLog -ErrorAction SilentlyContinue) -contains 'READY') { 'running' } else { 'did not start' }))
+
 # Pemantau jendela selama seluruh playbook (permintaan pemilik: semua harus berjalan di
 # latar, tanpa jendela). Proses terpisah mencatat setiap proses baru yang punya jendela
 # terlihat. Kontrol dulu: jendela Notepad harus tercatat, kalau tidak hasilnya tidak
@@ -516,10 +656,52 @@ Write-Host ('   runner scheduled tasks that start wsl.exe: {0}' -f $(if ($wslTas
 Write-Host ('   wsl.exe processes before the playbook: {0}' -f @(Get-Process -Name 'wsl' -ErrorAction SilentlyContinue).Count)
 Set-Content -LiteralPath $windowLog -Value @() -Encoding ASCII
 
-$pass = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbookPass -OptionList $optionList -Name 'pass'
+$pass = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbookPass -OptionList $optionList -Name 'pass' -Detached
+if ($pass.ExitCode -ne 0 -and -not $pass.TimedOut -and $pass.Output -notmatch 'Playbook completed') {
+    # Bila CLI tidak bisa berjalan tanpa konsol, hasil uji lain tetap diperlukan: jalankan
+    # dengan cara biasa dan catat bahwa peniruan Wizard tidak berhasil.
+    Write-Host '   INFO: the engine did not run without a console; running it the usual way'
+    Show-Excerpt -Path (Join-Path $artifacts 'pass-stderr.txt') -Limit 8
+    $pass = Invoke-Playbook -CliDirectory $cliDirectory -PlaybookDirectory $playbookPass -OptionList $optionList -Name 'pass'
+}
 
 Stop-Job -Job $watcher -ErrorAction SilentlyContinue
 Remove-Job -Job $watcher -Force -ErrorAction SilentlyContinue
+Stop-Job -Job $tracer -ErrorAction SilentlyContinue
+Receive-Job -Job $tracer -ErrorAction SilentlyContinue | Select-Object -First 3 | ForEach-Object { Write-Host ('   trace job: {0}' -f (Format-LogLine ([string]$_))) }
+Remove-Job -Job $tracer -Force -ErrorAction SilentlyContinue
+
+# Siapa yang membuka konsol selama playbook.
+$names = @{}
+$parents = @{}
+$consoleStarts = @()
+foreach ($line in @(Get-Content -LiteralPath $traceLog -ErrorAction SilentlyContinue)) {
+    $parts = $line -split '\|'
+    if ($parts.Count -lt 4) { continue }
+    $names[$parts[1]] = $parts[3]
+    $parents[$parts[1]] = $parts[2]
+    if ($parts[0] -ne 'INIT' -and $parts[3] -match '(?i)^(conhost|OpenConsole|WindowsTerminal)\.exe$') { $consoleStarts += , $parts }
+}
+function Get-TraceName { param([string]$Id) if ($names.ContainsKey($Id)) { return $names[$Id] } return '?' }
+$groups = @{}
+foreach ($parts in $consoleStarts) {
+    $client = $parts[2]
+    $grand = ''
+    if ($parents.ContainsKey($client)) { $grand = Get-TraceName $parents[$client] }
+    $key = '{0} for {1} (parent {2})' -f $parts[3], (Get-TraceName $client), $grand
+    if (-not $groups.ContainsKey($key)) { $groups[$key] = @() }
+    $groups[$key] += $parts[0]
+}
+Write-Host ('   console hosts started during the playbook: {0}' -f $consoleStarts.Count)
+$groups.GetEnumerator() | Sort-Object { $_.Value.Count } -Descending | Select-Object -First 20 |
+    ForEach-Object { Write-Host ('     {0} x{1} (first {2}, last {3})' -f $_.Key, $_.Value.Count, $_.Value[0], $_.Value[-1]) }
+
+if ($terminalEmulated) {
+    # Set-ConsoleHost.ps1 harus mengembalikan terminal bawaan seperti sebelum playbook.
+    $after = Get-ItemProperty -LiteralPath $startupKey -ErrorAction SilentlyContinue
+    $null = Assert-That ($after.DelegationConsole -eq $terminalGuids.DelegationConsole -and $after.DelegationTerminal -eq $terminalGuids.DelegationTerminal) ('terminal: the default terminal is Windows Terminal again after the playbook ({0})' -f $after.DelegationConsole)
+}
+$null = Assert-That (-not (Test-Path -LiteralPath (Join-Path $env:ProgramData 'TGOS\terminal-previous.txt'))) 'terminal: the saved default terminal record was removed after restoring'
 # Bagian shell Windows yang memang muncul lagi saat TGOS menjalankan ulang Explorer.
 $shellProcesses = '^(explorer|ShellExperienceHost|StartMenuExperienceHost|SearchHost|SearchApp|TextInputHost|ApplicationFrameHost|LockApp|ShellHost) \|'
 $newWindows = @(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue | Where-Object { $_ })
@@ -1035,6 +1217,43 @@ if ($result.Errors.Trim()) {
 $result = Invoke-ToolboxButton -Relative 'Install Software.cmd' -InputLines @('"&x')
 $null = Assert-That ($result.Output -match 'Unknown number' -and -not $result.Errors.Trim()) 'toolbox button: "Install Software.cmd" handles a bad entry without a cmd error'
 if ($result.Errors.Trim()) { Write-Host ('   stderr: {0}' -f (Format-LogLine $result.Errors)) }
+
+# =======================================================================================
+Write-Section 'Retries'
+# Reserved Storage: tugas startup sekali-jalan didaftarkan, lalu menghapus dirinya sendiri
+# setelah Set-TgosFeature berhasil (jalur yang dipakai saat Windows sedang memakai cadangan
+# itu; kondisi itu sendiri tidak bisa dibuat di runner).
+$commonScript = Join-Path $installedSupport 'Common.ps1'
+if (Assert-That (Test-Path -LiteralPath $commonScript) 'retry: Common.ps1 is installed with the Toolbox') {
+    . $commonScript
+    $registered = $true
+    try { Register-TgosReservedStorageRetry } catch { $registered = $false; Write-Host ('   could not register: {0}' -f (Format-LogLine $_.Exception.Message)) }
+    $task = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Reserved Storage Off' -ErrorAction SilentlyContinue
+    $boot = $task -and @($task.Triggers | Where-Object { $_.CimClass.CimClassName -eq 'MSFT_TaskBootTrigger' }).Count
+    $null = Assert-That ($registered -and $task -and $boot -and $task.Principal.UserId -match '(?i)SYSTEM|S-1-5-18' -and $task.Settings.Hidden) 'retry: the reserved storage startup task is registered (SYSTEM, at startup, hidden)'
+    if ($task) { Write-Host ('   task action: {0} {1}' -f $task.Actions[0].Execute, (Format-LogLine $task.Actions[0].Arguments)) }
+    $output = (& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $installedSupport 'Set-TgosFeature.ps1') -Feature ReservedStorage -State Off -FromStartupTask 2>&1 | Out-String)
+    $exit = $LASTEXITCODE
+    $left = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Reserved Storage Off' -ErrorAction SilentlyContinue
+    $null = Assert-That (@(0, 3) -contains $exit -and -not $left) ('retry: the startup task removes itself after it succeeds (exit {0})' -f $exit)
+    if ($left) { $output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 4 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) } }
+}
+# .NET Framework 3.5 lewat tombol Toolbox saat update di-pause (uji VM revisi kedua: DISM
+# gagal di tengah instalasi, dan laporan menyarankan mengulang dari Toolbox). Payload
+# dibuang dulu supaya Windows harus mengunduhnya lagi lewat Windows Update.
+$isClient = (Get-CimInstance -ClassName Win32_OperatingSystem).ProductType -eq 1
+if ($OptionSet -eq 'default' -and $isClient -and $plannedOptions -contains 'install-dotnet' -and $plannedOptions -contains 'updates-pause') {
+    $dism = Join-Path $env:SystemRoot 'System32\dism.exe'
+    $started = Get-Date
+    & cmd.exe /c ('"{0}" /Online /Disable-Feature /FeatureName:NetFx3 /Remove /NoRestart /Quiet' -f $dism) | Out-Null
+    $state = (Get-WindowsOptionalFeature -Online -FeatureName NetFx3 -ErrorAction SilentlyContinue).State
+    Write-Host ('   NetFx3 after /Disable-Feature /Remove: {0} ({1}s)' -f $state, [int]((Get-Date) - $started).TotalSeconds)
+    $started = Get-Date
+    $output = (& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $installedSupport 'Install-Software.ps1') -Item netfx3 -Force 2>&1 | Out-String)
+    $state = (Get-WindowsOptionalFeature -Online -FeatureName NetFx3 -ErrorAction SilentlyContinue).State
+    $null = Assert-That ([string]$state -eq 'Enabled') ('retry: .NET Framework 3.5 installs from the Toolbox while updates are paused ({0}, {1}s)' -f $state, [int]((Get-Date) - $started).TotalSeconds)
+    $output -split "`r?`n" | Where-Object { $_ -match 'TGOS: |WARNING' } | Select-Object -Last 5 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+}
 
 # =======================================================================================
 Write-Section 'Report collector'
