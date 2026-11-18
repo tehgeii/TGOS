@@ -192,12 +192,14 @@ function Add-TgosAfterRestartItem {
 
     .DESCRIPTION
         Dipakai bila Windows sedang sibuk saat instalasi: reserved storage sedang dipakai
-        update (DISM 0x800F0975, Invoke-DeepClean.ps1) atau .NET Framework 3.5 tidak bisa
-        diunduh karena Windows Update sibuk (Install-Software.ps1). Mengembalikan $true bila
-        tugas startup sudah terdaftar (lihat Register-TgosAfterRestartTask).
+        update (DISM 0x800F0975, Invoke-DeepClean.ps1), atau program per mesin yang gagal
+        dipasang (Install-Software.ps1; mis. .NET Framework 3.5 saat Windows Update sibuk,
+        unduhan yang terputus). Nama langkah = nama -Item Install-Software.ps1. Mengembalikan
+        $true bila tugas startup sudah terdaftar (lihat Register-TgosAfterRestartTask).
     #>
     param(
-        [ValidateSet('reserved-storage', 'netfx3')]
+        [ValidateSet('reserved-storage', 'netfx3', 'brave', 'chrome', 'firefox', '7zip', 'vcredist',
+            'vcredist-legacy', 'xna', 'directx', 'dotnet', 'steam', 'epic', 'ea', 'ubisoft')]
         [string]$Step
     )
     $items = @(Get-TgosAfterRestartList)

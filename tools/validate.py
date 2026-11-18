@@ -957,6 +957,16 @@ def validate_executables(report: Report) -> None:
                 report.error(f"{rel(path)}:{number}",
                              "TGOS tidak boleh menjalankan WSL (wsl.exe); uji otomatis mengabaikan jendela WSL milik runner")
 
+    # Batas waktu di skrip playbook diukur dengan Stopwatch, bukan jam Windows: di uji VM
+    # revisi keempat 1.0.0 jam melompat dua hari di tengah instalasi, sehingga installer Epic
+    # langsung dianggap lewat batas waktu. Tanggal untuk log tetap boleh (Get-Date -Format).
+    for path in sorted((SRC / "Executables" / "Scripts").glob("*.ps1")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for number, line in enumerate(text.splitlines(), start=1):
+            if re.search(r"(?i)\[DateTime\]::(Utc)?Now|\(Get-Date\)\s*[-+.]", line):
+                report.error(f"{rel(path)}:{number}",
+                             "jam Windows dipakai untuk mengukur waktu; pakai [System.Diagnostics.Stopwatch]")
+
 
 # --------------------------------------------------------------------------- #
 # Ikon

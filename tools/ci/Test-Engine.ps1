@@ -948,6 +948,28 @@ foreach ($check in $softwareChecks) {
     }
 }
 
+# Pintasan Start dan Desktop tiap aplikasi (uji VM revisi keempat: Discord dan Ubisoft
+# Connect terpasang tanpa pintasan). Baris log memperlihatkan pintasan mana yang dibuat
+# installer sendiri dan mana yang ditambahkan TGOS; hasilnya dari laporan verifikasi.
+if (Test-Path -LiteralPath $engineOutput) {
+    Get-Content -LiteralPath $engineOutput | Where-Object { $_ -match 'TGOS: .*(shortcut|SYSTEM profile)' } |
+        ForEach-Object { Write-Host ('   | ' + (Format-LogLine ($_ -replace '^.*?TGOS: ', 'TGOS: '))) }
+}
+$verifyFile = Join-Path $env:ProgramData 'TGOS\verify-report.txt'
+$shortcutResults = @(Get-Content -LiteralPath $verifyFile -ErrorAction SilentlyContinue | Where-Object { $_ -match '^(PASS|WARN|FAIL)\s+software\s+.+ (in Start|on the desktop)\s+->' })
+$shortcutResults | ForEach-Object { Write-Host ('   {0}' -f (Format-LogLine $_)) }
+$expected = @($softwareChecks | Where-Object { $selectedOptions -contains $_.Option -and $_.Option -match '^install-(steam|epic|ea|ubisoft|discord|spotify)$' -and $runnerArch -eq 'AMD64' }).Count
+if ($expected -gt 0) {
+    $missing = @($shortcutResults | Where-Object { $_ -notmatch '^PASS' })
+    $null = Assert-That ($missing.Count -eq 0 -and $shortcutResults.Count -eq 2 * $expected) ('software: every installed app has a Start menu and a desktop shortcut ({0} result(s) for {1} app(s))' -f $shortcutResults.Count, $expected)
+    # Diagnosa: pintasan yang ditaruh installer di profil SYSTEM.
+    foreach ($folder in @('System32\config\systemprofile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs', 'System32\config\systemprofile\Desktop')) {
+        $path = Join-Path $env:SystemRoot $folder
+        @(Get-ChildItem -LiteralPath $path -Filter '*.lnk' -Recurse -Force -ErrorAction SilentlyContinue) |
+            ForEach-Object { Write-Host ('   shortcut in the SYSTEM profile: {0}' -f $_.FullName.Substring($path.Length)) }
+    }
+}
+
 # Unduh, periksa tanda tangan, dan pasang ulang lewat skrip yang terpasang di Toolbox.
 $toolboxInstaller = Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox\Support\Install-Software.ps1'
 # Program yang versinya bisa dibaca: versi tidak boleh turun karena pemasangan ulang.
@@ -1341,6 +1363,35 @@ $null = Assert-That ($result.Output -match 'Unknown number' -and -not $result.Er
 if ($result.Errors.Trim()) { Write-Host ('   stderr: {0}' -f (Format-LogLine $result.Errors)) }
 
 # =======================================================================================
+Write-Section 'Windows Installer queue'
+# Uji VM revisi keempat: installer EA app gagal (kode 1) karena dijalankan saat Windows
+# Installer masih memasang Epic. Install-Software.ps1 harus menunggu selama mutex
+# Global\_MSIExecute ada. Di sini mutex itu dipegang 25 detik saat 7-Zip dipasang.
+$created = $false
+$msiMutex = $null
+try { $msiMutex = New-Object System.Threading.Mutex($true, 'Global\_MSIExecute', [ref]$created) } catch { Write-Host ('   could not create the mutex: {0}' -f (Format-LogLine $_.Exception.Message)) }
+if ($msiMutex -and $created) {
+    $queueOutput = Join-Path $artifacts 'msi-queue.txt'
+    $queueErrors = Join-Path $artifacts 'msi-queue-stderr.txt'
+    $queue = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File',
+        ('"{0}"' -f (Join-Path $installedSupport 'Install-Software.ps1')), '-Item', '7zip', '-Force') -RedirectStandardOutput $queueOutput -RedirectStandardError $queueErrors -NoNewWindow -PassThru
+    $null = $queue.Handle
+    Start-Sleep -Seconds 25
+    $stillWaiting = -not $queue.HasExited
+    $msiMutex.ReleaseMutex()
+    $msiMutex.Dispose()
+    if (-not $queue.WaitForExit(600000)) { try { $queue.Kill() } catch { } }
+    $text = ''
+    if (Test-Path -LiteralPath $queueOutput) { $text = [string](Get-Content -LiteralPath $queueOutput -Raw) }
+    $null = Assert-That ($stillWaiting -and $text -match 'waiting for another installation' -and $text -match 'Windows Installer is free after' -and $text -match 'TGOS: 7-Zip installed') 'installer queue: Install-Software waits while Windows Installer is busy, then installs'
+    $text -split "`r?`n" | Where-Object { $_ -match 'TGOS: |WARNING' } | Select-Object -Last 6 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+}
+else {
+    if ($msiMutex) { $msiMutex.Dispose() }
+    Write-Host '   INFO: Windows Installer is busy on this runner right now; the queue test was skipped'
+}
+
+# =======================================================================================
 Write-Section 'Retries after restart'
 # Langkah yang gagal karena Windows sibuk dijadwalkan lewat Add-TgosAfterRestartItem
 # (Common.ps1) dan dikerjakan tugas tersembunyi \TGOS\Finish after restart, yang menjalankan
@@ -1363,10 +1414,20 @@ if ((Assert-That (Test-Path -LiteralPath $commonScript) 'retry: Common.ps1 is in
         $state = (Get-WindowsOptionalFeature -Online -FeatureName NetFx3 -ErrorAction SilentlyContinue).State
         Write-Host ('   NetFx3 after /Disable-Feature /Remove: {0} ({1}s)' -f $state, [int]((Get-Date) - $started).TotalSeconds)
     }
+    # Program per mesin yang gagal saat instalasi juga dicoba lagi setelah restart (uji VM
+    # revisi keempat: EA app). Di sini 7-Zip dicopot dulu, lalu harus dipasang lagi oleh tugas itu.
+    $ourSteps = @('reserved-storage', '7zip')
+    if ($withNetFx3) { $ourSteps += 'netfx3' }
+    $sevenZipUninstaller = @((Join-Path $env:ProgramFiles '7-Zip\Uninstall.exe'), (Join-Path ${env:ProgramFiles(x86)} '7-Zip\Uninstall.exe')) |
+        Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if ($sevenZipUninstaller) {
+        $code = Invoke-TgosProcess -File $sevenZipUninstaller -Arguments '/S' -TimeoutMilliseconds 120000
+        for ($second = 0; $second -lt 30 -and (Test-Path -LiteralPath (Join-Path $env:ProgramFiles '7-Zip\7z.exe')); $second++) { Start-Sleep -Seconds 1 }
+        Write-Host ('   7-Zip uninstalled for this test: exit {0}, 7z.exe present: {1}' -f $code, (Test-Path -LiteralPath (Join-Path $env:ProgramFiles '7-Zip\7z.exe')))
+    }
     $registered = $false
     try {
-        $registered = [bool](Add-TgosAfterRestartItem -Step 'reserved-storage')
-        if ($withNetFx3) { $registered = [bool](Add-TgosAfterRestartItem -Step 'netfx3') -and $registered }
+        foreach ($step in $ourSteps) { $registered = [bool](Add-TgosAfterRestartItem -Step $step) }
     }
     catch { Write-Host ('   could not schedule: {0}' -f (Format-LogLine $_.Exception.Message)) }
     $task = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart' -ErrorAction SilentlyContinue
@@ -1393,14 +1454,22 @@ if ((Assert-That (Test-Path -LiteralPath $commonScript) 'retry: Common.ps1 is in
             $info = $current | Get-ScheduledTaskInfo -ErrorAction SilentlyContinue
             Write-Host ('   task still registered: state {0}, last result 0x{1:X8}' -f $current.State, [int64]$info.LastTaskResult)
         }
-        $null = Assert-That (-not $current -and -not (Test-Path -LiteralPath (Join-Path $env:ProgramData 'TGOS\after-restart.txt'))) ('retry: the after-restart task finished every step and removed itself ({0}s)' -f $seconds)
+        # Langkah lain yang dijadwalkan playbook sendiri (mis. unduhan yang gagal di runner)
+        # ikut dikerjakan; yang diperiksa di sini langkah uji ini, dan bahwa tugasnya terhapus
+        # begitu daftarnya kosong.
+        $left = @(Get-Content -LiteralPath (Join-Path $env:ProgramData 'TGOS\after-restart.txt') -ErrorAction SilentlyContinue | Where-Object { $_ })
+        $ours = @($left | Where-Object { $ourSteps -contains ($_ -split '\|')[0] })
+        $null = Assert-That ($ours.Count -eq 0 -and (($left.Count -eq 0) -eq (-not $current))) ('retry: the after-restart task finished every step of this test ({0}s); left: {1}; task removed: {2}' -f $seconds, $(if ($left.Count) { $left -join ', ' } else { 'none' }), (-not $current))
+        $null = Assert-That (Test-Path -LiteralPath (Join-Path $env:ProgramFiles '7-Zip\7z.exe')) 'retry: 7-Zip was installed again by the after-restart task as SYSTEM'
         if ($withNetFx3) {
             $state = (Get-WindowsOptionalFeature -Online -FeatureName NetFx3 -ErrorAction SilentlyContinue).State
             $null = Assert-That ([string]$state -eq 'Enabled') ('retry: .NET Framework 3.5 was installed by the after-restart task as SYSTEM while updates are paused ({0})' -f $state)
         }
-        $folder = $null
-        try { $scheduler = New-Object -ComObject 'Schedule.Service'; $scheduler.Connect(); $folder = $scheduler.GetFolder('\TGOS') } catch { }
-        $null = Assert-That ($null -eq $folder) 'retry: the empty \TGOS task folder was removed too'
+        if (-not $current) {
+            $folder = $null
+            try { $scheduler = New-Object -ComObject 'Schedule.Service'; $scheduler.Connect(); $folder = $scheduler.GetFolder('\TGOS') } catch { }
+            $null = Assert-That ($null -eq $folder) 'retry: the empty \TGOS task folder was removed too'
+        }
     }
 }
 # Pembeda "sedang dipakai" vs "tidak didukung" untuk Reserved Storage diuji di

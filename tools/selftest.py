@@ -182,6 +182,8 @@ MUTATIONS = [
      "teks opsi 'updates-default' 47 karakter"),
     ("status terlalu panjang", MAIN, "status: 'Removing components'",
      "status: 'Removing optional components'", "Wizard memotong status di atas 22"),
+    ("jam Windows untuk batas waktu", INFO_SCRIPT, "'TGOS version ", "([DateTime]::UtcNow) 'TGOS version ",
+     "pakai [System.Diagnostics.Stopwatch]"),
     ("titik koma di teks Wizard", CONF, "1 GB, needs internet.", "1 GB; needs internet.",
      "teks Wizard memakai titik koma"),
     ("atribut halaman salah ketik", CONF, "<CheckboxPage Description=", "<CheckboxPage Descripton=",

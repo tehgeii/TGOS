@@ -181,9 +181,15 @@ function Invoke-Installer {
     Menjalankan installer tanpa jendela dan menunggu. Selama menunggu dan 30 detik
     sesudahnya, program bernama $CloseAfter yang dibuka installer langsung ditutup.
     $DropAdmin: bila proses ini admin, installer dijalankan dengan token pengguna biasa.
-    Mengembalikan @{ Code; Closed } (Code $null = melewati batas waktu).
+    $Msi: installer msiexec. Bila melewati batas waktu, prosesnya TIDAK dihentikan (Windows
+    Installer tetap memasang walaupun kliennya dihentikan); pemanggil menunggunya.
+    Mengembalikan @{ Code; Closed; Process } (Code $null = melewati batas waktu).
+
+    Batas waktu diukur dengan Stopwatch, bukan jam Windows: di uji VM revisi keempat 1.0.0
+    jam VM melompat dua hari di tengah instalasi (sinkronisasi waktu setelah snapshot
+    dipulihkan), sehingga installer Epic langsung dianggap lewat batas waktu.
     #>
-    param([string]$File, [string]$Arguments, [int]$TimeoutMilliseconds, [string[]]$CloseAfter, [switch]$DropAdmin)
+    param([string]$File, [string]$Arguments, [int]$TimeoutMilliseconds, [string[]]$CloseAfter, [switch]$DropAdmin, [switch]$Msi)
     $before = @()
     if ($CloseAfter) { $before = @(Get-Process -Name $CloseAfter -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }) }
     $closed = @()
@@ -205,11 +211,10 @@ function Invoke-Installer {
         $info.Arguments = $Arguments
     }
     $process = [System.Diagnostics.Process]::Start($info)
-    $started = [DateTime]::UtcNow
-    $deadline = $started.AddMilliseconds($TimeoutMilliseconds)
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
     $code = $null
     $installerSeen = $false
-    while ([DateTime]::UtcNow -lt $deadline) {
+    while ($clock.ElapsedMilliseconds -lt $TimeoutMilliseconds) {
         if ($CloseAfter) { $closed += Stop-NewProcess -Names $CloseAfter -Before $before }
         if ($process.HasExited) {
             if (-not $waitName) { $code = $process.ExitCode; break }
@@ -218,14 +223,14 @@ function Invoke-Installer {
             # file program.
             $running = [bool](Get-Process -Name $waitName -ErrorAction SilentlyContinue)
             if ($running) { $installerSeen = $true }
-            elseif ($installerSeen -or ([DateTime]::UtcNow - $started).TotalSeconds -gt 60) {
+            elseif ($installerSeen -or $clock.Elapsed.TotalSeconds -gt 60) {
                 if ($process.ExitCode -ne 0) { $code = $process.ExitCode } else { $code = 0 }
                 break
             }
         }
         Start-Sleep -Milliseconds 250
     }
-    if ($null -eq $code) {
+    if ($null -eq $code -and -not $Msi) {
         try { $process.Kill() } catch { }
         if ($waitName) { Get-Process -Name $waitName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
     }
@@ -235,7 +240,167 @@ function Invoke-Installer {
             Start-Sleep -Milliseconds 250
         }
     }
-    return @{ Code = $code; Closed = @($closed | Select-Object -Unique) }
+    return @{ Code = $code; Closed = @($closed | Select-Object -Unique); Process = $process }
+}
+
+function Test-InstallerBusy {
+    # Windows Installer sedang memasang sesuatu: mutex Global\_MSIExecute ada selama itu.
+    # Di uji VM revisi keempat 1.0.0 installer EA app gagal (kode 1) karena dijalankan saat
+    # Windows Installer masih memasang Epic Games Launcher.
+    $mutex = $null
+    try {
+        if ([System.Threading.Mutex]::TryOpenExisting('Global\_MSIExecute', [ref]$mutex)) {
+            $mutex.Dispose()
+            return $true
+        }
+        return $false
+    }
+    catch [System.UnauthorizedAccessException] {
+        # Mutex ada, hanya tidak boleh dibuka akun ini: tetap berarti sedang sibuk.
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Wait-InstallerIdle {
+    # Menunggu Windows Installer selesai (paling lama $Minutes). Mengembalikan jumlah detik
+    # menunggu, atau -1 bila masih sibuk sampai batas itu.
+    param([int]$Minutes = 30)
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    while (Test-InstallerBusy) {
+        if ($clock.Elapsed.TotalMinutes -ge $Minutes) { return -1 }
+        Start-Sleep -Seconds 3
+    }
+    return [int]$clock.Elapsed.TotalSeconds
+}
+
+function Get-ShortcutPlace {
+    <#
+    Folder Start Menu dan Desktop yang dilihat pengguna: milik mesin dan semua profil
+    pengguna biasa, ditambah milik akun ini bila $PerUser (program per pengguna).
+    Mengembalikan @{ Path; Kind } (Kind: Start atau Desktop) untuk folder yang ada.
+    #>
+    param([switch]$PerUser)
+    $places = @(
+        @{ Path = [Environment]::GetFolderPath('CommonPrograms'); Kind = 'Start' },
+        @{ Path = [Environment]::GetFolderPath('CommonDesktopDirectory'); Kind = 'Desktop' })
+    if ($PerUser) {
+        $places += @{ Path = [Environment]::GetFolderPath('Programs'); Kind = 'Start' }
+        $places += @{ Path = [Environment]::GetFolderPath('Desktop'); Kind = 'Desktop' }
+    }
+    foreach ($userProfile in @(Get-TgosUserProfiles)) {
+        $places += @{ Path = Join-Path $userProfile.Path 'AppData\Roaming\Microsoft\Windows\Start Menu\Programs'; Kind = 'Start' }
+        $places += @{ Path = Join-Path $userProfile.Path 'Desktop'; Kind = 'Desktop' }
+    }
+    $seen = @{}
+    $result = @()
+    foreach ($place in $places) {
+        if (-not $place.Path) { continue }
+        $key = $place.Path.TrimEnd('\').ToLowerInvariant()
+        if ($seen.ContainsKey($key)) { continue }
+        $seen[$key] = $true
+        if (Test-Path -LiteralPath $place.Path -ErrorAction SilentlyContinue) { $result += , $place }
+    }
+    return $result
+}
+
+function Find-ProgramShortcut {
+    # Pintasan .lnk di $Places yang target-nya ada di dalam folder $Root. Start Menu
+    # diperiksa beserta subfoldernya, Desktop hanya tingkat teratas.
+    param([string]$Root, [object[]]$Places)
+    $shell = New-Object -ComObject WScript.Shell
+    $prefix = $Root.TrimEnd('\') + '\'
+    $found = @()
+    foreach ($place in $Places) {
+        $links = @(Get-ChildItem -LiteralPath $place.Path -Filter '*.lnk' -Force -Recurse:($place.Kind -eq 'Start') -ErrorAction SilentlyContinue)
+        foreach ($link in $links) {
+            $target = ''
+            try { $target = [string]$shell.CreateShortcut($link.FullName).TargetPath } catch { continue }
+            if ($target -and $target.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $found += , @{ Path = $link.FullName; Kind = $place.Kind }
+            }
+        }
+    }
+    return $found
+}
+
+function Confirm-ProgramShortcut {
+    <#
+    .SYNOPSIS
+        Memastikan program yang terpasang punya pintasan di Start dan di Desktop.
+
+    .DESCRIPTION
+        Sebagian installer tidak membuatnya saat dipasang senyap. Di uji VM revisi keempat
+        1.0.0 Discord dan Ubisoft Connect terpasang, tetapi tidak ada di Start maupun
+        Desktop. Pintasan yang sudah ada (yang target-nya di folder program itu) tidak
+        digandakan. Yang dibuat: program per mesin di Start Menu dan Desktop milik semua
+        pengguna; program per pengguna di milik akun ini.
+        Mengembalikan @{ Added; Hidden } (Hidden: pintasan yang ditaruh installer di profil
+        SYSTEM, yang tidak terlihat pengguna; hanya dicatat).
+    #>
+    param($Spec, [switch]$PerUser)
+    $result = @{ Added = @(); Hidden = 0 }
+    $root = & $Spec.Root
+    $target = & $Spec.Target
+    if (-not $root -or -not $target -or -not (Test-Path -LiteralPath $target)) { return $result }
+    $existing = @(Find-ProgramShortcut -Root $root -Places @(Get-ShortcutPlace -PerUser:$PerUser))
+    if (-not $PerUser) {
+        $system = Join-Path $env:SystemRoot 'System32\config\systemprofile'
+        $hidden = @(@{ Path = Join-Path $system 'AppData\Roaming\Microsoft\Windows\Start Menu\Programs'; Kind = 'Start' },
+            @{ Path = Join-Path $system 'Desktop'; Kind = 'Desktop' }) | Where-Object { Test-Path -LiteralPath $_.Path -ErrorAction SilentlyContinue }
+        if (@($hidden).Count) { $result.Hidden = @(Find-ProgramShortcut -Root $root -Places @($hidden)).Count }
+    }
+    $kinds = @($existing | ForEach-Object { $_.Kind })
+    $shell = New-Object -ComObject WScript.Shell
+    foreach ($kind in @('Start', 'Desktop')) {
+        if ($kinds -contains $kind) { continue }
+        if ($kind -eq 'Start') {
+            if ($PerUser) { $folder = [Environment]::GetFolderPath('Programs') } else { $folder = [Environment]::GetFolderPath('CommonPrograms') }
+            if ($Spec.Folder) { $folder = Join-Path $folder $Spec.Folder }
+        }
+        elseif ($PerUser) { $folder = [Environment]::GetFolderPath('Desktop') }
+        else { $folder = [Environment]::GetFolderPath('CommonDesktopDirectory') }
+        if (-not $folder) { continue }
+        if (-not (Test-Path -LiteralPath $folder)) { New-Item -ItemType Directory -Path $folder -Force | Out-Null }
+        $path = Join-Path $folder ('{0}.lnk' -f $Spec.Name)
+        # Pintasan lain dengan nama yang sama tidak ditimpa.
+        if (Test-Path -LiteralPath $path) { continue }
+        $link = $shell.CreateShortcut($path)
+        $link.TargetPath = $target
+        $link.WorkingDirectory = Split-Path -Parent $target
+        if ($Spec.Arguments) { $link.Arguments = $Spec.Arguments }
+        if ($Spec.Icon) {
+            $icon = & $Spec.Icon
+            if ($icon -and (Test-Path -LiteralPath $icon)) { $link.IconLocation = $icon }
+        }
+        $link.Description = $Spec.Name
+        $link.Save()
+        $result.Added += $kind
+    }
+    return $result
+}
+
+function Write-ProgramShortcut {
+    # Memanggil Confirm-ProgramShortcut untuk program pilihan ini dan mencatat hasilnya.
+    if (-not $entry.Shortcut) { return }
+    try {
+        $shortcut = Confirm-ProgramShortcut -Spec $entry.Shortcut -PerUser:([bool]$entry.PerUser)
+        if ($shortcut.Hidden -gt 0) {
+            Write-Output ("TGOS: the {0} installer put {1} shortcut(s) in the SYSTEM profile, where no user sees them" -f $entry.Name, $shortcut.Hidden)
+        }
+        if ($shortcut.Added.Count -gt 0) {
+            $names = @($shortcut.Added | ForEach-Object { if ($_ -eq 'Start') { 'Start menu' } else { 'desktop' } })
+            Write-Output ("TGOS: added the missing {0} shortcut for {1}" -f ($names -join ' and '), $entry.Name)
+        }
+        else {
+            Write-Output ("TGOS: {0} has its Start menu and desktop shortcuts" -f $entry.Name)
+        }
+    }
+    catch {
+        Write-Output ("WARNING: could not check the shortcuts of {0}: {1}" -f $entry.Name, (Format-TgosError $_))
+    }
 }
 
 function Get-SevenZipRelease {
@@ -387,6 +552,7 @@ $Catalog = @{
         Files = @(@{ Url = 'https://cdn.akamai.steamstatic.com/client/installer/SteamSetup.exe'
                 File = 'SteamSetup.exe'; Arguments = '/S'; Signer = 'Valve' })
         Test  = { [bool](Get-ProgramPath 'Steam\steam.exe') }
+        Shortcut = @{ Name = 'Steam'; Folder = 'Steam'; Root = { Get-ProgramPath 'Steam' }; Target = { Get-ProgramPath 'Steam\steam.exe' } }
         CloseAfter = @('steam', 'steamwebhelper')
         X64Only = $true
     }
@@ -395,6 +561,8 @@ $Catalog = @{
         Files = @(@{ Url = 'https://launcher-public-service-prod06.ol.epicgames.com/launcher/api/installer/download/EpicGamesLauncherInstaller.msi'
                 File = 'EpicGamesLauncherInstaller.msi'; Msi = $true; Signer = 'Epic Games' })
         Test  = { [bool]((Get-ProgramPath 'Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe') -or (Get-ProgramPath 'Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe')) }
+        Shortcut = @{ Name = 'Epic Games Launcher'; Root = { Get-ProgramPath 'Epic Games\Launcher' }
+            Target = { @((Get-ProgramPath 'Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe'), (Get-ProgramPath 'Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe')) | Where-Object { $_ } | Select-Object -First 1 } }
         CloseAfter = @('EpicGamesLauncher', 'EpicWebHelper')
         X64Only = $true
     }
@@ -403,6 +571,8 @@ $Catalog = @{
         Files = @(@{ Url = 'https://origin-a.akamaihd.net/EA-Desktop-Client-Download/installer-releases/EAappInstaller.exe'
                 File = 'EAappInstaller.exe'; Arguments = '/quiet /norestart'; Signer = 'Electronic Arts' })
         Test  = { [bool](Get-ProgramPath 'Electronic Arts\EA Desktop\EA Desktop\EADesktop.exe') }
+        Shortcut = @{ Name = 'EA'; Root = { Get-ProgramPath 'Electronic Arts\EA Desktop' }
+            Target = { @((Get-ProgramPath 'Electronic Arts\EA Desktop\EA Desktop\EALauncher.exe'), (Get-ProgramPath 'Electronic Arts\EA Desktop\EA Desktop\EADesktop.exe')) | Where-Object { $_ } | Select-Object -First 1 } }
         CloseAfter = @('EADesktop', 'EABackgroundService', 'EALauncher')
         X64Only = $true
     }
@@ -411,6 +581,8 @@ $Catalog = @{
         Files = @(@{ Url = 'https://static3.cdn.ubi.com/orbit/launcher_installer/UbisoftConnectInstaller.exe'
                 File = 'UbisoftConnectInstaller.exe'; Arguments = '/S'; Signer = 'Ubisoft' })
         Test  = { [bool]((Get-ProgramPath 'Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe') -or (Get-ProgramPath 'Ubisoft\Ubisoft Game Launcher\upc.exe')) }
+        Shortcut = @{ Name = 'Ubisoft Connect'; Folder = 'Ubisoft'; Root = { Get-ProgramPath 'Ubisoft\Ubisoft Game Launcher' }
+            Target = { @((Get-ProgramPath 'Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe'), (Get-ProgramPath 'Ubisoft\Ubisoft Game Launcher\upc.exe')) | Where-Object { $_ } | Select-Object -First 1 } }
         CloseAfter = @('UbisoftConnect', 'upc')
         X64Only = $true
     }
@@ -419,6 +591,10 @@ $Catalog = @{
         Files = @(@{ Url = 'https://discord.com/api/downloads/distributions/app/installers/latest?channel=stable&platform=win&arch=x64'
                 File = 'DiscordSetup.exe'; Arguments = '-s'; Signer = 'Discord' })
         Test  = { Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'Discord\Update.exe') }
+        # Sama dengan pintasan yang dibuat installer Discord (Squirrel).
+        Shortcut = @{ Name = 'Discord'; Folder = 'Discord Inc'; Root = { Join-Path $env:LOCALAPPDATA 'Discord' }
+            Target = { Join-Path $env:LOCALAPPDATA 'Discord\Update.exe' }; Arguments = '--processStart Discord.exe'
+            Icon = { Join-Path $env:LOCALAPPDATA 'Discord\app.ico' } }
         CloseAfter = @('Discord')
         PerUser = $true
         X64Only = $true
@@ -431,6 +607,7 @@ $Catalog = @{
                 File = 'SpotifyFullSetup.exe'; Arguments = '/silent'; Signer = 'Spotify'; DropAdmin = $true })
         TimeoutMinutes = 5
         Test  = { Test-Path -LiteralPath (Join-Path $env:APPDATA 'Spotify\Spotify.exe') }
+        Shortcut = @{ Name = 'Spotify'; Root = { Join-Path $env:APPDATA 'Spotify' }; Target = { Join-Path $env:APPDATA 'Spotify\Spotify.exe' } }
         CloseAfter = @('Spotify')
         PerUser = $true
         X64Only = $true
@@ -540,6 +717,7 @@ try {
     if (-not $Force -and (& $entry.Test)) {
         Write-Output ("TGOS: {0} is already installed" -f $entry.Name)
         Write-SoftwareRecord -State 'installed'
+        Write-ProgramShortcut
         exit 0
     }
 
@@ -577,21 +755,12 @@ try {
             if ($detail.Length -gt 300) { $detail = $detail.Substring(0, 300) + ' ...)' }
             # Di uji VM revisi ketiga 1.0.0 kedua percobaan gagal (0x8024001E) walau layanan
             # Windows Update sudah dijalankan ulang: Windows yang baru dipasang sedang sibuk
-            # dengan update. Dicoba lagi otomatis setelah restart (Complete-AfterRestart.ps1),
-            # saat instalasi TGOS tidak lagi berjalan.
-            $later = ''
-            try {
-                if (Add-TgosAfterRestartItem -Step $Item) { $later = '; it is tried again automatically after the next restart' }
-                else { $later = '; it is tried again automatically after the next restart (once the TGOS Toolbox is installed)' }
-            }
-            catch {
-                $later = ('; the retry after restart could not be scheduled: {0}' -f (Format-TgosError $_))
-            }
+            # dengan update. Dicoba lagi otomatis setelah restart (lihat catch di bawah).
             $services = @(foreach ($name in @('wuauserv', 'UsoSvc', 'TrustedInstaller')) {
                     $service = Get-Service -Name $name -ErrorAction SilentlyContinue
                     if ($service) { '{0} {1}' -f $name, $service.Status }
                 }) -join ', '
-            throw ('DISM returned exit code {0} (0x{0:X8}) twice{1} [{2}]{3}' -f $code, $detail, $services, $later)
+            throw ('DISM returned exit code {0} (0x{0:X8}) twice{1} [{2}]' -f $code, $detail, $services)
         }
         Write-Output ("TGOS: DISM finished with exit code {0}" -f $code)
     }
@@ -664,8 +833,23 @@ try {
         }
         $timeout = $InstallTimeoutMilliseconds
         if ($entry.TimeoutMinutes) { $timeout = [int]$entry.TimeoutMinutes * 60000 }
-        $run = Invoke-Installer -File $file -Arguments $arguments -TimeoutMilliseconds $timeout -CloseAfter $entry.CloseAfter -DropAdmin:([bool]$spec.DropAdmin)
+        # Installer berikutnya baru dijalankan setelah Windows Installer selesai dengan
+        # pemasangan lain (installer sebelumnya, atau servicing Windows).
+        if (Test-InstallerBusy) {
+            Write-Output 'TGOS: waiting for another installation (Windows Installer) to finish'
+            $waited = Wait-InstallerIdle -Minutes 30
+            if ($waited -lt 0) { Write-Output 'WARNING: Windows Installer is still busy after 30 minutes; running the installer anyway' }
+            else { Write-Output ("TGOS: Windows Installer is free after {0} s" -f $waited) }
+        }
+        $run = Invoke-Installer -File $file -Arguments $arguments -TimeoutMilliseconds $timeout -CloseAfter $entry.CloseAfter -DropAdmin:([bool]$spec.DropAdmin) -Msi:([bool]$spec.Msi)
         $code = $run.Code
+        if ($null -eq $code -and $spec.Msi) {
+            # msiexec tidak dihentikan: Windows Installer tetap memasang. Ditunggu sampai
+            # 30 menit lagi, lalu hasilnya diperiksa seperti biasa.
+            Write-Output ("TGOS: {0} is still running after {1} minutes; waiting for it to finish" -f $label, ($timeout / 60000))
+            if ($run.Process.WaitForExit(1800000)) { $code = $run.Process.ExitCode }
+            else { try { $run.Process.Kill() } catch { } }
+        }
         if ($run.Closed.Count -gt 0) {
             Write-Output ("TGOS: closed the window the installer opened: {0}" -f ($run.Closed -join ', '))
         }
@@ -689,6 +873,7 @@ try {
     if ($installed) {
         Write-Output ("TGOS: {0} installed" -f $entry.Name)
         Write-SoftwareRecord -State 'installed'
+        Write-ProgramShortcut
         $exitCode = 0
     }
     else {
@@ -696,7 +881,21 @@ try {
     }
 }
 catch {
-    Write-Output ("WARNING: {0} was not installed: {1}" -f $Catalog[$Item].Name, (Format-TgosError $_))
+    $reason = Format-TgosError $_
+    # Program per mesin dicoba lagi otomatis beberapa menit setelah restart berikutnya
+    # (Complete-AfterRestart.ps1, sebagai SYSTEM, paling banyak 3 kali). Program per
+    # pengguna (Discord, Spotify) diulang dari TGOS Toolbox. Tidak saat diuji (-UrlOverride).
+    $later = ''
+    if (-not $Catalog[$Item].PerUser -and -not $UrlOverride -and (Test-IsAdministrator)) {
+        try {
+            if (Add-TgosAfterRestartItem -Step $Item) { $later = '; it is tried again automatically after the next restart' }
+            else { $later = '; it is tried again automatically after the next restart (once the TGOS Toolbox is installed)' }
+        }
+        catch {
+            $later = ('; the retry after restart could not be scheduled: {0}' -f (Format-TgosError $_))
+        }
+    }
+    Write-Output ("WARNING: {0} was not installed: {1}{2}" -f $Catalog[$Item].Name, $reason, $later)
     Write-SoftwareRecord -State 'failed'
 }
 finally {
