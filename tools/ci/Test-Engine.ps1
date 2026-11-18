@@ -563,6 +563,53 @@ else {
     Write-Host '   Windows Terminal is not installed on this runner; the default terminal is Windows Console Host'
 }
 
+# OneDrive berjalan seperti di PC pengguna baru. Uji VM revisi ketiga 1.0.0: sisa
+# uninstaller OneDrive (file ListSync masih dikunci Microsoft.SharePoint.exe) memunculkan
+# jendela cmd "rd /s" saat Explorer dinyalakan ulang di akhir instalasi. Di runner, OneDrive
+# biasanya belum pernah dipasang untuk akun uji, jadi jalur itu tidak pernah teruji.
+$oneDriveFamily = @('OneDrive', 'OneDriveStandaloneUpdater', 'Microsoft.SharePoint', 'FileCoAuth', 'OneDriveLauncher', 'OneDriveFileLauncher')
+$oneDriveEmulated = $false
+$runOnceKeys = @('HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce', 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce',
+    'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce')
+function Get-RunOnceEntry {
+    foreach ($key in $runOnceKeys) {
+        $item = Get-Item -LiteralPath $key -ErrorAction SilentlyContinue
+        if (-not $item) { continue }
+        foreach ($valueName in @($item.GetValueNames() | Where-Object { $_ })) {
+            '{0} | {1} = {2}' -f ($key -replace ':', ''), $valueName, $item.GetValue($valueName, '', 'DoNotExpandEnvironmentNames')
+        }
+    }
+}
+@(Get-RunOnceEntry) | ForEach-Object { Write-Host ('   RunOnce before the playbook: {0}' -f (Format-LogLine $_)) }
+if ($plannedOptions -contains 'remove-onedrive') {
+    $oneDriveSetup = @((Join-Path $env:SystemRoot 'System32\OneDriveSetup.exe'), (Join-Path $env:SystemRoot 'SysWOW64\OneDriveSetup.exe')) |
+        Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    $oneDriveExe = Join-Path $env:LOCALAPPDATA 'Microsoft\OneDrive\OneDrive.exe'
+    if (-not $oneDriveSetup) {
+        Write-Host '   OneDriveSetup.exe is not on this runner; the OneDrive cleanup is not exercised here'
+    }
+    else {
+        if (-not (Test-Path -LiteralPath $oneDriveExe)) {
+            $started = Get-Date
+            try {
+                $setupProcess = Start-Process -FilePath $oneDriveSetup -ArgumentList '/silent' -PassThru -WindowStyle Hidden
+                $null = $setupProcess.WaitForExit(300000)
+            }
+            catch { Write-Host ('   OneDriveSetup /silent failed: {0}' -f (Format-LogLine $_.Exception.Message)) }
+            for ($second = 0; $second -lt 120 -and -not (Test-Path -LiteralPath $oneDriveExe); $second += 5) { Start-Sleep -Seconds 5 }
+            Write-Host ('   OneDrive per-user install for the test user: {0} ({1}s)' -f $(if (Test-Path -LiteralPath $oneDriveExe) { 'installed' } else { 'not installed' }), [int]((Get-Date) - $started).TotalSeconds)
+        }
+        if (Test-Path -LiteralPath $oneDriveExe) {
+            if (-not (Get-Process -Name 'OneDrive' -ErrorAction SilentlyContinue)) { $null = Start-Process -FilePath $oneDriveExe -ArgumentList '/background' -PassThru }
+            Start-Sleep -Seconds 45
+            $running = @(Get-Process -Name $oneDriveFamily -ErrorAction SilentlyContinue | ForEach-Object { $_.ProcessName } | Sort-Object -Unique)
+            Write-Host ('   OneDrive processes before the playbook: {0}' -f $(if ($running.Count) { $running -join ', ' } else { 'none' }))
+            Write-Host ('   OneDrive ListSync folder present: {0}' -f (Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'Microsoft\OneDrive\ListSync')))
+            $oneDriveEmulated = $running -contains 'OneDrive'
+        }
+    }
+}
+
 # Jejak pembuatan proses selama playbook: setiap konsol baru (conhost.exe) dan setiap
 # penyerahan ke Windows Terminal (OpenConsole.exe, WindowsTerminal.exe), dengan proses
 # induknya, supaya terlihat program mana yang membuka konsol.
@@ -578,7 +625,15 @@ $tracer = Start-Job -ArgumentList $traceLog -ScriptBlock {
     while ($true) {
         foreach ($event in @(Get-Event -SourceIdentifier 'TgosTrace' -ErrorAction SilentlyContinue)) {
             $new = $event.SourceEventArgs.NewEvent
-            Add-Content -LiteralPath $Path -Value ('{0:HH:mm:ss}|{1}|{2}|{3}' -f $event.TimeGenerated, $new.ProcessID, $new.ParentProcessID, $new.ProcessName) -Encoding ASCII
+            $line = '{0:HH:mm:ss}|{1}|{2}|{3}' -f $event.TimeGenerated, $new.ProcessID, $new.ParentProcessID, $new.ProcessName
+            if ($new.ProcessName -match '(?i)^cmd\.exe$') {
+                # Baris perintah cmd.exe (bila prosesnya masih ada), untuk melihat siapa yang
+                # menjalankan perintah apa.
+                $commandLine = ''
+                try { $commandLine = [string](Get-CimInstance -ClassName Win32_Process -Filter ('ProcessId={0}' -f $new.ProcessID) -ErrorAction Stop).CommandLine } catch { }
+                $line += '|' + (($commandLine -replace '\|', '/') -replace '\s+', ' ')
+            }
+            Add-Content -LiteralPath $Path -Value $line -Encoding ASCII
             Remove-Event -EventIdentifier $event.EventIdentifier
         }
         Start-Sleep -Milliseconds 200
@@ -675,12 +730,14 @@ Remove-Job -Job $tracer -Force -ErrorAction SilentlyContinue
 $names = @{}
 $parents = @{}
 $consoleStarts = @()
+$cmdStarts = @()
 foreach ($line in @(Get-Content -LiteralPath $traceLog -ErrorAction SilentlyContinue)) {
     $parts = $line -split '\|'
     if ($parts.Count -lt 4) { continue }
     $names[$parts[1]] = $parts[3]
     $parents[$parts[1]] = $parts[2]
     if ($parts[0] -ne 'INIT' -and $parts[3] -match '(?i)^(conhost|OpenConsole|WindowsTerminal)\.exe$') { $consoleStarts += , $parts }
+    if ($parts[0] -ne 'INIT' -and $parts[3] -match '(?i)^cmd\.exe$') { $cmdStarts += , $parts }
 }
 function Get-TraceName { param([string]$Id) if ($names.ContainsKey($Id)) { return $names[$Id] } return '?' }
 $groups = @{}
@@ -696,12 +753,19 @@ Write-Host ('   console hosts started during the playbook: {0}' -f $consoleStart
 $groups.GetEnumerator() | Sort-Object { $_.Value.Count } -Descending | Select-Object -First 20 |
     ForEach-Object { Write-Host ('     {0} x{1} (first {2}, last {3})' -f $_.Key, $_.Value.Count, $_.Value[0], $_.Value[-1]) }
 
+# cmd.exe yang dijalankan Explorer = perintah RunOnce/startup yang tampil sebagai jendela
+# (pop up di uji VM revisi ketiga 1.0.0).
+$cmdByExplorer = @($cmdStarts | Where-Object { (Get-TraceName $_[2]) -match '(?i)^explorer\.exe$' })
+Write-Host ('   cmd.exe started during the playbook: {0} (by Explorer: {1})' -f $cmdStarts.Count, $cmdByExplorer.Count)
+$cmdStarts | Group-Object { Get-TraceName $_[2] } | Sort-Object Count -Descending | Select-Object -First 10 |
+    ForEach-Object { Write-Host ('     cmd.exe from {0} x{1}' -f $_.Name, $_.Count) }
+$cmdByExplorer | Select-Object -First 10 | ForEach-Object { Write-Host ('     by Explorer at {0}: {1}' -f $_[0], $(if ($_.Count -ge 5) { Format-LogLine $_[4] } else { '' })) }
+$null = Assert-That ($cmdByExplorer.Count -eq 0) ('pass: Explorer started no cmd.exe during the playbook (OneDrive was running before it: {0})' -f $oneDriveEmulated)
 if ($terminalEmulated) {
-    # Set-ConsoleHost.ps1 harus mengembalikan terminal bawaan seperti sebelum playbook.
+    # TGOS tidak lagi mengubah terminal bawaan (revisi keempat 1.0.0).
     $after = Get-ItemProperty -LiteralPath $startupKey -ErrorAction SilentlyContinue
-    $null = Assert-That ($after.DelegationConsole -eq $terminalGuids.DelegationConsole -and $after.DelegationTerminal -eq $terminalGuids.DelegationTerminal) ('terminal: the default terminal is Windows Terminal again after the playbook ({0})' -f $after.DelegationConsole)
+    $null = Assert-That ($after.DelegationConsole -eq $terminalGuids.DelegationConsole -and $after.DelegationTerminal -eq $terminalGuids.DelegationTerminal) ('terminal: the default terminal is unchanged by the playbook ({0})' -f $after.DelegationConsole)
 }
-$null = Assert-That (-not (Test-Path -LiteralPath (Join-Path $env:ProgramData 'TGOS\terminal-previous.txt'))) 'terminal: the saved default terminal record was removed after restoring'
 # Bagian shell Windows yang memang muncul lagi saat TGOS menjalankan ulang Explorer.
 $shellProcesses = '^(explorer|ShellExperienceHost|StartMenuExperienceHost|SearchHost|SearchApp|TextInputHost|ApplicationFrameHost|LockApp|ShellHost) \|'
 $newWindows = @(Get-Content -LiteralPath $windowLog -ErrorAction SilentlyContinue | Where-Object { $_ })
@@ -712,6 +776,13 @@ $runnerNoise = '^wsl \|.*\| (?i:C:\\Windows\\system32\\wsl\.exe) --update --conf
 $noise = @($newWindows | Where-Object { $_ -match $runnerNoise })
 $newWindows = @($newWindows | Where-Object { $_ -notmatch $runnerNoise })
 if ($noise.Count) { Write-Host ('   ignored {0} runner window(s): wsl.exe --update (WSL updater of the runner image)' -f $noise.Count) }
+if ($oneDriveEmulated) {
+    # OneDrive yang dijalankan uji ini sebelum playbook (bukan oleh TGOS) bisa membuka jendela
+    # masuk akun sebelum playbook menghentikannya.
+    $emulation = @($newWindows | Where-Object { $_ -match '^(OneDrive|Microsoft\.SharePoint|FileCoAuth) \|' })
+    $newWindows = @($newWindows | Where-Object { $_ -notmatch '^(OneDrive|Microsoft\.SharePoint|FileCoAuth) \|' })
+    $emulation | ForEach-Object { Write-Host ('   ignored (OneDrive started by this test): {0}' -f (Format-LogLine $_)) }
+}
 # Pelanggaran: jendela berjudul, atau jendela tanpa judul yang ukurannya nyata (bukan
 # jendela pesan kosong), dari proses selain shell Windows.
 $unexpected = @($newWindows | Where-Object {
@@ -781,6 +852,53 @@ if ($enabledTasks.Count -gt 0) {
         })
     $null = Assert-That ($stillEnabled.Count -eq 0) ('pass: all {0} task(s) enabled before the run are now Disabled' -f $enabledTasks.Count)
     $stillEnabled | ForEach-Object { Write-Host ('   still enabled: {0}{1}' -f $_.TaskPath, $_.TaskName) }
+}
+
+# =======================================================================================
+Write-Section 'OneDrive leftovers and RunOnce'
+if ($plannedOptions -contains 'remove-onedrive') {
+    $left = @(Get-RunOnceEntry | Where-Object { $_ -match '(?i)onedrive' })
+    $null = Assert-That ($left.Count -eq 0) ('onedrive: no OneDrive cleanup command is left in RunOnce ({0} found)' -f $left.Count)
+    $left | ForEach-Object { Write-Host ('   left: {0}' -f (Format-LogLine $_)) }
+    $stillRunning = @(Get-Process -Name $oneDriveFamily -ErrorAction SilentlyContinue | ForEach-Object { $_.ProcessName } | Sort-Object -Unique)
+    $null = Assert-That ($stillRunning.Count -eq 0) ('onedrive: no OneDrive process is left running ({0})' -f ($stillRunning -join ', '))
+    Write-Host ('   OneDrive app folder still present: {0}' -f (Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'Microsoft\OneDrive')))
+    if (-not $oneDriveEmulated) { Write-Host '   INFO: OneDrive was not running before the playbook on this runner; the cleanup path was not exercised' }
+}
+@(Get-RunOnceEntry) | ForEach-Object { Write-Host ('   RunOnce after the playbook: {0}' -f (Format-LogLine $_)) }
+# Kontrol untuk penyebab pop up di VM: perintah RunOnce dijalankan Explorer saat
+# dinyalakan ulang, dalam jendela cmd yang terlihat. Hanya informasi.
+if (Get-Process -Name 'explorer' -ErrorAction SilentlyContinue) {
+    $runOnceKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce'
+    if (-not (Test-Path -LiteralPath $runOnceKey)) { New-Item -Path $runOnceKey -Force | Out-Null }
+    Set-ItemProperty -LiteralPath $runOnceKey -Name 'TgosCiControl' -Value ('"{0}" /c ping -n 9 127.0.0.1 >nul' -f (Join-Path $env:SystemRoot 'System32\cmd.exe'))
+    Get-Process -Name 'explorer' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 3
+    if (-not (Get-Process -Name 'explorer' -ErrorAction SilentlyContinue)) { Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe') }
+    $control = $null
+    for ($attempt = 0; $attempt -lt 40 -and -not $control; $attempt++) {
+        Start-Sleep -Milliseconds 500
+        $control = Get-CimInstance -ClassName Win32_Process -Filter "Name='cmd.exe'" -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandLine -match 'ping -n 9 127\.0\.0\.1' } | Select-Object -First 1
+    }
+    $visible = $false
+    $parent = '?'
+    if ($control) {
+        for ($attempt = 0; $attempt -lt 6 -and -not $visible; $attempt++) {
+            $process = Get-Process -Id $control.ProcessId -ErrorAction SilentlyContinue
+            $visible = $process -and $process.MainWindowHandle -ne [IntPtr]::Zero
+            if (-not $visible) { Start-Sleep -Milliseconds 500 }
+        }
+        $parentProcess = Get-Process -Id $control.ParentProcessId -ErrorAction SilentlyContinue
+        if ($parentProcess) { $parent = $parentProcess.ProcessName }
+        Stop-Process -Id $control.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    Remove-ItemProperty -LiteralPath $runOnceKey -Name 'TgosCiControl' -ErrorAction SilentlyContinue
+    Write-Host ('   control: a RunOnce command ran when Explorer restarted: {0}; parent {1}; window visible: {2}' -f [bool]$control, $parent, $visible)
+    Start-Sleep -Seconds 5
+}
+else {
+    Write-Host '   Explorer is not running on this runner; the RunOnce control was skipped'
 }
 
 # =======================================================================================
@@ -1133,6 +1251,10 @@ if (Assert-That (Test-Path -LiteralPath $featureScript) 'toolbox: Set-TgosFeatur
                 Write-Host ('  skip  toolbox: {0} {1} is not supported on this runner' -f $case.Feature, $state)
                 continue
             }
+            if ($case.Feature -eq 'ReservedStorage' -and $exit -eq 4) {
+                Write-Host ('  skip  toolbox: ReservedStorage {0}: Windows is using reserved storage on this runner' -f $state)
+                continue
+            }
             if ($case.Feature -eq 'Defender' -and $state -eq 'Off' -and $exit -eq 2) {
                 # Perilaku yang dirancang di Windows 11: selama Tamper Protection aktif,
                 # skrip menolak, menjelaskan caranya, dan tidak mengubah apa pun.
@@ -1219,41 +1341,70 @@ $null = Assert-That ($result.Output -match 'Unknown number' -and -not $result.Er
 if ($result.Errors.Trim()) { Write-Host ('   stderr: {0}' -f (Format-LogLine $result.Errors)) }
 
 # =======================================================================================
-Write-Section 'Retries'
-# Reserved Storage: tugas startup sekali-jalan didaftarkan, lalu menghapus dirinya sendiri
-# setelah Set-TgosFeature berhasil (jalur yang dipakai saat Windows sedang memakai cadangan
-# itu; kondisi itu sendiri tidak bisa dibuat di runner).
+Write-Section 'Retries after restart'
+# Langkah yang gagal karena Windows sibuk dijadwalkan lewat Add-TgosAfterRestartItem
+# (Common.ps1) dan dikerjakan tugas tersembunyi \TGOS\Finish after restart, yang menjalankan
+# Complete-AfterRestart.ps1 sebagai SYSTEM. Di sini tugas itu dijalankan sungguhan lewat
+# Task Scheduler (bukan restart): reserved storage di semua job, dan di job Windows 11
+# bawaan juga .NET Framework 3.5 dengan payload dibuang dulu, saat update di-pause.
 $commonScript = Join-Path $installedSupport 'Common.ps1'
-if (Assert-That (Test-Path -LiteralPath $commonScript) 'retry: Common.ps1 is installed with the Toolbox') {
-    . $commonScript
-    $registered = $true
-    try { Register-TgosReservedStorageRetry } catch { $registered = $false; Write-Host ('   could not register: {0}' -f (Format-LogLine $_.Exception.Message)) }
-    $task = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Reserved Storage Off' -ErrorAction SilentlyContinue
-    $boot = $task -and @($task.Triggers | Where-Object { $_.CimClass.CimClassName -eq 'MSFT_TaskBootTrigger' }).Count
-    $null = Assert-That ($registered -and $task -and $boot -and $task.Principal.UserId -match '(?i)SYSTEM|S-1-5-18' -and $task.Settings.Hidden) 'retry: the reserved storage startup task is registered (SYSTEM, at startup, hidden)'
-    if ($task) { Write-Host ('   task action: {0} {1}' -f $task.Actions[0].Execute, (Format-LogLine $task.Actions[0].Arguments)) }
-    $output = (& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $installedSupport 'Set-TgosFeature.ps1') -Feature ReservedStorage -State Off -FromStartupTask 2>&1 | Out-String)
-    $exit = $LASTEXITCODE
-    $left = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Reserved Storage Off' -ErrorAction SilentlyContinue
-    $null = Assert-That (@(0, 3) -contains $exit -and -not $left) ('retry: the startup task removes itself after it succeeds (exit {0})' -f $exit)
-    if ($left) { $output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 4 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) } }
-}
-# .NET Framework 3.5 lewat tombol Toolbox saat update di-pause (uji VM revisi kedua: DISM
-# gagal di tengah instalasi, dan laporan menyarankan mengulang dari Toolbox). Payload
-# dibuang dulu supaya Windows harus mengunduhnya lagi lewat Windows Update.
 $isClient = (Get-CimInstance -ClassName Win32_OperatingSystem).ProductType -eq 1
-if ($OptionSet -eq 'default' -and $isClient -and $plannedOptions -contains 'install-dotnet' -and $plannedOptions -contains 'updates-pause') {
-    $dism = Join-Path $env:SystemRoot 'System32\dism.exe'
-    $started = Get-Date
-    & cmd.exe /c ('"{0}" /Online /Disable-Feature /FeatureName:NetFx3 /Remove /NoRestart /Quiet' -f $dism) | Out-Null
-    $state = (Get-WindowsOptionalFeature -Online -FeatureName NetFx3 -ErrorAction SilentlyContinue).State
-    Write-Host ('   NetFx3 after /Disable-Feature /Remove: {0} ({1}s)' -f $state, [int]((Get-Date) - $started).TotalSeconds)
-    $started = Get-Date
-    $output = (& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $installedSupport 'Install-Software.ps1') -Item netfx3 -Force 2>&1 | Out-String)
-    $state = (Get-WindowsOptionalFeature -Online -FeatureName NetFx3 -ErrorAction SilentlyContinue).State
-    $null = Assert-That ([string]$state -eq 'Enabled') ('retry: .NET Framework 3.5 installs from the Toolbox while updates are paused ({0}, {1}s)' -f $state, [int]((Get-Date) - $started).TotalSeconds)
-    $output -split "`r?`n" | Where-Object { $_ -match 'TGOS: |WARNING' } | Select-Object -Last 5 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }
+$withNetFx3 = $OptionSet -eq 'default' -and $isClient -and $plannedOptions -contains 'install-dotnet' -and $plannedOptions -contains 'updates-pause'
+if ((Assert-That (Test-Path -LiteralPath $commonScript) 'retry: Common.ps1 is installed with the Toolbox') -and
+    (Assert-That (Test-Path -LiteralPath (Join-Path $installedSupport 'Complete-AfterRestart.ps1')) 'retry: Complete-AfterRestart.ps1 is installed with the Toolbox')) {
+    . $commonScript
+    $leftover = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart' -ErrorAction SilentlyContinue
+    Write-Host ('   after-restart task before this test: {0}; list: {1}' -f $(if ($leftover) { 'registered' } else { 'none' }),
+        $(if (Test-Path -LiteralPath (Join-Path $env:ProgramData 'TGOS\after-restart.txt')) { (Get-Content -LiteralPath (Join-Path $env:ProgramData 'TGOS\after-restart.txt')) -join ', ' } else { 'none' }))
+    if ($withNetFx3) {
+        $dism = Join-Path $env:SystemRoot 'System32\dism.exe'
+        $started = Get-Date
+        & cmd.exe /c ('"{0}" /Online /Disable-Feature /FeatureName:NetFx3 /Remove /NoRestart /Quiet' -f $dism) | Out-Null
+        $state = (Get-WindowsOptionalFeature -Online -FeatureName NetFx3 -ErrorAction SilentlyContinue).State
+        Write-Host ('   NetFx3 after /Disable-Feature /Remove: {0} ({1}s)' -f $state, [int]((Get-Date) - $started).TotalSeconds)
+    }
+    $registered = $false
+    try {
+        $registered = [bool](Add-TgosAfterRestartItem -Step 'reserved-storage')
+        if ($withNetFx3) { $registered = [bool](Add-TgosAfterRestartItem -Step 'netfx3') -and $registered }
+    }
+    catch { Write-Host ('   could not schedule: {0}' -f (Format-LogLine $_.Exception.Message)) }
+    $task = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart' -ErrorAction SilentlyContinue
+    $boot = @($task.Triggers | Where-Object { $_.CimClass.CimClassName -eq 'MSFT_TaskBootTrigger' })
+    $null = Assert-That ($registered -and $task -and $boot.Count -eq 1 -and $task.Principal.UserId -match '(?i)SYSTEM|S-1-5-18' -and $task.Settings.Hidden) ('retry: the after-restart task is registered (SYSTEM, at startup + {0}, hidden)' -f $(if ($boot.Count) { $boot[0].Delay } else { '?' }))
+    if ($task) { Write-Host ('   task action: {0} {1}' -f $task.Actions[0].Execute, (Format-LogLine $task.Actions[0].Arguments)) }
+    $list = @(Get-Content -LiteralPath (Join-Path $env:ProgramData 'TGOS\after-restart.txt') -ErrorAction SilentlyContinue)
+    Write-Host ('   steps waiting: {0}' -f ($list -join ', '))
+    if ($task) {
+        $logBefore = @(Get-Content -LiteralPath (Join-Path $env:ProgramData 'TGOS\toolbox.log') -ErrorAction SilentlyContinue).Count
+        $started = Get-Date
+        Start-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart'
+        # Sampai tugasnya selesai dan menghapus dirinya (atau 40 menit).
+        for ($second = 0; $second -lt 2400; $second += 10) {
+            Start-Sleep -Seconds 10
+            $current = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart' -ErrorAction SilentlyContinue
+            if (-not $current -or ($second -ge 30 -and [string]$current.State -ne 'Running')) { break }
+        }
+        $current = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart' -ErrorAction SilentlyContinue
+        $seconds = [int]((Get-Date) - $started).TotalSeconds
+        @(Get-Content -LiteralPath (Join-Path $env:ProgramData 'TGOS\toolbox.log') -ErrorAction SilentlyContinue) | Select-Object -Skip $logBefore |
+            ForEach-Object { Write-Host ('   toolbox.log | {0}' -f (Format-LogLine $_)) }
+        if ($current) {
+            $info = $current | Get-ScheduledTaskInfo -ErrorAction SilentlyContinue
+            Write-Host ('   task still registered: state {0}, last result 0x{1:X8}' -f $current.State, [int64]$info.LastTaskResult)
+        }
+        $null = Assert-That (-not $current -and -not (Test-Path -LiteralPath (Join-Path $env:ProgramData 'TGOS\after-restart.txt'))) ('retry: the after-restart task finished every step and removed itself ({0}s)' -f $seconds)
+        if ($withNetFx3) {
+            $state = (Get-WindowsOptionalFeature -Online -FeatureName NetFx3 -ErrorAction SilentlyContinue).State
+            $null = Assert-That ([string]$state -eq 'Enabled') ('retry: .NET Framework 3.5 was installed by the after-restart task as SYSTEM while updates are paused ({0})' -f $state)
+        }
+        $folder = $null
+        try { $scheduler = New-Object -ComObject 'Schedule.Service'; $scheduler.Connect(); $folder = $scheduler.GetFolder('\TGOS') } catch { }
+        $null = Assert-That ($null -eq $folder) 'retry: the empty \TGOS task folder was removed too'
+    }
 }
+# Pembeda "sedang dipakai" vs "tidak didukung" untuk Reserved Storage diuji di
+# tools/selftest.py dengan contoh teks DISM.
 
 # =======================================================================================
 Write-Section 'Report collector'
@@ -1269,6 +1420,23 @@ if (Assert-That (Test-Path -LiteralPath $collectScript) 'collect: Collect-TgosRe
         $null = Assert-That ($entries -contains 'verify-report.txt') 'collect: the zip contains verify-report.txt'
         $null = Assert-That (@($entries | Where-Object { $_ -like 'TGOS-snapshot-*.json' }).Count -eq 1) 'collect: the zip contains the system snapshot'
         Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $artifacts 'report') -Force
+        $null = Assert-That ($entries -contains 'servicing.txt') 'collect: the zip contains servicing.txt'
+        # Nama akun uji, nama komputer, dan bagian mesin dari SID tidak boleh ada di laporan.
+        $leaks = @()
+        $files = @(Get-ChildItem -LiteralPath (Join-Path $artifacts 'report') -Recurse -File | Where-Object { $_.Extension -in '.txt', '.log', '.yml', '.conf', '.json', '.xml' })
+        $sid = ([Security.Principal.WindowsIdentity]::GetCurrent()).User.Value
+        $machine = ''
+        if ($sid -match '^(S-1-5-21-\d+-\d+-\d+)-\d+$') { $machine = $Matches[1] }
+        foreach ($file in $files) {
+            $text = [IO.File]::ReadAllText($file.FullName)
+            if ($text -match ('(?i)\\{1,2}Users\\{1,2}' + [regex]::Escape($env:USERNAME) + '(\\|"|\s|$)')) { $leaks += ('{0}: user name' -f $file.Name) }
+            if ($env:COMPUTERNAME.Length -ge 3 -and $text -match ('(?i)\b' + [regex]::Escape($env:COMPUTERNAME) + '\b')) { $leaks += ('{0}: computer name' -f $file.Name) }
+            if ($machine -and $text.Contains($machine)) { $leaks += ('{0}: account SID' -f $file.Name) }
+        }
+        $null = Assert-That ($leaks.Count -eq 0) ('collect: no user name, computer name, or account SID in the {0} text file(s) of the report' -f $files.Count)
+        $leaks | Select-Object -First 8 | ForEach-Object { Write-Host ('   leak: {0}' -f $_) }
+        Get-Content -LiteralPath (Join-Path $artifacts 'report\servicing.txt') -ErrorAction SilentlyContinue | Select-Object -First 24 |
+            ForEach-Object { Write-Host ('   servicing | {0}' -f (Format-LogLine $_)) }
     }
     else {
         $collectOutput -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 6 | ForEach-Object { Write-Host ('   | ' + (Format-LogLine $_)) }

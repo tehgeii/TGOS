@@ -59,26 +59,17 @@ try {
 
     $removed = 0
     $scheduled = 0
-    $native = $null
     foreach ($folder in $present) {
-        Remove-Item -LiteralPath $folder -Recurse -Force -ErrorAction SilentlyContinue
-        if (-not (Test-Path -LiteralPath $folder)) { $removed++; continue }
-
-        if (-not $native) {
-            $native = Add-Type -Namespace Tgos -Name NativeFile -PassThru -MemberDefinition @'
-[DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-public static extern bool MoveFileEx(string lpExistingFileName, string lpNewFileName, int dwFlags);
-'@
+        # Remove-TgosFolder (Common.ps1): yang masih terkunci dihapus saat restart.
+        try {
+            switch (Remove-TgosFolder -Path $folder) {
+                'removed' { $removed++ }
+                'scheduled' { $scheduled++ }
+            }
         }
-        # File dulu, lalu folder dari yang paling dalam: Windows menghapusnya berurutan.
-        $items = @(Get-ChildItem -LiteralPath $folder -Recurse -Force -ErrorAction SilentlyContinue)
-        $ordered = @($items | Where-Object { -not $_.PSIsContainer }) +
-            @($items | Where-Object { $_.PSIsContainer } | Sort-Object { $_.FullName.Length } -Descending)
-        foreach ($item in $ordered) {
-            [void]$native::MoveFileEx($item.FullName, $null, 4)
+        catch {
+            Write-Output ("WARNING: {0}" -f (Format-TgosError $_))
         }
-        [void]$native::MoveFileEx($folder, $null, 4)
-        $scheduled++
     }
     Write-Output ("TGOS: leftover Widgets folders - removed {0}, scheduled for removal at restart {1}" -f $removed, $scheduled)
 }

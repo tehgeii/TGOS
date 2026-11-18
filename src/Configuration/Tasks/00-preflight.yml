@@ -40,17 +40,3 @@ actions:
     weight: 10
     showOutput: true
     showError: true
-
-  # Terminal bawaan sementara Windows Console Host (dikembalikan di 90-finalize). Di
-  # Windows 11 dengan Windows Terminal sebagai terminal bawaan, konsol tersembunyi yang
-  # dibuka program lain selama instalasi bisa tampil sebagai jendela kosong (uji VM revisi
-  # kedua 1.0.0). Dijalankan sesudah restore point, supaya restore point memuat nilai asli.
-  - !run:
-    exe: '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
-    args: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\Scripts\Set-ConsoleHost.ps1" -Action Save'
-    runas: trustedInstaller
-    exeDir: true
-    wait: true
-    weight: 1
-    showOutput: true
-    showError: true

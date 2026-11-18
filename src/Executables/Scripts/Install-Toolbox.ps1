@@ -7,6 +7,9 @@
        ditambah empat skrip playbook yang dipakai tombol Toolbox (Common.ps1,
        Install-Software.ps1, Set-ShellLayout.ps1, Invoke-DeepClean.ps1) ke subfolder
        Support.
+       Bila ada langkah yang menunggu restart (mis. .NET Framework 3.5 gagal di awal
+       instalasi, saat Toolbox belum terpasang), tugas startup \TGOS\Finish after restart
+       didaftarkan sekarang (Register-TgosAfterRestartTask di Common.ps1).
     2. Membuat pintasan "TGOS Toolbox" di Desktop semua pengguna.
     3. Menyalin wallpaper ke %SystemRoot%\Web\Wallpaper\TGOS\TGOS.png.
 
@@ -38,6 +41,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+. (Join-Path $PSScriptRoot 'Common.ps1')
 
 if (-not $SourceRoot) {
     # Skrip ada di <playbook>\Executables\Scripts.
@@ -73,6 +78,20 @@ if ($Part -ne 'Shortcut') {
     catch {
         Write-Output ("ERROR: could not install the TGOS Toolbox: {0}" -f (($_.Exception.Message -replace '\s+', ' ').Trim()))
         exit 1
+    }
+
+    # Tugas startup menunjuk ke Toolbox di lokasi bawaannya, jadi hanya didaftarkan bila
+    # Toolbox dipasang di sana (bukan saat diuji ke folder lain).
+    if (-not $PSBoundParameters.ContainsKey('ToolboxDestination')) {
+        try {
+            $waiting = @(Get-TgosAfterRestartList | ForEach-Object { $_.Name })
+            if ($waiting.Count -gt 0 -and (Register-TgosAfterRestartTask)) {
+                Write-Output ("TGOS: finished automatically after the next restart: {0}" -f ($waiting -join ', '))
+            }
+        }
+        catch {
+            Write-Output ("WARNING: could not schedule the steps that wait for a restart: {0}" -f (Format-TgosError $_))
+        }
     }
 }
 

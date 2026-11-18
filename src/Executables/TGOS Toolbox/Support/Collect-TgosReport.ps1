@@ -7,10 +7,15 @@
       - verify-report.txt     hasil pemeriksaan tiap tweak (PASS / FAIL / SKIP / WARN)
       - TGOS-snapshot-after.json  potret sistem (proses, RAM, layanan, aplikasi, tugas)
       - isi %ProgramData%\TGOS (install-info.txt, restore-point.txt, dan lainnya)
+      - servicing.txt         keadaan servicing Windows: Reserved Storage, .NET 3.5,
+                              layanan Windows Update, tanda restart tertunda, langkah
+                              yang menunggu restart, entri RunOnce, akhir dism.log
       - log AME bila ditemukan
 
-    Tidak mengubah pengaturan Windows. Tidak mengumpulkan nama komputer, nama pengguna,
-    alamat jaringan, atau file pribadi.
+    Tidak mengubah pengaturan Windows. Tidak mengumpulkan alamat jaringan atau file
+    pribadi. Sebelum di-zip, semua file teks laporan disamarkan (ConvertTo-PrivateText): log
+    AME memuat jalur profil pengguna, jadi nama folder pengguna diganti <user>, nama
+    komputer diganti <computer>, dan bagian mesin dari SID akun diganti <machine>.
 
     Harus dijalankan sebagai Administrator.
 
@@ -23,6 +28,29 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+function ConvertTo-PrivateText {
+    <#
+    .SYNOPSIS
+        Menyamarkan nama folder pengguna, nama komputer, dan bagian mesin dari SID akun.
+
+    .DESCRIPTION
+        X:\Users\<nama> (juga X:\\Users\\<nama> di JSON) menjadi X:\Users\<user>; folder
+        bersama Windows (Public, Default, Default User, All Users) tidak diubah.
+        S-1-5-21-a-b-c-1001 menjadi S-1-5-21-<machine>-1001 (nomor akun tetap, supaya akun
+        yang berbeda masih bisa dibedakan). Nama komputer (3 huruf atau lebih, sebagai kata
+        utuh) menjadi <computer>. Diuji di tools/selftest.py.
+    #>
+    param([string]$Text, [string]$ComputerName)
+    if (-not $Text) { return $Text }
+    $users = '(?i)\b([A-Z]:(\\{1,2})Users\2)(?!(?:Public|Default|All Users)(?=\\|"|\s|$))[^\\"\r\n]+?(?=\\|"|\r|\n|$)'
+    $result = [regex]::Replace($Text, $users, '$1<user>')
+    $result = [regex]::Replace($result, 'S-1-5-21-\d+-\d+-\d+(?=-\d)', 'S-1-5-21-<machine>')
+    if ($ComputerName -and $ComputerName.Length -ge 3) {
+        $result = [regex]::Replace($result, ('(?i)\b{0}\b' -f [regex]::Escape($ComputerName)), '<computer>')
+    }
+    return $result
+}
 
 if (-not $OutputDirectory) {
     $OutputDirectory = [Environment]::GetFolderPath('Desktop')
@@ -47,6 +75,56 @@ try {
     }
     catch {
         $notes += ('snapshot: {0}' -f $_.Exception.Message)
+    }
+
+    Write-Host 'Reading the Windows servicing state...'
+    try {
+        $lines = @()
+        $dism = Join-Path $env:SystemRoot 'System32\dism.exe'
+        $lines += '[reserved storage]'
+        $lines += @(& cmd.exe /c ('"{0}" /Online /Get-ReservedStorageState 2>&1' -f $dism) | Where-Object { $_.Trim() } | Select-Object -Last 3)
+        $lines += '', '[.NET Framework 3.5]'
+        $lines += ('NDP\v3.5 Install = {0}' -f (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5' -ErrorAction SilentlyContinue).Install)
+        $lines += '', '[services]'
+        foreach ($serviceName in @('wuauserv', 'UsoSvc', 'BITS', 'DoSvc', 'TrustedInstaller')) {
+            $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+            if ($service) { $lines += ('{0}: {1}, {2}' -f $serviceName, $service.Status, $service.StartType) }
+        }
+        $lines += '', '[restart pending]'
+        $lines += ('CBS RebootPending: {0}' -f (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'))
+        $lines += ('Windows Update RebootRequired: {0}' -f (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'))
+        $lines += ('WinSxS pending.xml: {0}' -f (Test-Path -LiteralPath (Join-Path $env:SystemRoot 'WinSxS\pending.xml')))
+        $renames = @((Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -ErrorAction SilentlyContinue).PendingFileRenameOperations | Where-Object { $_ })
+        $lines += ('PendingFileRenameOperations: {0} path(s)' -f $renames.Count)
+        $lines += '', '[after restart]'
+        $afterRestart = Join-Path $env:ProgramData 'TGOS\after-restart.txt'
+        if (Test-Path -LiteralPath $afterRestart) { $lines += @(Get-Content -LiteralPath $afterRestart) } else { $lines += 'no steps waiting' }
+        $task = Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart' -ErrorAction SilentlyContinue
+        if ($task) {
+            $info = $task | Get-ScheduledTaskInfo -ErrorAction SilentlyContinue
+            $lines += ('task \TGOS\Finish after restart: {0}, last run {1}, last result 0x{2:X8}' -f $task.State, $info.LastRunTime, [int64]$info.LastTaskResult)
+        }
+        else { $lines += 'task \TGOS\Finish after restart: not registered' }
+        $lines += '', '[RunOnce]'
+        $keys = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce')
+        $keys += @(Get-ChildItem -LiteralPath 'Registry::HKEY_USERS' -ErrorAction SilentlyContinue |
+                Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+$' } |
+                ForEach-Object { 'Registry::HKEY_USERS\{0}\Software\Microsoft\Windows\CurrentVersion\RunOnce' -f $_.PSChildName })
+        foreach ($key in $keys) {
+            $item = Get-Item -LiteralPath $key -ErrorAction SilentlyContinue
+            if (-not $item) { continue }
+            foreach ($valueName in @($item.GetValueNames())) {
+                $lines += ('{0} | {1} = {2}' -f ($key -replace '^Registry::HKEY_USERS\\S-1-5-21-[\d-]+', 'HKU\<user>'), $valueName, $item.GetValue($valueName, '', 'DoNotExpandEnvironmentNames'))
+            }
+        }
+        $lines += '', '[dism.log, last 80 lines]'
+        $dismLog = Join-Path $env:SystemRoot 'Logs\DISM\dism.log'
+        if (Test-Path -LiteralPath $dismLog) { $lines += @(Get-Content -LiteralPath $dismLog -Tail 80 -ErrorAction SilentlyContinue) }
+        # Nama pengguna dan nama komputer disamarkan bersama file lain sebelum di-zip.
+        Set-Content -LiteralPath (Join-Path $work 'servicing.txt') -Value $lines -Encoding ASCII
+    }
+    catch {
+        $notes += ('servicing: {0}' -f $_.Exception.Message)
     }
 
     $data = Join-Path $env:ProgramData 'TGOS'
@@ -79,7 +157,26 @@ try {
             }
     }
 
+    # Semua file teks laporan disamarkan; encoding dan BOM tiap file dipertahankan.
+    foreach ($file in @(Get-ChildItem -LiteralPath $work -Recurse -File | Where-Object { $_.Extension -in '.txt', '.log', '.yml', '.conf', '.json', '.xml' })) {
+        try {
+            $bytes = [IO.File]::ReadAllBytes($file.FullName)
+            $encoding = New-Object System.Text.UTF8Encoding($false)
+            if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) { $encoding = New-Object System.Text.UTF8Encoding($true) }
+            elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) { $encoding = [System.Text.Encoding]::Unicode }
+            $text = [IO.File]::ReadAllText($file.FullName, $encoding)
+            $private = ConvertTo-PrivateText -Text $text -ComputerName $env:COMPUTERNAME
+            if ($private -cne $text) { [IO.File]::WriteAllText($file.FullName, $private, $encoding) }
+        }
+        catch {
+            # File yang tidak bisa disamarkan tidak ikut dikirim.
+            Remove-Item -LiteralPath $file.FullName -Force -ErrorAction SilentlyContinue
+            $notes += ('private: {0} left out: {1}' -f $file.Name, $_.Exception.Message)
+        }
+    }
+
     if ($notes.Count -gt 0) {
+        $notes = @($notes | ForEach-Object { ConvertTo-PrivateText -Text ('' + $_) -ComputerName $env:COMPUTERNAME })
         Set-Content -LiteralPath (Join-Path $work 'collect-notes.txt') -Value $notes -Encoding ASCII
     }
 

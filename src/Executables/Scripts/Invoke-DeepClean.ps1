@@ -19,8 +19,9 @@
       - Reserved Storage dimatikan (DISM /Set-ReservedStorageState): ruang yang
         dicadangkan Windows untuk update dikembalikan. Bisa dinyalakan lagi lewat
         "Reserved Storage - Turn ON" di TGOS Toolbox.
-        Bila Windows sedang memakai cadangan itu, dicoba lagi otomatis sekali setelah
-        restart (tugas terjadwal tersembunyi yang menghapus dirinya sendiri).
+        Bila Windows sedang memakai cadangan itu, dicoba lagi otomatis setelah restart
+        (tugas terjadwal tersembunyi \TGOS\Finish after restart, paling banyak 3 kali,
+        yang menghapus dirinya sendiri; lihat Complete-AfterRestart.ps1).
 
     -Plus (Deep clean+), TIDAK BISA DIBATALKAN:
       - Windows.old, $WINDOWS.~BT, $Windows.~WS, dan C:\ESD (sisa upgrade Windows):
@@ -208,10 +209,13 @@ try {
         catch {
             # -2146498187 = 0x800F0975: Windows sedang memakai cadangan itu untuk operasi
             # servicing (mis. update yang sedang disiapkan; uji VM revisi kedua 1.0.0).
-            # Biasanya selesai setelah restart, jadi dicoba lagi otomatis saat startup.
+            # Biasanya selesai setelah restart, jadi dicoba lagi otomatis saat startup
+            # (Complete-AfterRestart.ps1 di TGOS Toolbox, paling banyak 3 kali).
             if ((Format-TgosError $_) -notmatch '-2146498187') { throw }
-            Register-TgosReservedStorageRetry
-            throw 'Windows is using it for an update right now; it is turned off automatically after the next restart'
+            if (Add-TgosAfterRestartItem -Step 'reserved-storage') {
+                throw 'Windows is using it for an update right now; it is turned off automatically after the next restart'
+            }
+            throw 'Windows is using it for an update right now; it is turned off automatically after a restart once the TGOS Toolbox is installed'
         }
     }
 

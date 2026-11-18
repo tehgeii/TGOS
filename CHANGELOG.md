@@ -5,6 +5,44 @@ Semua perubahan penting pada TGOS dicatat di sini. Nomor versi mengikuti roadmap
 
 ## 1.0.0 — pilihan browser, opsi baru, dan perbaikan dari uji 0.9.1
 
+**Revisi keempat setelah uji VM revisi ketiga** (nomor versi tetap). Revisi ketiga diuji
+pemilik di VMware (Windows 11 Pro 26H2, hampir semua opsi, tanpa browser dengan Edge
+dihapus, tanpa launcher): setelah restart **277 PASS, 1 FAIL, 2 WARN**; 117 proses, RAM
+2.219 MB, 82 layanan berjalan, disk terpakai 23,3 GB. Yang diperbaiki:
+
+- **Jendela cmd muncul lalu hilang di akhir instalasi**: penyebabnya terbaca dari
+  screenshot. Jendela itu perintah `rd /s` pada `AppData\Local\Microsoft\OneDrive\ListSync`
+  yang gagal karena file masih dipakai, dan muncul tepat saat TGOS menyalakan ulang
+  Explorer. TGOS dulu hanya menghentikan `OneDrive.exe`; `Microsoft.SharePoint.exe`
+  (sinkronisasi Microsoft Lists milik OneDrive) masih mengunci file itu, sehingga uninstaller
+  meninggalkan perintah bersih-bersih untuk dijalankan Explorer. Sekarang semua proses
+  keluarga OneDrive dihentikan dulu, perintah bersih-bersih OneDrive di RunOnce dicatat lalu
+  dihapus, dan sisa folder aplikasinya dihapus tanpa jendela (file yang masih terkunci
+  dihapus Windows saat restart). File pengguna di folder OneDrive tidak disentuh. Laporan
+  verifikasi memeriksa tidak ada lagi perintah OneDrive di RunOnce.
+- **Pengaturan terminal sementara dicabut**: terminal bawaan kembali seperti semula di VM,
+  tetapi jendela tetap muncul, jadi pengaturan itu bukan penyebabnya. TGOS tidak lagi
+  mengubah terminal bawaan.
+- **.NET Framework 3.5** gagal lagi di VM (`0x8024001E` dua kali, juga sesudah layanan
+  Windows Update dijalankan ulang): Windows yang baru dipasang sedang sibuk dengan update.
+  Sekarang dicoba lagi otomatis beberapa menit setelah restart.
+- **Reserved Storage, bug TGOS**: pesan DISM "not supported when reserved storage is in use"
+  terbaca sebagai "tidak didukung", jadi percobaan setelah restart langsung berhenti.
+  Sekarang "sedang dipakai" dicek lebih dulu (diuji dengan contoh teks DISM), dan dicoba
+  sampai 3 kali restart. Tombol Toolbox menjelaskan bila Windows masih memakainya.
+- Satu tugas terjadwal tersembunyi `\TGOS\Finish after restart` (SYSTEM, tanpa jendela)
+  mengerjakan langkah yang menunggu restart, mencatat hasilnya di `toolbox.log`, lalu
+  menghapus dirinya sendiri. Selama masih menunggu, laporan verifikasi memberi WARN
+  "otomatis setelah restart", bukan FAIL.
+- *Collect TGOS Report* menyertakan `servicing.txt`: keadaan Reserved Storage, .NET 3.5,
+  layanan Windows Update, tanda restart tertunda, entri RunOnce, dan akhir `dism.log`.
+- *Collect TGOS Report* menyamarkan seluruh isi laporan sebelum di-zip: log AME ternyata
+  memuat jalur `C:\Users\<nama akun>` dan SID akun. Sekarang nama folder pengguna menjadi
+  `<user>`, nama komputer `<computer>`, dan bagian mesin dari SID `<machine>`.
+- Teks di Wizard tidak lagi memakai titik koma (permintaan pemilik); validator menolaknya.
+
+Revisi ketiga (setelah uji VM revisi kedua):
+
 **Revisi ketiga setelah uji VM revisi kedua** (nomor versi tetap). Revisi kedua diuji
 pemilik di VMware (Windows 11 Pro 26H2, semua opsi, Firefox, semua launcher): setelah
 restart **283 PASS, 1 FAIL, 2 WARN**. Terbukti di VM: Pause update tampil di Settings

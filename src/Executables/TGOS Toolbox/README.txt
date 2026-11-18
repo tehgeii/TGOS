@@ -18,7 +18,8 @@ In this folder
                          Rebuilds the taskbar and Start pins as the TGOS set.
                          Your own pins are removed.
   Collect TGOS Report    Makes TGOS-report.zip on the Desktop: a check of every TGOS
-                         change plus a system snapshot. It changes nothing.
+                         change plus a system snapshot. It changes nothing. User and
+                         computer names in it are replaced by <user> and <computer>.
 
 Turn ON or OFF (folder)
 -----------------------
@@ -52,6 +53,15 @@ Most changes need a restart.
                          Bar" again from the Microsoft Store.
   TGO Login Screen       ON = TGO picture on the lock and sign-in screens.
                          OFF = the Windows picture.
+
+After a restart
+---------------
+If Windows was busy during the install (for example .NET Framework 3.5 could not be
+downloaded, or Windows was using its reserved storage for an update), TGOS finishes
+that step by itself a few minutes after the next restart, in the background, up to
+three times. The result is written to toolbox.log.
+Bila Windows sedang sibuk saat instalasi, TGOS menyelesaikan langkah itu sendiri
+beberapa menit setelah restart berikutnya, di latar belakang.
 
 Firewall, UAC, Secure Boot and TPM are never changed by TGOS.
 

@@ -116,33 +116,136 @@ function Invoke-TgosProcess {
     return $process.ExitCode
 }
 
-function Register-TgosReservedStorageRetry {
+function Get-TgosAfterRestartList {
     <#
     .SYNOPSIS
-        Mendaftarkan percobaan ulang "Reserved Storage OFF" saat startup berikutnya.
+        Langkah yang menunggu restart, dari %ProgramData%\TGOS\after-restart.txt.
+        Mengembalikan hashtable @{ Name; Attempts } per langkah (bisa kosong).
+    #>
+    $file = Join-Path $env:ProgramData 'TGOS\after-restart.txt'
+    $items = @()
+    if (Test-Path -LiteralPath $file) {
+        foreach ($line in @(Get-Content -LiteralPath $file -ErrorAction SilentlyContinue)) {
+            if ($line -match '^(?<step>[a-z0-9-]+)\|(?<attempts>\d+)$') {
+                $items += , @{ Name = $Matches['step']; Attempts = [int]$Matches['attempts'] }
+            }
+        }
+    }
+    return $items
+}
+
+function Set-TgosAfterRestartList {
+    <# Menulis daftar langkah yang menunggu restart; daftar kosong = file dihapus. #>
+    param([object[]]$Items)
+    $file = Join-Path (Get-TgosDataDirectory) 'after-restart.txt'
+    $lines = @($Items | Where-Object { $_ } | ForEach-Object { '{0}|{1}' -f $_.Name, $_.Attempts })
+    if ($lines.Count -gt 0) { Set-Content -LiteralPath $file -Value $lines -Encoding ASCII }
+    else { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }
+}
+
+function Register-TgosAfterRestartTask {
+    <#
+    .SYNOPSIS
+        Mendaftarkan tugas terjadwal tersembunyi \TGOS\Finish after restart, bila belum ada.
+        Mengembalikan $true bila tugas itu ada, $false bila TGOS Toolbox belum terpasang
+        (Install-Toolbox.ps1 mendaftarkannya nanti).
 
     .DESCRIPTION
-        Dipakai Invoke-DeepClean.ps1 bila Windows sedang memakai reserved storage untuk
-        operasi servicing (DISM 0x800F0975), yang biasanya selesai setelah restart.
-        Tugas terjadwal \TGOS\Reserved Storage Off berjalan sebagai SYSTEM (sesi 0, jadi
-        tanpa jendela), 2 menit setelah startup, menjalankan
-        Set-TgosFeature.ps1 -Feature ReservedStorage -State Off -FromStartupTask yang
-        terpasang di TGOS Toolbox. Skrip itu menghapus tugas ini setelah berhasil atau
-        setelah 3 percobaan.
+        Tugas itu berjalan sebagai SYSTEM (sesi 0, jadi tanpa jendela), 3 menit setelah
+        startup, dan menjalankan Complete-AfterRestart.ps1 dari TGOS Toolbox. Skrip itu
+        menghapus tugas ini begitu daftar langkahnya kosong. Tugas yang sudah ada tidak
+        didaftarkan ulang (bisa sedang berjalan).
     #>
-    $script = Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox\Support\Set-TgosFeature.ps1'
-    if (-not (Test-Path -LiteralPath $script)) { throw ('the TGOS Toolbox is not installed ({0})' -f $script) }
+    if (Get-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart' -ErrorAction SilentlyContinue) { return $true }
+    $script = Join-Path ('{0}\' -f $env:SystemDrive) 'TGOS Toolbox\Support\Complete-AfterRestart.ps1'
+    if (-not (Test-Path -LiteralPath $script)) { return $false }
     $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $argument = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -Feature ReservedStorage -State Off -FromStartupTask' -f $script
+    $argument = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}"' -f $script
     $action = New-ScheduledTaskAction -Execute $powershell -Argument $argument
     $trigger = New-ScheduledTaskTrigger -AtStartup
-    $trigger.Delay = 'PT2M'
+    $trigger.Delay = 'PT3M'
     $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -Hidden `
-        -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
-    Register-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Reserved Storage Off' -Action $action -Trigger $trigger `
+        -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+    Register-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart' -Action $action -Trigger $trigger `
         -Principal $principal -Settings $settings -Force `
-        -Description 'TGOS: turns reserved storage off once after a restart, then removes itself.' | Out-Null
+        -Description 'TGOS: finishes steps that had to wait for a restart, then removes itself.' | Out-Null
+    return $true
+}
+
+function Unregister-TgosAfterRestartTask {
+    <# Menghapus tugas \TGOS\Finish after restart, dan folder \TGOS bila sudah kosong. #>
+    Unregister-ScheduledTask -TaskPath '\TGOS\' -TaskName 'Finish after restart' -Confirm:$false -ErrorAction SilentlyContinue
+    try {
+        $scheduler = New-Object -ComObject 'Schedule.Service'
+        $scheduler.Connect()
+        $folder = $scheduler.GetFolder('\TGOS')
+        if ($folder.GetTasks(1).Count -eq 0 -and $folder.GetFolders(0).Count -eq 0) { $scheduler.GetFolder('\').DeleteFolder('TGOS', 0) }
+    }
+    catch { }
+}
+
+function Add-TgosAfterRestartItem {
+    <#
+    .SYNOPSIS
+        Menjadwalkan satu langkah untuk dicoba lagi otomatis setelah restart berikutnya.
+
+    .DESCRIPTION
+        Dipakai bila Windows sedang sibuk saat instalasi: reserved storage sedang dipakai
+        update (DISM 0x800F0975, Invoke-DeepClean.ps1) atau .NET Framework 3.5 tidak bisa
+        diunduh karena Windows Update sibuk (Install-Software.ps1). Mengembalikan $true bila
+        tugas startup sudah terdaftar (lihat Register-TgosAfterRestartTask).
+    #>
+    param(
+        [ValidateSet('reserved-storage', 'netfx3')]
+        [string]$Step
+    )
+    $items = @(Get-TgosAfterRestartList)
+    if (@($items | Where-Object { $_.Name -eq $Step }).Count -eq 0) {
+        $items += , @{ Name = $Step; Attempts = 0 }
+        Set-TgosAfterRestartList -Items $items
+    }
+    return (Register-TgosAfterRestartTask)
+}
+
+function Remove-TgosFolder {
+    <#
+    .SYNOPSIS
+        Menghapus satu folder beserta isinya, tanpa jendela.
+        Mengembalikan 'absent', 'removed', atau 'scheduled'.
+
+    .DESCRIPTION
+        File yang masih terkunci didaftarkan ke Windows untuk dihapus saat restart
+        berikutnya (MoveFileEx dengan MOVEFILE_DELAY_UNTIL_REBOOT, mekanisme resmi yang juga
+        dipakai installer; butuh hak admin). Folder yang berisi link (junction atau symlink)
+        tidak disentuh, supaya isi di luar folder itu tidak ikut terhapus.
+    #>
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return 'absent' }
+    $root = Get-Item -LiteralPath $Path -Force
+    $items = @(Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue)
+    if (($root.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+        @($items | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }).Count -gt 0) {
+        throw ('{0} contains a link; it was left as is' -f $Path)
+    }
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+    if (-not (Test-Path -LiteralPath $Path)) { return 'removed' }
+
+    if (-not ('Tgos.NativeFile' -as [type])) {
+        Add-Type -Namespace Tgos -Name NativeFile -MemberDefinition @'
+[DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+public static extern bool MoveFileEx(string lpExistingFileName, string lpNewFileName, int dwFlags);
+'@
+    }
+    # File dulu, lalu folder dari yang paling dalam: Windows menghapusnya berurutan.
+    $items = @(Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue)
+    $ordered = @($items | Where-Object { -not $_.PSIsContainer }) +
+        @($items | Where-Object { $_.PSIsContainer } | Sort-Object { $_.FullName.Length } -Descending)
+    foreach ($item in $ordered) {
+        [void][Tgos.NativeFile]::MoveFileEx($item.FullName, $null, 4)
+    }
+    [void][Tgos.NativeFile]::MoveFileEx($Path, $null, 4)
+    return 'scheduled'
 }
 
 function Remove-TgosChromiumProduct {
