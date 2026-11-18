@@ -836,6 +836,39 @@ pengguna tidak disentuh; folder dihapus dengan `rd /s /q` yang tidak mengikuti j
 playbook yang sedang berjalan dan folder AME dilewati. Deep clean+ (`Windows.old`,
 `/ResetBase`) dipisah karena tidak bisa dibatalkan.
 
+### 8.11 Revisi ketiga `1.0.0`: dari uji VM revisi kedua
+
+**Terminal bawaan selama instalasi** (`Set-ConsoleHost.ps1`). Pemilik melihat beberapa
+jendela kosong bergaya terminal di akhir instalasi, dengan Windows Terminal aktif di
+taskbar. Fakta yang terkumpul: (1) AME menjalankan tiap `!run` dengan
+`CreateNoWindow = true` (kode sumber AME, `RunAction.cs`), jadi langkah TGOS tidak membuat
+jendela konsol; (2) uji otomatis yang menjalankan mesin AME tanpa konsol seperti AME Wizard
+(`DETACHED_PROCESS`), dengan Windows Terminal 1.24 sebagai terminal bawaan, tidak melihat
+satu pun jendela; jejak proses menunjukkan semua konsol selama playbook tanpa jendela
+(PowerShell langkah TGOS, `ame-assassin.exe` milik AME, ngen/DISM milik servicing); (3)
+konsol tersembunyi dengan Windows Terminal 1.24 tetap tersembunyi; (4) teks status
+"Reticulating splines..." di screenshot bukan dari TGOS (status terakhir TGOS adalah
+"Finishing up"). Penyebab pasti di VM belum diketahui. Sebagai pengaman, terminal bawaan tiap
+akun yang login (dan SYSTEM) disetel ke Windows Console Host sesudah restore point dan
+dikembalikan persis sesudah langkah terakhir yang menjalankan ulang Explorer; catatan nilai
+lama tidak ditimpa bila instalasi sebelumnya berhenti di tengah. Potret sistem mencatat
+versi Windows Terminal dan pengaturan terminal untuk laporan berikutnya.
+
+**.NET Framework 3.5.** DISM gagal di VM dengan `0x8024001E` (WU_E_SERVICE_STOP).
+`Install-Software.ps1` memastikan `wuauserv` berjalan (menolak bila Disabled, karena
+NetFx3 diunduh lewat layanan itu), lalu mencoba sekali lagi sesudah layanan dijalankan
+ulang dan jeda 30 detik; baris `, Error` terakhir dari `dism.log` ikut di pesan. Terbukti
+di uji otomatis: tombol Toolbox memasang .NET 3.5 saat update di-pause.
+
+**Reserved Storage.** `0x800F0975`: cadangan sedang dipakai operasi servicing (VM baru masih
+menyiapkan update sebelum TGOS mem-pause-nya). `Invoke-DeepClean.ps1` mendaftarkan
+`\TGOS\Reserved Storage Off` (SYSTEM, saat startup + 2 menit, Hidden, batas 30 menit) yang
+menjalankan `Set-TgosFeature.ps1 -Feature ReservedStorage -State Off -FromStartupTask`;
+skrip itu menghapus tugasnya setelah berhasil, bila tidak didukung, atau setelah 3
+percobaan (penghitung di `ProgramData\TGOS\reserved-storage-retry.txt`), dan juga saat
+pengguna memakai tombol Toolbox Reserved Storage. Kondisi "sedang dipakai" tidak bisa
+dibuat di runner; pendaftaran dan penghapusan-diri diuji langsung.
+
 ## 9. Yang sengaja tidak dilakukan
 
 - Tidak mengutak-atik aktivasi atau lisensi Windows.

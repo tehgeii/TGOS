@@ -174,6 +174,18 @@ $restorePoints = Invoke-Section 'restorePoints' {
     @(Get-ComputerRestorePoint | ForEach-Object { [string]$_.Description })
 }
 
+# Terminal bawaan dan versi Windows Terminal untuk akun ini (diagnosa jendela konsol yang
+# terlihat saat instalasi; uji VM revisi kedua 1.0.0).
+$terminal = Invoke-Section 'terminal' {
+    $startup = Get-ItemProperty -LiteralPath 'HKCU:\Console\%%Startup' -ErrorAction SilentlyContinue
+    $package = Get-AppxPackage -Name 'Microsoft.WindowsTerminal' -ErrorAction SilentlyContinue | Select-Object -First 1
+    [ordered]@{
+        delegationConsole      = [string]$startup.DelegationConsole
+        delegationTerminal     = [string]$startup.DelegationTerminal
+        windowsTerminalVersion = $(if ($package) { [string]$package.Version } else { '' })
+    }
+}
+
 $defender = Invoke-Section 'defender' {
     $status = Get-MpComputerStatus
     [ordered]@{
@@ -257,6 +269,7 @@ $snapshot = [ordered]@{
     programs       = $programs
     startApps      = $startApps
     taskbarPins    = $taskbarPins
+    terminal       = $terminal
     errors         = $script:errors
 }
 
