@@ -960,6 +960,16 @@ ke `after-restart.txt`; `Complete-AfterRestart.ps1` memasangnya sebagai SYSTEM (
 Laporan verifikasi: WARN selama terjadwal. CI: 7-Zip dicopot, dijadwalkan, tugas dijalankan,
 7-Zip terpasang lagi.
 
+**Pemeriksa pintasan per pengguna.** Pintasan ke folder profil disimpan dengan variabel
+lingkungan (`%LOCALAPPDATA%`), jadi saat `Test-TgosResult.ps1` berjalan sebagai
+TrustedInstaller di akhir playbook, target-nya terbaca di profil SYSTEM. Program per pengguna
+dicocokkan dengan bagian jalurnya (`\AppData\Local\Discord\`), program per mesin dengan
+awalan folder program. `Confirm-ProgramShortcut` untuk program per pengguna hanya melihat
+Start/Desktop milik mesin dan akun itu sendiri.
+
+**Unduhan terputus** dicoba lagi sampai 3 kali dengan jeda 10 detik (bukan bila melewati
+batas waktu 15 menit).
+
 ## 9. Yang sengaja tidak dilakukan
 
 - Tidak mengutak-atik aktivasi atau lisensi Windows.

@@ -26,6 +26,8 @@ Framework 3.5 yang gagal saat instalasi terpasang otomatis setelah restart. Yang
 - Program per mesin (browser, runtime, .NET, launcher) yang tetap gagal saat instalasi
   sekarang dicoba lagi otomatis beberapa menit setelah restart, sama seperti .NET 3.5. Selama
   menunggu, laporan verifikasi memberi WARN, bukan FAIL.
+- Unduhan yang terputus di tengah jalan dicoba lagi sampai 3 kali (uji otomatis sempat
+  mengalami koneksi aka.ms yang terputus).
 
 Revisi keempat (setelah uji VM revisi ketiga):
 
